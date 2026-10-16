@@ -1,7 +1,7 @@
-[![CircleCI](https://circleci.com/gh/alexfalkowski/go-service-template.svg?style=svg)](https://circleci.com/gh/alexfalkowski/go-service-template)
-[![codecov](https://codecov.io/gh/alexfalkowski/go-service-template/graph/badge.svg?token=S9SPVVYQAY)](https://codecov.io/gh/alexfalkowski/go-service-template)
-[![Go Report Card](https://goreportcard.com/badge/github.com/alexfalkowski/go-service-template)](https://goreportcard.com/report/github.com/alexfalkowski/go-service-template)
-[![Go Reference](https://pkg.go.dev/badge/github.com/alexfalkowski/go-service-template.svg)](https://pkg.go.dev/github.com/alexfalkowski/go-service-template)
+[![CircleCI](https://circleci.com/gh/alexfalkowski/abgleich.svg?style=svg)](https://circleci.com/gh/alexfalkowski/abgleich)
+[![codecov](https://codecov.io/gh/alexfalkowski/abgleich/graph/badge.svg?token=S9SPVVYQAY)](https://codecov.io/gh/alexfalkowski/abgleich)
+[![Go Report Card](https://goreportcard.com/badge/github.com/alexfalkowski/abgleich)](https://goreportcard.com/report/github.com/alexfalkowski/abgleich)
+[![Go Reference](https://pkg.go.dev/badge/github.com/alexfalkowski/abgleich.svg)](https://pkg.go.dev/github.com/alexfalkowski/abgleich)
 [![Stability: Active](https://masterminds.github.io/stability/active.svg)](https://masterminds.github.io/stability/active.html)
 
 # Service

@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/alexfalkowski/go-service-template/internal/cmd"
+	"github.com/alexfalkowski/abgleich/internal/cmd"
 	"github.com/alexfalkowski/go-service/v2/cli"
 	"github.com/alexfalkowski/go-service/v2/context"
 	"github.com/alexfalkowski/go-service/v2/os"
