@@ -179,6 +179,15 @@ jobs:
           command: echo "$DOCKERHUB_PASS" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
       - run: make manifest-docker
     resource_class: arm.large
+  deploy:
+    executor: release
+    working_directory: ~/abgleich
+    steps:
+      - checkout-submodules
+      - attach_workspace:
+          at: /tmp/workspace
+      - run: deploy
+    resource_class: arm.large
 
 workflows:
   abgleich:
@@ -231,6 +240,13 @@ workflows:
           filters:
             branches:
               only: master
+      - deploy:
+          context: gh
+          requires:
+            - manifest-docker
+          filters:
+            branches:
+              only: master
       - wait-all:
           requires:
             - build-service
@@ -241,3 +257,4 @@ workflows:
             - release-docker-amd64
             - release-docker-arm64
             - manifest-docker
+            - deploy
