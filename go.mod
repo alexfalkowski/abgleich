@@ -1,12 +1,10 @@
-module github.com/alexfalkowski/go-service-template
+module github.com/alexfalkowski/abgleich
 
 go 1.27.0
 
 require (
 	github.com/alexfalkowski/go-health/v2 v2.41.0
 	github.com/alexfalkowski/go-service/v2 v2.802.0
-	google.golang.org/grpc v1.84.0
-	google.golang.org/protobuf v1.36.12
 )
 
 require (
@@ -132,4 +130,6 @@ require (
 	golang.org/x/text v0.43.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20261005182115-fad411399dd8 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20261012220534-4341edf3f941 // indirect
+	google.golang.org/grpc v1.84.0 // indirect
+	google.golang.org/protobuf v1.36.12 // indirect
 )

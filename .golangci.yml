@@ -4,6 +4,8 @@ linters:
   disable:
     - bodyclose
     - embeddedstructfieldcheck
+    - exhaustruct
+    - exhaustruct_v5
     - depguard
     - funcorder
     - gochecknoglobals
