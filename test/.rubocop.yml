@@ -1,0 +1,16 @@
+AllCops:
+  TargetRubyVersion: 4.0
+  DisplayCopNames: true
+  NewCops: enable
+  Exclude:
+    - "vendor/**/*"
+    - "lib/**/*_pb.rb"
+
+Layout/LineLength:
+  Max: 140
+
+Style/NumericPredicate:
+  Enabled: false
+
+Style/Documentation:
+  Enabled: false

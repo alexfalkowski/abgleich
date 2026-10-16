@@ -1,0 +1,41 @@
+version: "2"
+linters:
+  default: all
+  disable:
+    - bodyclose
+    - embeddedstructfieldcheck
+    - depguard
+    - funcorder
+    - gochecknoglobals
+    - goconst
+    - gomodguard
+    - gomodguard_v2
+    - nlreturn
+    - noinlineerr
+    - paralleltest
+    - tagalign
+    - wrapcheck
+    - wsl
+    - wsl_v5
+  settings:
+    lll:
+      line-length: 140
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    paths:
+      - .*\.pb*
+formatters:
+  enable:
+    - gci
+    - gofmt
+    - gofumpt
+    - goimports
+  exclusions:
+    generated: lax
+    paths:
+      - .*\.pb*
