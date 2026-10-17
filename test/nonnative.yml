@@ -2,6 +2,13 @@ version: "1.0"
 name: abgleich
 url: http://localhost:11000
 log: reports/nonnative.log
+servers:
+  - name: github
+    class: Abgleich::GitHubServer
+    timeout: 5
+    host: 127.0.0.1
+    ports: [11001]
+    log: reports/github.log
 processes:
   - name: server
     go:
