@@ -1,12 +1,25 @@
 environment: development
+github:
+  client:
+    timeout: 1m
+    retry:
+      attempts: 2
+      backoff: 10ms
+  owner: alexfalkowski
+  repository: infraops
+  token: file:secrets/github-token
+  url: http://localhost:11001/
+scheduler:
+  interval: 1s
+  timeout: 2s
 health:
-  duration: 1s
+  duration: 50ms
   timeout: 1s
 id:
   kind: uuid
 telemetry:
   logger:
-    kind: text
+    kind: json
     level: debug
   metrics:
     kind: prometheus
@@ -16,8 +29,4 @@ telemetry:
 transport:
   http:
     address: tcp://:11000
-    limiter:
-      kind: service-method
-      tokens: 1000
-      interval: 1s
     timeout: 5s
