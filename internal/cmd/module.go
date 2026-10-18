@@ -1,8 +1,11 @@
 package cmd
 
 import (
+	"github.com/alexfalkowski/abgleich/internal/automerge"
 	"github.com/alexfalkowski/abgleich/internal/config"
+	"github.com/alexfalkowski/abgleich/internal/github"
 	"github.com/alexfalkowski/abgleich/internal/health"
+	"github.com/alexfalkowski/abgleich/internal/scheduler"
 	"github.com/alexfalkowski/go-service/v2/di"
 	"github.com/alexfalkowski/go-service/v2/module"
 )
@@ -11,5 +14,8 @@ import (
 var Module = di.Module(
 	module.Server,
 	config.Module,
+	github.Module,
+	automerge.Module,
+	scheduler.Module,
 	health.Module,
 )
