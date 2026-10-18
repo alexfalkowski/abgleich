@@ -1,6 +1,18 @@
 package github
 
-import "github.com/alexfalkowski/go-service/v2/errors"
+import (
+	"github.com/alexfalkowski/go-service/v2/errors"
+	"github.com/google/go-github/v93/github"
+)
+
+// Repository aliases [github.Repository] to keep SDK imports in this package.
+type Repository = github.Repository
+
+// PullRequest aliases [github.PullRequest] so consumers use the project-owned package.
+type PullRequest = github.PullRequest
+
+// CommitsComparison aliases [github.CommitsComparison] so consumers use the project-owned package.
+type CommitsComparison = github.CommitsComparison
 
 // UpdatePullRequestBranchInput supplies GitHub's branch-update arguments.
 // ExpectedHeadOID rejects concurrent head changes; UpdateMethod selects REBASE
@@ -33,6 +45,7 @@ type UpdatePullRequestBranchResponse struct {
 	} `json:"data"`
 	Errors []struct {
 		Message string `json:"message"`
+		Type    string `json:"type"`
 	} `json:"errors"`
 }
 
@@ -42,6 +55,10 @@ func (r *UpdatePullRequestBranchResponse) Validate(expectedID string) error {
 	var failures error
 	for _, failure := range r.Errors {
 		failures = errors.Join(failures, errors.New(failure.Message))
+
+		if failure.Type == "RATE_LIMITED" || rateLimitMessage(failure.Message) {
+			failures = errors.Join(failures, ErrRateLimited)
+		}
 	}
 
 	if failures != nil {

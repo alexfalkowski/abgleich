@@ -5,14 +5,16 @@
 
 # 🔄 Abgleich
 
-Abgleich is a background worker that keeps auto-merge pull requests in
-[infraops](https://github.com/alexfalkowski/infraops) current with their base branches.
+Abgleich is a background worker that keeps auto-merge pull requests across a
+GitHub account's repositories current with their base branches.
 
 ## 🎯 Background
 
 An open, non-draft pull request is stale when its branch is missing commits from
 its base branch. Age does not affect eligibility. Only pull requests with
-auto-merge enabled and both branches in the configured repository are updated.
+auto-merge enabled and both branches in the same discovered repository are updated.
+Public and private repositories visible to the owner's token are discovered on
+each run. Archived, disabled, and repositories owned by other accounts are skipped.
 
 ## 🚀 Quickstart
 
@@ -39,7 +41,7 @@ make build
 ### ▶️ Configure and start
 
 Save the example in **Configuration** below as `config.yaml`, choosing the GitHub
-owner and repository to manage. Supply a token with the permissions described
+personal account to manage. Supply that account's token with the permissions described
 under **Credentials**. The example reads it from `GITHUB_TOKEN`.
 
 If `GITHUB_TOKEN` is already exported in your shell, start the worker directly:
@@ -61,7 +63,7 @@ printf '\n'
 export GITHUB_TOKEN
 ```
 
-The worker begins checking the configured repository immediately. Leave it
+The worker begins checking the account's repositories immediately. Leave it
 running, and use another terminal to verify readiness:
 
 ```sh
@@ -74,8 +76,9 @@ whether a branch check succeeds.
 
 ## 🚀 Server
 
-The worker runs immediately on startup and, by default, every five minutes
-thereafter. It lists open pull requests through go-github, compares each eligible
+The worker runs immediately on startup and, by default, every fifteen minutes
+thereafter. It discovers all owned repositories before processing them serially.
+For each repository, it lists open pull requests through go-github, compares each eligible
 branch with its base, and asks GitHub to rebase stale branches using the GraphQL
 [`updatePullRequestBranch`](https://docs.github.com/en/graphql/reference/pulls#updatepullrequestbranch)
 mutation with `updateMethod: REBASE`. This is the server-side operation used by
@@ -85,7 +88,12 @@ Pull requests are rechecked immediately before the mutation. The mutation
 includes `expectedHeadOid`, so concurrent branch changes reject the update and
 are discovered on the next run. Conflicts reported by GitHub fail the branch and
 require an author to repair it. One failed branch does not prevent other
-eligible branches from being processed.
+eligible branches or repositories from being processed. After a timeout, the
+next scheduled sweep starts with fresh repository discovery.
+
+Discovery validates that the authenticated personal account matches `github.owner`.
+All repository pages must succeed before processing begins. Pull request pagination
+also finishes before any branches in that repository are updated.
 
 The process needs network access to the GitHub REST and GraphQL APIs. It does
 not clone repositories, execute Git, or need a writable checkout directory.
@@ -97,7 +105,7 @@ The `github` and `health` blocks are required. Both `health.duration` and
 also includes shared go-service settings for identifiers, logging, metrics, and
 the HTTP listener.
 
-Save it as `config.yaml` and adjust `github.owner` and `github.repository`:
+Save it as `config.yaml` and adjust `github.owner`:
 
 ```yaml
 environment: production
@@ -108,10 +116,9 @@ github:
       attempts: 2
       backoff: 100ms
   owner: alexfalkowski
-  repository: infraops
   token: env:GITHUB_TOKEN
 scheduler:
-  interval: 5m
+  interval: 15m
   timeout: 5m
 health:
   duration: 1s
@@ -130,13 +137,13 @@ transport:
     timeout: 5s
 ```
 
-Set `github.owner`, `github.repository`, and `github.token`. The schedule and
+Set `github.owner` and `github.token`. The schedule and
 HTTP client settings are optional:
 
 | Setting | Default | Purpose |
 | --- | --- | --- |
-| `scheduler.interval` | `5m` | Time between scheduled checks. |
-| `scheduler.timeout` | `5m` | Deadline for a complete check. |
+| `scheduler.interval` | `15m` | Time between owner-wide sweeps. |
+| `scheduler.timeout` | `5m` | Deadline for a complete owner-wide sweep. |
 | `github.client.timeout` | `1m` | Deadline for an individual HTTP request. |
 | `github.url` | `https://api.github.com/` | REST API origin; GraphQL uses `/graphql` on the same origin. |
 
@@ -151,10 +158,24 @@ Configured retries apply only to safe HTTP methods. GraphQL rebase mutations are
 never retried by the HTTP transport; a later scheduled run reads current GitHub
 state before deciding whether to request another update.
 
+### 🚦 API usage
+
+One shared go-github client processes repositories and pull requests serially.
+The fifteen-minute interval limits polling volume; there is no additional rate-limit
+library or configuration. If GitHub reports throttling, the current sweep stops
+instead of continuing through other repositories. go-github retains its built-in
+rate-limit checks, and a later scheduled run reads current state again.
+
+Personal access tokens share the account's API budget with other automation.
+Monitor repeated rate-limit failures and increase `scheduler.interval` if needed.
+
 ### 🔐 Credentials
 
-The token needs pull request write access and permission to update the head
-repository's contents. Repository rules can still reject a rebase. A source such as
+Use a personal access token belonging to `github.owner`, covering all repositories
+to manage, including private and newly created repositories. It needs pull request
+write access and permission to update repository contents. Repository rules can
+still reject a rebase. Repositories outside the token's access cannot be discovered.
+A source such as
 `file:/run/secrets/github-token` supports mounted secrets. Both REST and GraphQL
 requests use the same authenticated client. go-github restricts authentication
 to the configured API origin.
@@ -162,11 +183,6 @@ to the configured API origin.
 > [!IMPORTANT]
 > Credentials are read once at startup. Missing or empty tokens prevent startup.
 > Restart the worker after changing or restoring its token.
-
-### ♻️ Schedule configuration
-
-Existing configuration using `scheduler.automerge` or `github.schedule` must move
-the interval and timeout values directly under `scheduler`.
 
 ## 🩺 Health
 
@@ -198,7 +214,8 @@ Each completed run produces one log entry with `job`, `duration`, `interval`, an
 | Successful overrun | `warn` | The check succeeded but exceeded its interval. |
 | Failure | `error` | Includes the error, even when the check also overran. |
 
-Accepted rebase requests identify the pull request and branch. GraphQL errors
+Accepted rebase requests identify the repository, pull request, and branch. Failures
+include repository names and pull request numbers where available. GraphQL errors
 are failures even when the HTTP response is 200. A failed branch contributes to
 the run's failure outcome while other eligible branches continue to be processed.
 
@@ -233,8 +250,8 @@ image is sufficient.
 
 | Package | Responsibility |
 | --- | --- |
-| [`automerge`](internal/automerge/rebaser.go) | Eligibility rules, rebase decisions, and registration of the auto-merge job. |
-| [`github`](internal/github/repository.go) | Pull request snapshots, authenticated API access, pagination, and response validation. |
+| [`automerge`](internal/automerge/reconciler.go) | Eligibility rules, rebase decisions, and registration of the auto-merge job. |
+| [`github`](internal/github/service.go) | Owner-wide repository discovery, identity checks, authenticated API access, pagination, and response validation. |
 | [`scheduler`](internal/scheduler/scheduler.go) | Independent schedules, timeouts, overlap protection, outcome logs, and job lifecycle. |
 | [`cmd`](internal/cmd/module.go) | Composition of package modules. |
 
@@ -246,22 +263,24 @@ flowchart LR
     automerge --> scheduler
 ```
 
-`automerge.Rebaser.Rebase` uses `github.Repository` for remote reads, comparisons,
-and guarded rebase requests. The repository uses an injected `github.Client`,
+`automerge.Reconciler.Reconcile` asks `github.Service` for all repositories, then uses
+that service for pull request reads, identity checks, comparisons, and guarded
+rebase requests. `github.Repository` and pull request types alias SDK snapshots;
+they contain no service behavior. The service uses an injected `github.Client`,
 which aliases the go-github client. The GitHub module constructs it once through
 `github.NewClient`, with shared HTTP options and lifecycle dependencies injected.
 SDK imports stay inside `internal/github`.
 
-Logging is composed around operations. `github.NewRepository` wraps the API
-repository to report accepted rebases after response validation.
+Logging is composed around operations. `github.NewService` wraps the API service
+with a logging decorator to report accepted rebases after response validation.
 `Scheduler.Register` wraps each handler to report its outcome and overruns
 within the job's timeout.
 
 ### 🗓️ Job registration
 
 Each package registers construction in its own module. The
-[auto-merge module](internal/automerge/module.go) constructs the rebaser and
-registers `Rebase` as the `automerge` job. Other feature packages can register
+[auto-merge module](internal/automerge/module.go) constructs the reconciler and
+registers `Reconcile` as the `automerge` job. Other feature packages can register
 their own named handlers and schedules through `Scheduler.Register`. Registration
 finishes before startup, and duplicate names prevent application startup.
 Scheduler has no feature-package dependencies.
@@ -302,6 +321,8 @@ Nonnative starts the worker and a local fake GitHub REST and GraphQL API:
 
 - [Rebasing](test/features/automerge/rebase.feature) covers eligibility,
   pagination, conflicts, and concurrent changes.
+- [Repositories](test/features/automerge/repositories.feature) covers owner-wide
+  discovery, private repositories, failure isolation, throttling, and timeout recovery.
 - [Recovery](test/features/automerge/recovery.feature) covers GitHub failures,
   retries, and ambiguous mutation responses.
 - [Scheduling](test/features/automerge/schedule.feature) covers timeouts,

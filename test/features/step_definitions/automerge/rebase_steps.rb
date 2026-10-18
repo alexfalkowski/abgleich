@@ -98,6 +98,11 @@ Then('the branch check should fail') do
   expect_failed_check
 end
 
+Then('the branch check should fail without affecting worker health') do
+  expect_failed_check
+  expect_healthy_worker
+end
+
 Then('the worker should defer rebasing branch {string}') do |branch|
   wait_for { Abgleich.job_logs.first }.to include(
     'level' => 'error', 'error' => a_string_including('pull request changed before rebase; retry on the next run')

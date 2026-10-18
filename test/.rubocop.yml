@@ -9,6 +9,9 @@ AllCops:
 Layout/LineLength:
   Max: 140
 
+Metrics/ClassLength:
+  Max: 200
+
 Style/NumericPredicate:
   Enabled: false
 

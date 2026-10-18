@@ -16,7 +16,7 @@ without local checkpoints.
 | Package | Owns |
 | --- | --- |
 | `internal/cmd` | Command registration and composition of package modules. |
-| `internal/github` | API client, SDK aliases, repository identity, remote access, and response validation. |
+| `internal/github` | Service, API client, SDK aliases, owner-wide discovery, repository identity, remote access, and response validation. |
 | `internal/automerge` | Rebase eligibility, reconciliation decisions, and registration of its own job. |
 | `internal/scheduler` | Reusable named jobs, timing, overlap prevention, logging, and lifecycle. |
 | `internal/config` | Composition and injection of package-owned configuration. |
@@ -25,9 +25,11 @@ without local checkpoints.
 - Constructors belong in the packages owning their types; `cmd` composes their
   modules. Keep dependencies directed from `automerge` to `github` and
   `scheduler`. Neither dependency imports `automerge`.
-- Keep configured repository identity and case-insensitive ownership checks in
-  `github.Repository`. The rebaser receives the repository, not GitHub
-  configuration or a separately cached repository name.
+- Keep owner-wide discovery and case-insensitive repository identity checks in
+  `github.Service`. The reconciler receives the service and uses SDK repository
+  snapshots, not GitHub configuration or a separately cached repository name.
+- Keep accepted-rebase logging in the service's logging decorator, separate from
+  remote access and reconciliation decisions.
 
 ## Background jobs
 
@@ -55,7 +57,8 @@ without local checkpoints.
   Recheck eligibility, identity, and branch state before mutation, and include
   `expectedHeadOid` to guard concurrent author changes.
 - Only open, non-draft, auto-merge pull requests with both branches in the
-  configured repository are eligible. Finish pagination before mutating;
+  same discovered repository are eligible. Finish repository discovery and each
+  repository's pull request pagination before mutating;
   continue processing other pull requests after an individual failure.
 - HTTP retries apply only to safe methods. Do not automatically retry mutation
   requests; the next run reads current state after failures or ambiguous
@@ -64,7 +67,7 @@ without local checkpoints.
 
 ## Configuration and documentation
 
-- GitHub repository, credentials, and transport settings belong under `github`;
+- GitHub owner, credentials, and transport settings belong under `github`;
   the current job's interval and timeout are directly under `scheduler`.
   Keep HTTP request, complete job, and health-check timeouts independent.
 - Credentials are resolved once at startup through go-service sources. Missing
