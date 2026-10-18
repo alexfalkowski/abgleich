@@ -12,6 +12,8 @@ module Abgleich
 
   # Fake REST and GraphQL boundary; mutations reject stale expected head OIDs.
   class GitHubRepository
+    DEFAULT_REPOSITORY = 'alexfalkowski/infraops'
+
     attr_reader :raced_sha
 
     def initialize
@@ -22,28 +24,33 @@ module Abgleich
     def reset
       @mutex.synchronize do
         @generation = (@generation || 0) + 1
-        @state = { failure: nil, scans: 0, pagination: false, pulls: {}, behind: {}, original: {}, updates: [], details: Hash.new(0) }
+        @state = { failure: nil, scans: 0, pagination: false, pulls: {}, behind: {}, original: {}, updates: [], details: Hash.new(0),
+                   repositories: {}, repository_failures: {}, repository_pagination: false, discovery_complete: false,
+                   login: 'alexfalkowski', listed: {} }
+        @state[:repositories][DEFAULT_REPOSITORY] = repository_data(DEFAULT_REPOSITORY)
         @raced_sha = nil
         Abgleich.prepare_github_token('valid')
       end
     end
 
-    def add_pull(branch, **options)
-      @mutex.synchronize do
-        sha = Digest::SHA1.hexdigest("#{@generation}:#{branch}")
-        number = @state[:pulls].length + 1
-        @state[:original][branch] = sha
-        @state[:behind][sha] = options[:current] ? 0 : 1
-        @state[:pulls][number] = pull_data(branch, number, sha, options)
-      end
+    def add_repository(name, **)
+      @mutex.synchronize { @state[:repositories][name] = repository_data(name, **) }
     end
 
-    def fail_with(failure)
-      @mutex.synchronize { @state[:failure] = failure }
+    def clear_repositories
+      @mutex.synchronize { @state[:repositories].clear }
     end
 
-    def failure
-      @mutex.synchronize { @state[:failure] }
+    def authenticated_owner=(owner)
+      @mutex.synchronize { @state[:login] = owner }
+    end
+
+    def authenticated_owner
+      @mutex.synchronize { @state[:login] }
+    end
+
+    def paginate_repositories
+      @mutex.synchronize { @state[:repository_pagination] = true }
     end
 
     def paginate
@@ -54,19 +61,54 @@ module Abgleich
       @mutex.synchronize { { scans: @state[:scans], updates: @state[:updates].length } }
     end
 
-    def list(page)
+    def repositories(page)
       @mutex.synchronize do
-        @state[:scans] += 1 if page == 1
-        pulls = @state[:pulls].values
-        [@state[:pagination] ? pulls.slice(page - 1, 1).to_a : pulls, @state[:pagination] && page < pulls.length]
+        repositories = @state[:repositories].values.sort_by { |repo| repo[:full_name] }
+        more = @state[:repository_pagination] && page < repositories.length
+        @state[:discovery_complete] = !more
+        [@state[:repository_pagination] ? repositories.slice(page - 1, 1).to_a : repositories, more]
       end
     end
 
-    def pull(number)
+    def fail_repository(repository, failure)
+      @mutex.synchronize { @state[:repository_failures][repository] = failure }
+    end
+
+    def fail_with(failure)
+      @mutex.synchronize { @state[:failure] = failure }
+    end
+
+    def failure(repository = nil)
+      @mutex.synchronize { @state[:repository_failures][repository] || @state[:failure] }
+    end
+
+    def add_pull(branch, **options)
       @mutex.synchronize do
-        @state[:details][number] += 1
-        result = JSON.parse(@state[:pulls].fetch(number).to_json, symbolize_names: true)
-        result[:auto_merge] = nil if disabled?(number)
+        repository = options.fetch(:repository, DEFAULT_REPOSITORY)
+        sha = Digest::SHA1.hexdigest("#{@generation}:#{repository}:#{branch}")
+        number = @state[:pulls].keys.count { |name, _number| name == repository } + 1
+        @state[:original][[repository, branch]] = sha
+        @state[:behind][sha] = options[:current] ? 0 : 1
+        @state[:pulls][[repository, number]] = pull_data(repository, branch, number, sha, options)
+      end
+    end
+
+    def list(page, repository = DEFAULT_REPOSITORY)
+      @mutex.synchronize do
+        @state[:scans] += 1 if page == 1
+        pulls = @state[:pulls].select { |(name, _number), _pull| name == repository }.values
+        more = @state[:pagination] && page < pulls.length
+        @state[:listed][repository] = !more
+        [@state[:pagination] ? pulls.slice(page - 1, 1).to_a : pulls, more]
+      end
+    end
+
+    def pull(number, repository = DEFAULT_REPOSITORY)
+      @mutex.synchronize do
+        key = [repository, number]
+        @state[:details][key] += 1
+        result = JSON.parse(@state[:pulls].fetch(key).to_json, symbolize_names: true)
+        result[:auto_merge] = nil if disabled?(key)
         result[:node_id] = nil if @state[:failure] == 'missing node ID'
         result
       end
@@ -79,7 +121,7 @@ module Abgleich
     def update(input)
       @mutex.synchronize do
         pull = @state[:pulls].values.find { |item| item[:node_id] == input['pullRequestId'] }
-        return { errors: [{ message: 'Invalid rebase request' }] } unless pull && input['updateMethod'] == 'REBASE'
+        return { errors: [{ message: 'Invalid or premature rebase request' }] } unless valid_rebase?(input, pull)
 
         race(pull) if @state[:failure] == 'concurrent push'
         return { errors: [{ message: 'Head OID changed' }] } unless input['expectedHeadOid'] == pull.dig(:head, :sha)
@@ -90,12 +132,18 @@ module Abgleich
 
     def unchanged?
       @mutex.synchronize do
-        @state[:pulls].values.all? { |pull| @state[:original][pull.dig(:head, :ref)] == pull.dig(:head, :sha) }
+        @state[:pulls].all? do |(repository, _number), pull|
+          @state[:original][[repository, pull.dig(:head, :ref)]] == pull.dig(:head, :sha)
+        end
       end
     end
 
-    def rebased?(branch)
-      @mutex.synchronize { @state[:updates].any? { |input| input[:branch] == branch && input['updateMethod'] == 'REBASE' } }
+    def rebased?(branch, repository = DEFAULT_REPOSITORY)
+      @mutex.synchronize do
+        @state[:updates].any? do |input|
+          input[:branch] == branch && input[:repository] == repository && input['updateMethod'] == 'REBASE'
+        end
+      end
     end
 
     def concurrent_head_used?
@@ -104,15 +152,38 @@ module Abgleich
 
     private
 
-    def pull_data(branch, number, sha, options)
-      { number:, node_id: "PR_#{@generation}_#{number}", state: options.fetch(:state, 'open'), draft: options.fetch(:draft, false),
-        auto_merge: options.fetch(:auto_merge, true) ? { merge_method: 'squash' } : nil,
-        head: { ref: branch, sha:, repo: { full_name: options[:fork] ? 'someone/infraops' : 'alexfalkowski/infraops' } },
-        base: { ref: 'master', sha: 'b' * 40, repo: { full_name: 'alexfalkowski/infraops' } } }
-    end
-
     def disabled?(number)
       @state[:failure] == 'disabled auto-merge' || (@state[:failure] == 'disabled before rebase' && @state[:details][number] > 1)
+    end
+
+    def repository_data(full_name, **options)
+      owner, name = full_name.split('/')
+      { name:, full_name:, owner: { login: owner }, archived: options.fetch(:archived, false),
+        disabled: options.fetch(:disabled, false), private: options.fetch(:private, false) }
+    end
+
+    def valid_rebase?(input, pull)
+      pull && input['updateMethod'] == 'REBASE' && @state[:discovery_complete] && @state[:listed][pull.dig(:base, :repo, :full_name)]
+    end
+
+    def mutation_failure(pull)
+      failure = @state[:repository_failures][pull.dig(:base, :repo, :full_name)] || @state[:failure]
+
+      case failure
+      when 'graphql rate limit' then { errors: [{ type: 'RATE_LIMITED', message: 'Quota exhausted' }] }
+      when 'graphql secondary limit' then { errors: [{ message: 'You have exceeded a secondary rate limit' }] }
+      when 'partial mutation'
+        { data: { updatePullRequestBranch: { pullRequest: { id: pull[:node_id] } } }, errors: [{ message: 'Rebase failed' }] }
+      when 'mutation', "conflict:#{pull.dig(:head, :ref)}" then { errors: [{ message: 'Cannot rebase branch' }] }
+      end
+    end
+
+    def pull_data(repository, branch, number, sha, options)
+      { number:, node_id: "PR_#{@generation}_#{repository}_#{number}",
+        state: options.fetch(:state, 'open'), draft: options.fetch(:draft, false),
+        auto_merge: options.fetch(:auto_merge, true) ? { merge_method: 'squash' } : nil,
+        head: { ref: branch, sha:, repo: { full_name: options[:fork] ? 'someone/infraops' : repository } },
+        base: { ref: 'master', sha: 'b' * 40, repo: { full_name: repository } } }
     end
 
     def race(pull)
@@ -123,20 +194,19 @@ module Abgleich
     end
 
     def mutation_result(input, pull)
-      failure = @state[:failure]
-      if failure == 'partial mutation'
-        return { data: { updatePullRequestBranch: { pullRequest: { id: pull[:node_id] } } }, errors: [{ message: 'Rebase failed' }] }
-      end
-      return { errors: [{ message: 'Cannot rebase branch' }] } if ['mutation', "conflict:#{pull.dig(:head, :ref)}"].include?(failure)
+      failure = mutation_failure(pull)
+      return failure if failure
 
       pull[:head][:sha] = Digest::SHA1.hexdigest("rebased:#{input['expectedHeadOid']}")
       @state[:behind][pull.dig(:head, :sha)] = 0
-      @state[:updates] << input.merge(branch: pull.dig(:head, :ref))
+      @state[:updates] << input.merge(branch: pull.dig(:head, :ref), repository: pull.dig(:base, :repo, :full_name))
       { data: { updatePullRequestBranch: { pullRequest: { id: pull[:node_id] } } } }
     end
   end
 
   class GitHubService < Nonnative::HTTPService
+    SECONDARY_LIMIT_URL = 'https://docs.github.com/rest/overview/resources-in-the-rest-api#secondary-rate-limits'
+
     class << self
       def reset_request_counts
         @request_mutex ||= Mutex.new
@@ -180,27 +250,53 @@ module Abgleich
       end
     end
 
-    get '/repos/alexfalkowski/infraops/pulls' do
+    get '/user' do
+      { login: Abgleich.github.authenticated_owner }.to_json
+    end
+
+    get '/user/repos' do
+      halt 400 unless params['affiliation'] == 'owner' && params['visibility'] == 'all'
+      page = params.fetch('page', '1').to_i
+      halt 503 if Abgleich.github.failure == 'discovery' || (page > 1 && Abgleich.github.failure == 'discovery page')
+
+      repositories, more = Abgleich.github.repositories(page)
+      headers 'Link' => "<http://localhost:11001/user/repos?page=#{page + 1}&affiliation=owner&visibility=all>; rel=\"next\"" if more
+      repositories.to_json
+    end
+
+    get '/repos/:owner/:repository/pulls' do
       GitHubService.track_scan do
-        pulls, more = Abgleich.github.list(params.fetch('page', '1').to_i)
-        failure = Abgleich.github.failure
+        repository = "#{params.fetch('owner')}/#{params.fetch('repository')}"
+        page = params.fetch('page', '1').to_i
+        pulls, more = Abgleich.github.list(page, repository)
+        failure = Abgleich.github.failure(repository)
         if failure == 'temporary list'
           Abgleich.github.fail_with(nil)
           halt 503
         end
         halt 503 if failure == 'list'
+        if (limit = rate_limit_response(failure))
+          code, payload, rate_headers = limit
+          headers rate_headers
+          halt code, payload.to_json
+        end
+
+        halt 403, { message: 'You have exceeded a secondary rate limit' }.to_json if failure == 'secondary rate limit without metadata'
+
+        halt 403, { message: 'Resource not accessible by personal access token' }.to_json if failure == 'permission'
         halt 200, '{' if failure == 'malformed response'
         sleep 1.1 if failure == 'slow list'
         sleep 3 if failure == 'timeout'
-        headers 'Link' => '<http://localhost:11001/repos/alexfalkowski/infraops/pulls?page=2>; rel="next"' if more
+        headers 'Link' => "<http://localhost:11001/repos/#{repository}/pulls?page=#{page + 1}>; rel=\"next\"" if more
         pulls.to_json
       end
     end
 
-    get '/repos/alexfalkowski/infraops/pulls/:number' do
+    get '/repos/:owner/:repository/pulls/:number' do
       failure = Abgleich.github.failure
       halt 503 if failure == 'pull request'
-      pull = Abgleich.github.pull(params.fetch('number').to_i)
+      repository = "#{params.fetch('owner')}/#{params.fetch('repository')}"
+      pull = Abgleich.github.pull(params.fetch('number').to_i, repository)
       if failure&.start_with?('changed:')
         *path, key = failure.delete_prefix('changed:').split('.').map(&:to_sym)
         parent = path.reduce(pull) { |snapshot, field| snapshot.fetch(field) }
@@ -210,7 +306,7 @@ module Abgleich
       pull.to_json
     end
 
-    get '/repos/alexfalkowski/infraops/compare/:range' do
+    get '/repos/:owner/:repository/compare/:range' do
       failure = Abgleich.github.failure
       halt 503 if failure == 'comparison'
       halt 200, '{}' if failure == 'missing comparison'
@@ -235,6 +331,23 @@ module Abgleich
         halt 503
       end
       result.to_json
+    end
+
+    private
+
+    def rate_limit_response(failure)
+      case failure
+      when 'rate limit'
+        [429, { message: 'Rate limit exceeded' }, { 'Retry-After' => '1' }]
+      when 'primary rate limit'
+        [403, { message: 'API rate limit exceeded' }, primary_limit_headers]
+      when 'secondary rate limit'
+        [403, { message: 'Secondary rate limit', documentation_url: SECONDARY_LIMIT_URL }, { 'Retry-After' => '1' }]
+      end
+    end
+
+    def primary_limit_headers
+      { 'X-RateLimit-Limit' => '5000', 'X-RateLimit-Remaining' => '0', 'X-RateLimit-Reset' => (Time.now.to_i + 2).to_s }
     end
   end
 

@@ -6,7 +6,6 @@ github:
       attempts: 2
       backoff: 10ms
   owner: alexfalkowski
-  repository: infraops
   token: file:secrets/github-token
   url: http://localhost:11001/
 scheduler:
