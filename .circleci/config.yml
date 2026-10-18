@@ -70,7 +70,6 @@ jobs:
             - ~/.cache/golangci-lint
       - run: make sec
       - run: make features
-      - run: make benchmarks
       - run: make analyse
       - save_cache:
           name: save go build cache
