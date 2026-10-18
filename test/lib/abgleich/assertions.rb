@@ -16,6 +16,11 @@ module Abgleich
       wait_for { Abgleich.job_logs.last }.to include('level' => 'error', 'error' => a_string_matching(/.+/))
     end
 
+    # Skipped, rejected, and unconfirmed updates must not be reported as accepted.
+    def expect_no_accepted_rebases
+      expect(Abgleich.rebase_logs).to be_empty, 'expected no accepted rebase requests in the worker logs'
+    end
+
     # Identify the affected probe when a GitHub failure disrupts process health.
     def expect_healthy_worker
       %i[health readiness liveness].each do |probe|

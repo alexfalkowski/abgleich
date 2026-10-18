@@ -7,21 +7,19 @@ import (
 	"github.com/alexfalkowski/go-service/v2/context"
 	"github.com/alexfalkowski/go-service/v2/errors"
 	"github.com/alexfalkowski/go-service/v2/strings"
-	"github.com/alexfalkowski/go-service/v2/telemetry/logger"
 )
 
 // NewRebaser constructs a rebaser for the configured GitHub repository. The repository
 // supplies fresh snapshots on each invocation, allowing recovery after failures
 // without keeping local checkpoints.
-func NewRebaser(repository *github.Repository, log *logger.Logger) *Rebaser {
-	return &Rebaser{repository: repository, logger: log}
+func NewRebaser(repository github.Repository) *Rebaser {
+	return &Rebaser{repository: repository}
 }
 
 // Rebaser keeps non-draft, same-repository auto-merge branches current with
 // their bases. It continues processing other pull requests after a failure.
 type Rebaser struct {
-	repository *github.Repository
-	logger     *logger.Logger
+	repository github.Repository
 }
 
 // Rebase discovers current pull requests and requests rebases for stale eligible
@@ -97,13 +95,7 @@ func (r *Rebaser) requestRebase(ctx context.Context, expected *github.PullReques
 		return errors.New("pull request changed before rebase; retry on the next run")
 	}
 
-	if err := r.repository.Rebase(ctx, current); err != nil {
-		return err
-	}
-
-	r.logger.Info("requested pull request rebase", "pull_request", current.GetNumber(), "branch", currentHead.GetRef())
-
-	return nil
+	return r.repository.Rebase(ctx, current)
 }
 
 func (r *Rebaser) eligible(pull *github.PullRequest) bool {

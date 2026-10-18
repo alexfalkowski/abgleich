@@ -252,6 +252,11 @@ which aliases the go-github client. The GitHub module constructs it once through
 `github.NewClient`, with shared HTTP options and lifecycle dependencies injected.
 SDK imports stay inside `internal/github`.
 
+Logging is composed around operations. `github.NewRepository` wraps the API
+repository to report accepted rebases after response validation.
+`Scheduler.Register` wraps each handler to report its outcome and overruns
+within the job's timeout.
+
 ### 🗓️ Job registration
 
 Each package registers construction in its own module. The
