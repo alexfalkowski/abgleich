@@ -12,12 +12,19 @@ require 'abgleich/github'
 module Abgleich
   class << self
     # Ignore an incomplete final line while the service is writing a log record.
-    def job_logs
+    def logs
       path = Nonnative.configuration.process_by_name('server').log
-      Nonnative.log_lines(path, ->(line) { line.start_with?('{') && line.end_with?("\n") }).filter_map do |line|
-        record = JSON.parse(line)
-        record if record['job'] == 'automerge'
+      Nonnative.log_lines(path, ->(line) { line.start_with?('{') && line.end_with?("\n") }).map do |line|
+        JSON.parse(line)
       end
+    end
+
+    def job_logs
+      logs.select { |record| record['job'] == 'automerge' }
+    end
+
+    def rebase_logs
+      logs.select { |record| record['msg'] == 'requested pull request rebase' }
     end
 
     # Apply changes while stopped, then rebuild Nonnative runners before starting again.

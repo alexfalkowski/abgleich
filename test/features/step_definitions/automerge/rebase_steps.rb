@@ -68,11 +68,19 @@ Then('the branches should have these outcomes:') do |table|
   end
 end
 
+Then('the worker should report these accepted rebases:') do |table|
+  expected = table.hashes.map do |row|
+    a_hash_including('level' => 'info', 'pull_request' => Integer(row['pull request']), 'branch' => row['branch'])
+  end
+  wait_for { Abgleich.rebase_logs }.to contain_exactly(*expected)
+end
+
 Then('branch {string} should remain unchanged') do |branch|
   expected_scans = Abgleich.github.progress.fetch(:scans) + 2
   wait_for { Abgleich.github.progress.fetch(:scans) }.to be >= expected_scans, 'expected two more checks to observe unchanged branches'
   expect(Abgleich.github.unchanged?).to be(true), 'expected all branch commits to remain unchanged'
   expect(Abgleich.github.rebased?(branch)).to be(false), "expected branch #{branch} to remain unchanged"
+  expect_no_accepted_rebases
 end
 
 Then('branch {string} should be rebased only once') do |branch|
@@ -96,6 +104,7 @@ Then('the worker should defer rebasing branch {string}') do |branch|
   )
   expect(Abgleich.github.rebased?(branch)).to be(false), "branch #{branch} was rebased despite the changed pull request"
   expect(Abgleich::GitHubService.request_counts.fetch(:mutation_requests)).to eq(0), 'GitHub received a rebase after the failed recheck'
+  expect_no_accepted_rebases
 end
 
 Then('the worker should remain healthy') do

@@ -2,22 +2,20 @@ package scheduler
 
 import (
 	"github.com/alexfalkowski/go-service/v2/context"
-	"github.com/alexfalkowski/go-service/v2/telemetry/logger"
 	"github.com/alexfalkowski/go-service/v2/time"
 	"github.com/alexfalkowski/go-sync"
 )
 
 // NewJob constructs a job whose handler observes cancellation and returns its
-// complete run outcome. Outcomes and overruns are logged after each run.
-func NewJob(name string, cfg *Config, handler sync.Handler, log *logger.Logger) *Job {
-	return &Job{name: name, config: cfg, handler: handler, logger: log}
+// complete run outcome. Register through Scheduler.Register to add outcome logging.
+func NewJob(name string, cfg *Config, handler sync.Handler) *Job {
+	return &Job{name: name, config: cfg, handler: handler}
 }
 
-// Job runs a scheduled operation and logs its outcome.
+// Job runs a scheduled operation with a timeout and overlap protection.
 // Construct it with NewJob and connect Start and Stop to the service lifecycle.
 type Job struct {
 	handler sync.Handler
-	logger  *logger.Logger
 	config  *Config
 	cancel  context.CancelFunc
 	stopped chan struct{}
@@ -82,28 +80,6 @@ func (j *Job) run(ctx context.Context) {
 		ctx, cancel := context.WithTimeout(ctx, j.config.GetTimeout())
 		defer cancel()
 
-		started := time.Now()
-
-		err := j.handler(ctx)
-		if err == nil {
-			err = context.Cause(ctx)
-		}
-
-		j.logRun(ctx, time.Since(started), err)
+		_ = j.handler(ctx)
 	})
-}
-
-func (j *Job) logRun(ctx context.Context, duration time.Duration, err error) {
-	interval := j.config.GetInterval()
-	overrun := duration > interval
-
-	message := logger.NewMessage("job finished", err)
-	level := message.Level()
-	if err == nil && overrun {
-		level = logger.LevelWarn
-	}
-
-	j.logger.LogAttrs(ctx, level, message,
-		logger.String("job", j.name), logger.String("duration", duration.String()),
-		logger.String("interval", interval.String()), logger.Bool("overrun", overrun))
 }

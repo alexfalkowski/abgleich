@@ -8,6 +8,9 @@ Feature: Auto-merge branch rebasing
     When the worker checks auto-merge branches
     Then branch "team/feature" should be rebased
     And the branch check should succeed
+    And the worker should report these accepted rebases:
+      | pull request | branch       |
+      | 1            | team/feature |
 
   Scenario Outline: Leave ineligible branches alone
     Given the pull request for branch "feature" is "<condition>"
@@ -60,6 +63,9 @@ Feature: Auto-merge branch rebasing
       | branch  | outcome     |
       | ready   | rebased     |
       | blocked | not rebased |
+    And the worker should report these accepted rebases:
+      | pull request | branch |
+      | 2            | ready  |
 
   Scenario: Preserve concurrent author changes
     Given an author's commit interrupted the rebase of branch "feature"

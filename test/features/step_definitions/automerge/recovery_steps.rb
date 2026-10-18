@@ -26,6 +26,7 @@ Given('the worker could not rebase branch {string} because {string}') do |branch
   Nonnative.start
   expect_failed_check
   expect(Abgleich.github.unchanged?).to be(true), 'expected GitHub failure to leave branch commits unchanged'
+  expect_no_accepted_rebases
   expect_healthy_worker
 end
 
@@ -35,6 +36,7 @@ Given('GitHub rebased branch {string} without confirming it to the worker') do |
   Nonnative.start
   expect_failed_check
   wait_for { Abgleich.github.rebased?(branch) }.to be(true)
+  expect_no_accepted_rebases
 end
 
 When('GitHub becomes available again') do
