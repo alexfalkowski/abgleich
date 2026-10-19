@@ -1,5 +1,5 @@
-// Package automerge keeps eligible pull request branches current with their
-// bases. Reconciler owns eligibility and rebase decisions, using the github package
-// for remote pull request state and guarded rebase requests. Module registers
-// Reconcile with the shared scheduler as the automerge job.
+// Package automerge enables auto-merge or merges ready Dependabot PRs and keeps
+// eligible branches current in opted-in repositories. Reconciler owns policy;
+// github owns remote state and mutations. Module registers Reconcile with the
+// shared scheduler as the automerge job.
 package automerge

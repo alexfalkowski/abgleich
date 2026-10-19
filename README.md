@@ -5,16 +5,24 @@
 
 # 🔄 Abgleich
 
-Abgleich is a background worker that keeps auto-merge pull requests across a
-GitHub account's repositories current with their base branches.
+Abgleich is a background worker that enables auto-merge or merges ready
+Dependabot pull requests and keeps auto-merge branches current across a GitHub
+account's opted-in repositories.
 
 ## 🎯 Background
 
 An open, non-draft pull request is stale when its branch is missing commits from
 its base branch. Age does not affect eligibility. Only pull requests with
-auto-merge enabled and both branches in the same discovered repository are updated.
+auto-merge enabled and both branches in the same discovered repository are rebased.
 Public and private repositories visible to the owner's token are discovered on
-each run. Archived, disabled, and repositories owned by other accounts are skipped.
+each run. Archived, disabled, foreign, and repositories without **Allow auto-merge**
+enabled are skipped entirely. That repository setting is the opt-in for the worker.
+
+For Dependabot PRs, the worker also enables squash auto-merge while requirements
+are pending, or requests a squash merge when GitHub reports the PR ready. It
+identifies Dependabot by the PR author `dependabot[bot]`, independent of branch
+names. Draft, closed, and fork PRs are excluded. Other authors must enable
+auto-merge themselves; the worker only rebases their eligible branches.
 
 ## 🚀 Quickstart
 
@@ -84,9 +92,23 @@ branch with its base, and asks GitHub to rebase stale branches using the GraphQL
 mutation with `updateMethod: REBASE`. This is the server-side operation used by
 GitHub's update-with-rebase UI and CLI. GitHub performs the branch update.
 
-Pull requests are rechecked immediately before the mutation. The mutation
-includes `expectedHeadOid`, so concurrent branch changes reject the update and
-are discovered on the next run. Conflicts reported by GitHub fail the branch and
+Before listing PRs, the worker reads the full repository settings; GitHub's
+repository list omits merge settings. Dependabot automation uses GraphQL
+[`enablePullRequestAutoMerge`](https://docs.github.com/en/graphql/reference/pulls#enablepullrequestautomerge)
+with `mergeMethod: SQUASH`, or the REST merge API with `merge_method: squash`
+and the expected head SHA. Immediate merges require `mergeable: true` and
+`mergeable_state: clean`; unknown or failing check states never trigger an
+immediate merge. GitHub still enforces checks, reviews, and repository rules.
+The worker does not approve reviews or request rule bypasses.
+
+Each sweep attempts at most one mutation per PR. After enabling auto-merge,
+a later sweep can rebase a stale branch. If squash merging is disabled, the
+Dependabot action fails with an operator-visible error instead of choosing
+another merge method. Other authors' auto-merge PRs retain their selected method.
+
+Pull requests are rechecked immediately before each mutation. Rebases include
+`expectedHeadOid` and immediate merges include `sha`, so concurrent branch changes
+reject those requests and are discovered on the next run. Conflicts reported by GitHub fail the branch and
 require an author to repair it. One failed branch does not prevent other
 eligible branches or repositories from being processed. After a timeout, the
 next scheduled sweep starts with fresh repository discovery.
@@ -154,9 +176,9 @@ above. Negative schedule durations are invalid.
 
 GitHub HTTP transport settings live under `github.client`: timeout, retries,
 circuit breaking, and TLS. Retries and circuit breaking remain disabled unless configured.
-Configured retries apply only to safe HTTP methods. GraphQL rebase mutations are
-never retried by the HTTP transport; a later scheduled run reads current GitHub
-state before deciding whether to request another update.
+Configured retries apply only to safe HTTP methods. Rebase, auto-merge, and merge
+mutations are never retried by the HTTP transport; a later scheduled run reads
+current GitHub state before deciding whether another action is needed.
 
 ### 🚦 API usage
 
@@ -172,9 +194,12 @@ Monitor repeated rate-limit failures and increase `scheduler.interval` if needed
 ### 🔐 Credentials
 
 Use a personal access token belonging to `github.owner`, covering all repositories
-to manage, including private and newly created repositories. It needs pull request
-write access and permission to update repository contents. Repository rules can
-still reject a rebase. Repositories outside the token's access cannot be discovered.
+to manage, including private and newly created repositories. A fine-grained token
+needs **Pull requests: read and write** and **Contents: read and write**.
+Enable **Allow auto-merge** on each repository to opt in, and **Allow squash
+merging** for Dependabot automation. Required checks and reviews must still pass;
+repository rules can reject a rebase or merge. Repositories outside the token's
+access cannot be discovered.
 A source such as
 `file:/run/secrets/github-token` supports mounted secrets. Both REST and GraphQL
 requests use the same authenticated client. go-github restricts authentication
@@ -214,7 +239,9 @@ Each completed run produces one log entry with `job`, `duration`, `interval`, an
 | Successful overrun | `warn` | The check succeeded but exceeded its interval. |
 | Failure | `error` | Includes the error, even when the check also overran. |
 
-Accepted rebase requests identify the repository, pull request, and branch. Failures
+Accepted rebase requests, enabled auto-merges, and confirmed merges identify the
+repository, pull request, and branch. Their messages are `requested pull request rebase`,
+`enabled pull request auto-merge`, and `merged pull request`, respectively. Failures
 include repository names and pull request numbers where available. GraphQL errors
 are failures even when the HTTP response is 200. A failed branch contributes to
 the run's failure outcome while other eligible branches continue to be processed.
@@ -250,7 +277,7 @@ image is sufficient.
 
 | Package | Responsibility |
 | --- | --- |
-| [`automerge`](internal/automerge/reconciler.go) | Eligibility rules, rebase decisions, and registration of the auto-merge job. |
+| [`automerge`](internal/automerge/reconciler.go) | Repository opt-in, PR eligibility, Dependabot merge and rebase decisions, and job registration. |
 | [`github`](internal/github/service.go) | Owner-wide repository discovery, identity checks, authenticated API access, pagination, and response validation. |
 | [`scheduler`](internal/scheduler/scheduler.go) | Independent schedules, timeouts, overlap protection, outcome logs, and job lifecycle. |
 | [`cmd`](internal/cmd/module.go) | Composition of package modules. |
@@ -264,15 +291,16 @@ flowchart LR
 ```
 
 `automerge.Reconciler.Reconcile` asks `github.Service` for all repositories, then uses
-that service for pull request reads, identity checks, comparisons, and guarded
-rebase requests. `github.Repository` and pull request types alias SDK snapshots;
+that service for repository settings, PR reads, identity checks, comparisons,
+auto-merge enablement, and guarded rebase and merge requests. `github.Repository`
+and pull request types alias SDK snapshots;
 they contain no service behavior. The service uses an injected `github.Client`,
 which aliases the go-github client. The GitHub module constructs it once through
 `github.NewClient`, with shared HTTP options and lifecycle dependencies injected.
 SDK imports stay inside `internal/github`.
 
 Logging is composed around operations. `github.NewService` wraps the API service
-with a logging decorator to report accepted rebases after response validation.
+with a logging decorator to report accepted actions after response validation.
 `Scheduler.Register` wraps each handler to report its outcome and overruns
 within the job's timeout.
 
@@ -321,6 +349,8 @@ Nonnative starts the worker and a local fake GitHub REST and GraphQL API:
 
 - [Rebasing](test/features/automerge/rebase.feature) covers eligibility,
   pagination, conflicts, and concurrent changes.
+- [Dependabot](test/features/automerge/dependabot.feature) covers repository opt-in,
+  enabling auto-merge, guarded squash merges, exclusions, and failure recovery.
 - [Repositories](test/features/automerge/repositories.feature) covers owner-wide
   discovery, private repositories, failure isolation, throttling, and timeout recovery.
 - [Recovery](test/features/automerge/recovery.feature) covers GitHub failures,

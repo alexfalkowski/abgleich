@@ -41,6 +41,10 @@ module Abgleich
       @mutex.synchronize { @state[:repositories].clear }
     end
 
+    def repository(name)
+      @mutex.synchronize { @state[:repositories].fetch(name).dup }
+    end
+
     def authenticated_owner=(owner)
       @mutex.synchronize { @state[:login] = owner }
     end
@@ -58,7 +62,9 @@ module Abgleich
     end
 
     def progress
-      @mutex.synchronize { { scans: @state[:scans], updates: @state[:updates].length } }
+      @mutex.synchronize do
+        { scans: @state[:scans], updates: @state[:updates].length, actions: @state[:pulls].values.sum { |pull| pull[:actions].length } }
+      end
     end
 
     def repositories(page)
@@ -66,7 +72,8 @@ module Abgleich
         repositories = @state[:repositories].values.sort_by { |repo| repo[:full_name] }
         more = @state[:repository_pagination] && page < repositories.length
         @state[:discovery_complete] = !more
-        [@state[:repository_pagination] ? repositories.slice(page - 1, 1).to_a : repositories, more]
+        page_repositories = @state[:repository_pagination] ? repositories.slice(page - 1, 1).to_a : repositories
+        [page_repositories.map { |repo| repo.except(:allow_auto_merge, :allow_squash_merge) }, more]
       end
     end
 
@@ -110,7 +117,7 @@ module Abgleich
         result = JSON.parse(@state[:pulls].fetch(key).to_json, symbolize_names: true)
         result[:auto_merge] = nil if disabled?(key)
         result[:node_id] = nil if @state[:failure] == 'missing node ID'
-        result
+        [result, @state[:details][key] > 1]
       end
     end
 
@@ -128,6 +135,37 @@ module Abgleich
 
         mutation_result(input, pull)
       end
+    end
+
+    def enable_auto_merge(input)
+      @mutex.synchronize do
+        pull = @state[:pulls].values.find { |item| item[:node_id] == input['pullRequestId'] }
+        valid_request = pull && input['mergeMethod'] == 'SQUASH' && discovered?(pull)
+        return { errors: [{ message: 'Invalid or premature auto-merge request' }] } unless valid_request
+
+        failure = mutation_failure(pull, :enablePullRequestAutoMerge)
+        return failure if failure
+
+        pull[:auto_merge] = { merge_method: 'squash' }
+        pull[:actions] << 'auto-merge'
+        { data: { enablePullRequestAutoMerge: { pullRequest: { id: pull[:node_id] } } } }
+      end
+    end
+
+    def merge(repository, number, input)
+      @mutex.synchronize do
+        pull = @state[:pulls].fetch([repository, number])
+        failure = merge_rejection(input, pull)
+        return failure if failure
+
+        pull.merge!(state: 'closed', merged: true)
+        pull[:actions] << 'merge'
+        [200, { merged: true, sha: pull.dig(:head, :sha) }]
+      end
+    end
+
+    def pull_state(branch)
+      @mutex.synchronize { @state[:pulls].values.find { |pull| pull.dig(:head, :ref) == branch }.dup }
     end
 
     def unchanged?
@@ -152,6 +190,14 @@ module Abgleich
 
     private
 
+    def merge_rejection(input, pull)
+      race(pull) if @state[:failure] == 'concurrent push'
+      return [409, { message: 'Head OID changed' }] unless input['sha'] == pull.dig(:head, :sha)
+      return [422, { message: 'Invalid or premature merge request' }] unless input['merge_method'] == 'squash' && discovered?(pull)
+
+      [405, { message: 'Merge requirements not met' }] if mutation_failure(pull) || pull[:mergeable_state] != 'clean'
+    end
+
     def disabled?(number)
       @state[:failure] == 'disabled auto-merge' || (@state[:failure] == 'disabled before rebase' && @state[:details][number] > 1)
     end
@@ -159,28 +205,36 @@ module Abgleich
     def repository_data(full_name, **options)
       owner, name = full_name.split('/')
       { name:, full_name:, owner: { login: owner }, archived: options.fetch(:archived, false),
-        disabled: options.fetch(:disabled, false), private: options.fetch(:private, false) }
+        disabled: options.fetch(:disabled, false), private: options.fetch(:private, false),
+        allow_auto_merge: options.fetch(:auto_merge, true), allow_squash_merge: options.fetch(:squash_merge, true) }
     end
 
     def valid_rebase?(input, pull)
-      pull && input['updateMethod'] == 'REBASE' && @state[:discovery_complete] && @state[:listed][pull.dig(:base, :repo, :full_name)]
+      pull && input['updateMethod'] == 'REBASE' && discovered?(pull)
     end
 
-    def mutation_failure(pull)
+    def discovered?(pull)
+      @state[:discovery_complete] && @state[:listed][pull.dig(:base, :repo, :full_name)]
+    end
+
+    def mutation_failure(pull, operation = :updatePullRequestBranch)
       failure = @state[:repository_failures][pull.dig(:base, :repo, :full_name)] || @state[:failure]
 
       case failure
       when 'graphql rate limit' then { errors: [{ type: 'RATE_LIMITED', message: 'Quota exhausted' }] }
       when 'graphql secondary limit' then { errors: [{ message: 'You have exceeded a secondary rate limit' }] }
       when 'partial mutation'
-        { data: { updatePullRequestBranch: { pullRequest: { id: pull[:node_id] } } }, errors: [{ message: 'Rebase failed' }] }
-      when 'mutation', "conflict:#{pull.dig(:head, :ref)}" then { errors: [{ message: 'Cannot rebase branch' }] }
+        { data: { operation => { pullRequest: { id: pull[:node_id] } } }, errors: [{ message: 'Mutation failed' }] }
+      when 'mismatched mutation' then { data: { operation => { pullRequest: { id: 'another-pull-request' } } } }
+      when 'mutation', "conflict:#{pull.dig(:head, :ref)}" then { errors: [{ message: 'Cannot mutate pull request' }] }
       end
     end
 
     def pull_data(repository, branch, number, sha, options)
       { number:, node_id: "PR_#{@generation}_#{repository}_#{number}",
-        state: options.fetch(:state, 'open'), draft: options.fetch(:draft, false),
+        state: options.fetch(:state, 'open'), draft: options.fetch(:draft, false), merged: false, actions: [],
+        user: { login: options.fetch(:author, 'author') }, mergeable: options.fetch(:mergeable, true),
+        mergeable_state: options.fetch(:mergeable_state, 'blocked'),
         auto_merge: options.fetch(:auto_merge, true) ? { merge_method: 'squash' } : nil,
         head: { ref: branch, sha:, repo: { full_name: options[:fork] ? 'someone/infraops' : repository } },
         base: { ref: 'master', sha: 'b' * 40, repo: { full_name: repository } } }
@@ -237,10 +291,14 @@ module Abgleich
     reset_request_counts
 
     before do
-      GitHubService.record_mutation_request if request.post? && request.path_info == '/graphql'
+      GitHubService.record_mutation_request if (request.post? && request.path_info == '/graphql') || request.put?
       content_type :json
       expected = "Bearer #{GITHUB_TOKEN}"
       halt 401, { message: 'Bad credentials' }.to_json unless request.env['HTTP_AUTHORIZATION'] == expected
+      if (request.post? || request.put?) && Abgleich.github.failure == 'one-shot mutation HTTP'
+        Abgleich.github.fail_with('list')
+        halt 503
+      end
       case Abgleich.github.failure
       when 'authentication'
         halt 401, { message: 'Bad credentials' }.to_json
@@ -262,6 +320,14 @@ module Abgleich
       repositories, more = Abgleich.github.repositories(page)
       headers 'Link' => "<http://localhost:11001/user/repos?page=#{page + 1}&affiliation=owner&visibility=all>; rel=\"next\"" if more
       repositories.to_json
+    end
+
+    get '/repos/:owner/:repository' do
+      repository = "#{params.fetch('owner')}/#{params.fetch('repository')}"
+      halt 503 if Abgleich.github.failure(repository) == 'repository settings'
+      result = Abgleich.github.repository(repository)
+      result[:full_name] = 'someone/other' if Abgleich.github.failure(repository) == 'mismatched repository'
+      result.to_json
     end
 
     get '/repos/:owner/:repository/pulls' do
@@ -296,12 +362,11 @@ module Abgleich
       failure = Abgleich.github.failure
       halt 503 if failure == 'pull request'
       repository = "#{params.fetch('owner')}/#{params.fetch('repository')}"
-      pull = Abgleich.github.pull(params.fetch('number').to_i, repository)
+      pull, rechecked = Abgleich.github.pull(params.fetch('number').to_i, repository)
       if failure&.start_with?('changed:')
-        *path, key = failure.delete_prefix('changed:').split('.').map(&:to_sym)
-        parent = path.reduce(pull) { |snapshot, field| snapshot.fetch(field) }
-        parent[key] = key == :sha ? Digest::SHA1.hexdigest("changed:#{parent.fetch(key)}") : "#{parent.fetch(key)}-changed"
-        Abgleich.github.fail_with('list')
+        change_snapshot(pull, failure.delete_prefix('changed:'))
+      elsif rechecked && failure&.start_with?('before mutation:')
+        change_snapshot(pull, failure.delete_prefix('before mutation:'))
       end
       pull.to_json
     end
@@ -320,12 +385,18 @@ module Abgleich
 
     post '/graphql' do
       payload = JSON.parse(request.body.read)
-      halt 400 unless payload.fetch('query').include?('updatePullRequestBranch(input: $input)')
+      operation = if payload.fetch('query').include?('enablePullRequestAutoMerge(input: $input)')
+                    :enable_auto_merge
+                  elsif payload.fetch('query').include?('updatePullRequestBranch(input: $input)')
+                    :update
+                  else
+                    halt 400
+                  end
       halt 503 if Abgleich.github.failure == 'mutation HTTP'
       halt 200, '{' if Abgleich.github.failure == 'malformed mutation'
       halt 200, { data: { updatePullRequestBranch: nil } }.to_json if Abgleich.github.failure == 'empty mutation'
       sleep 3 if Abgleich.github.failure == 'mutation timeout'
-      result = Abgleich.github.update(payload.fetch('variables').fetch('input'))
+      result = Abgleich.github.public_send(operation, payload.fetch('variables').fetch('input'))
       if Abgleich.github.failure == 'lost mutation response'
         Abgleich.github.fail_with('list')
         halt 503
@@ -333,7 +404,39 @@ module Abgleich
       result.to_json
     end
 
+    put '/repos/:owner/:repository/pulls/:number/merge' do
+      halt 503 if Abgleich.github.failure == 'mutation HTTP'
+      halt 200, '{' if Abgleich.github.failure == 'malformed mutation'
+      halt 200, '{}' if Abgleich.github.failure == 'empty mutation'
+      halt 200, { merged: false }.to_json if Abgleich.github.failure == 'unconfirmed merge'
+      repository = "#{params.fetch('owner')}/#{params.fetch('repository')}"
+      code, result = Abgleich.github.merge(repository, params.fetch('number').to_i, JSON.parse(request.body.read))
+      if Abgleich.github.failure == 'lost mutation response'
+        Abgleich.github.fail_with('list')
+        halt 503
+      end
+      status code
+      result.to_json
+    end
+
     private
+
+    def change_snapshot(pull, field_path)
+      *path, field = field_path.split('.').map(&:to_sym)
+      parent = path.reduce(pull) { |snapshot, name| snapshot.fetch(name) }
+      parent[field] = changed_value(field, parent.fetch(field))
+      Abgleich.github.fail_with('list')
+    end
+
+    def changed_value(field, value)
+      case field
+      when :draft then true
+      when :state then 'closed'
+      when :number then value + 1
+      when :mergeable_state then 'blocked'
+      else "#{value}-changed"
+      end
+    end
 
     def rate_limit_response(failure)
       case failure

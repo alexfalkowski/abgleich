@@ -21,6 +21,15 @@ const rebaseMutation = `mutation RebasePullRequest($input: UpdatePullRequestBran
   }
 }`
 
+// GitHub enables auto-merge through GraphQL and merges once repository
+// requirements pass. Keep using go-github's authenticated request transport.
+// https://docs.github.com/en/graphql/reference/pulls#enablepullrequestautomerge
+const autoMergeMutation = `mutation EnableAutoMerge($input: EnablePullRequestAutoMergeInput!) {
+  enablePullRequestAutoMerge(input: $input) {
+    pullRequest { id }
+  }
+}`
+
 // NewService constructs owner-wide GitHub access using one shared client.
 // Construction does not contact GitHub; each sweep discovers fresh remote state.
 func NewService(cfg *Config, client *Client, log *logger.Logger) Service {
@@ -28,11 +37,15 @@ func NewService(cfg *Config, client *Client, log *logger.Logger) Service {
 }
 
 // Service owns repository discovery, identity checks, REST reads, and guarded
-// GraphQL rebase requests. Callers own pull request eligibility and rebase policy.
+// mutations. Callers own pull request eligibility, rebase, and merge policy.
 type Service interface {
 	// ListRepositories validates the authenticated owner and collects all pages
 	// before returning active owned repositories visible to the token.
 	ListRepositories(ctx context.Context) ([]*Repository, error)
+
+	// GetRepository reads full settings omitted by discovery and validates that
+	// the response identifies the discovered repository.
+	GetRepository(ctx context.Context, repo *Repository) (*Repository, error)
 
 	// IsSameRepository checks that both PR branches belong to the discovered
 	// repository, comparing names case-insensitively.
@@ -53,6 +66,14 @@ type Service interface {
 	// HTTP failures, GraphQL errors, and mismatched responses fail without
 	// retrying the mutation. Success confirms acceptance, not completion.
 	Rebase(ctx context.Context, pull *PullRequest) error
+
+	// EnableAutoMerge requests squash merging once GitHub's requirements pass.
+	// GraphQL failures and mismatched identities fail without retrying.
+	EnableAutoMerge(ctx context.Context, pull *PullRequest) error
+
+	// Merge squash-merges a ready pull request, guarded by its head SHA.
+	// A rejected or unconfirmed merge fails without retrying.
+	Merge(ctx context.Context, repo *Repository, pull *PullRequest) error
 }
 
 type service struct {
@@ -105,6 +126,25 @@ func (s *service) ListRepositories(ctx context.Context) ([]*Repository, error) {
 
 		opts.Page = response.NextPage
 	}
+}
+
+// GetRepository reads full repository settings, including AllowAutoMerge and
+// AllowSquashMerge, which GitHub omits from repository lists. A mismatched
+// repository identity is an error rather than permission to process its PRs.
+func (s *service) GetRepository(ctx context.Context, repo *Repository) (*Repository, error) {
+	current, _, err := s.client.Repositories.Get(ctx, repo.GetOwner().GetLogin(), repo.GetName())
+	if err != nil {
+		return nil, errors.Prefix("github get repository", err)
+	}
+
+	sameName := strings.ToLower(current.GetName()) == strings.ToLower(repo.GetName())
+	sameOwner := strings.ToLower(current.GetOwner().GetLogin()) == strings.ToLower(repo.GetOwner().GetLogin())
+	sameFullName := strings.ToLower(current.GetFullName()) == strings.ToLower(repo.GetFullName())
+	if !sameName || !sameOwner || !sameFullName {
+		return nil, errors.New("github repository settings returned no matching repository")
+	}
+
+	return current, nil
 }
 
 // IsSameRepository compares both pull request branch repositories with the
@@ -191,6 +231,43 @@ func (s *service) Rebase(ctx context.Context, pull *PullRequest) error {
 	}
 
 	return response.Validate(nodeID)
+}
+
+// EnableAutoMerge enables squash auto-merge using the PR's node ID. GitHub
+// enforces repository rules. The mutation is not retried after a failure.
+func (s *service) EnableAutoMerge(ctx context.Context, pull *PullRequest) error {
+	body := EnablePullRequestAutoMergeRequest{Query: autoMergeMutation}
+	body.Variables.Input = EnablePullRequestAutoMergeInput{PullRequestID: pull.GetNodeID(), MergeMethod: "SQUASH"}
+
+	request, err := s.client.NewRequest(ctx, http.MethodPost, "/graphql", body)
+	if err != nil {
+		return err
+	}
+
+	request.Header.Set(http.AcceptKey, media.JSON)
+
+	var response EnablePullRequestAutoMergeResponse
+	if _, err := s.client.Do(request, &response); err != nil {
+		return err
+	}
+
+	return response.Validate(pull.GetNodeID())
+}
+
+// Merge requests a squash merge with the expected head SHA. GitHub enforces
+// repository rules. HTTP success without a confirmed merge is an error.
+func (s *service) Merge(ctx context.Context, repo *Repository, pull *PullRequest) error {
+	result, _, err := s.client.PullRequests.Merge(ctx, repo.GetOwner().GetLogin(), repo.GetName(), pull.GetNumber(),
+		strings.Empty, &github.PullRequestOptions{SHA: pull.GetHead().GetSHA(), MergeMethod: "squash"})
+	if err != nil {
+		return errors.Prefix("github merge", err)
+	}
+
+	if result == nil || !result.GetMerged() {
+		return errors.New("github merge returned no confirmed merge")
+	}
+
+	return nil
 }
 
 func (s *service) isActiveOwnedRepository(repo *Repository) bool {

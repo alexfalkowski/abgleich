@@ -5,7 +5,8 @@ Given('GitHub has repositories with stale auto-merge branches:') do |table|
 
   table.hashes.each do |row|
     repository = row.fetch('repository')
-    options = { archived: row['state'] == 'archived', disabled: row['state'] == 'disabled', private: row['state'] == 'private' }
+    options = { archived: row['state'] == 'archived', disabled: row['state'] == 'disabled', private: row['state'] == 'private',
+                auto_merge: row['state'] != 'auto-merge disabled' }
 
     Abgleich.github.add_repository(repository, **options)
     Abgleich.github.add_pull(row.fetch('branch'), repository:)
