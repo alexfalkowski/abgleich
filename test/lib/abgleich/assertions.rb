@@ -21,6 +21,12 @@ module Abgleich
       expect(Abgleich.rebase_logs).to be_empty, 'expected no accepted rebase requests in the worker logs'
     end
 
+    # Failed or unconfirmed Dependabot mutations must not be logged as accepted.
+    def expect_no_accepted_dependabot_actions
+      expect(Abgleich.logs).not_to include(a_hash_including('msg' => 'enabled pull request auto-merge'))
+      expect(Abgleich.logs).not_to include(a_hash_including('msg' => 'merged pull request'))
+    end
+
     # Identify the affected probe when a GitHub failure disrupts process health.
     def expect_healthy_worker
       %i[health readiness liveness].each do |probe|

@@ -43,26 +43,14 @@ type UpdatePullRequestBranchResponse struct {
 			} `json:"pullRequest"`
 		} `json:"updatePullRequestBranch"`
 	} `json:"data"`
-	Errors []struct {
-		Message string `json:"message"`
-		Type    string `json:"type"`
-	} `json:"errors"`
+	Errors Errors `json:"errors"`
 }
 
 // Validate returns joined GraphQL errors or an error when the payload does not
 // identify expectedID. A matching payload confirms acceptance, not completion.
 func (r *UpdatePullRequestBranchResponse) Validate(expectedID string) error {
-	var failures error
-	for _, failure := range r.Errors {
-		failures = errors.Join(failures, errors.New(failure.Message))
-
-		if failure.Type == "RATE_LIMITED" || rateLimitMessage(failure.Message) {
-			failures = errors.Join(failures, ErrRateLimited)
-		}
-	}
-
-	if failures != nil {
-		return errors.Prefix("github rebase", failures)
+	if err := r.Errors.Validate(); err != nil {
+		return errors.Prefix("github rebase", err)
 	}
 
 	if r.Data.Update.PullRequest.ID != expectedID {
@@ -70,4 +58,64 @@ func (r *UpdatePullRequestBranchResponse) Validate(expectedID string) error {
 	}
 
 	return nil
+}
+
+// EnablePullRequestAutoMergeInput selects a PR and merge method for auto-merge.
+type EnablePullRequestAutoMergeInput struct {
+	PullRequestID string `json:"pullRequestId"`
+	MergeMethod   string `json:"mergeMethod"`
+}
+
+// EnablePullRequestAutoMergeRequest encodes GitHub's auto-merge mutation.
+type EnablePullRequestAutoMergeRequest struct {
+	Query     string `json:"query"`
+	Variables struct {
+		Input EnablePullRequestAutoMergeInput `json:"input"`
+	} `json:"variables"`
+}
+
+// EnablePullRequestAutoMergeResponse requires validation even on HTTP success.
+type EnablePullRequestAutoMergeResponse struct {
+	Data struct {
+		Enable struct {
+			PullRequest struct {
+				ID string `json:"id"`
+			} `json:"pullRequest"`
+		} `json:"enablePullRequestAutoMerge"`
+	} `json:"data"`
+	Errors Errors `json:"errors"`
+}
+
+// Validate rejects GraphQL errors and responses identifying a different PR.
+func (r *EnablePullRequestAutoMergeResponse) Validate(expectedID string) error {
+	if err := r.Errors.Validate(); err != nil {
+		return errors.Prefix("github auto-merge", err)
+	}
+
+	if r.Data.Enable.PullRequest.ID != expectedID {
+		return errors.New("github auto-merge returned no matching pull request")
+	}
+
+	return nil
+}
+
+// Errors contains GraphQL failures that may accompany data even on HTTP success.
+type Errors []struct {
+	Message string `json:"message"`
+	Type    string `json:"type"`
+}
+
+// Validate joins reported failures and includes [ErrRateLimited] for rate limits.
+// It returns nil when Errors is empty or nil.
+func (e Errors) Validate() error {
+	var failures error
+	for _, failure := range e {
+		failures = errors.Join(failures, errors.New(failure.Message))
+
+		if failure.Type == "RATE_LIMITED" || rateLimitMessage(failure.Message) {
+			failures = errors.Join(failures, ErrRateLimited)
+		}
+	}
+
+	return failures
 }

@@ -5,21 +5,23 @@ Feature: Owner-wide auto-merge reconciliation
 
   Scenario: Rebase eligible branches across every repository page
     Given GitHub has repositories with stale auto-merge branches:
-      | repository             | state    | branch  |
-      | alexfalkowski/infraops | public   | feature |
-      | alexfalkowski/private  | private  | feature |
-      | alexfalkowski/archived | archived | feature |
-      | alexfalkowski/disabled | disabled | feature |
-      | someone/foreign        | public   | feature |
+      | repository              | state               | branch  |
+      | alexfalkowski/infraops  | public              | feature |
+      | alexfalkowski/private   | private             | feature |
+      | alexfalkowski/archived  | archived            | feature |
+      | alexfalkowski/disabled  | disabled            | feature |
+      | alexfalkowski/opted-out | auto-merge disabled | feature |
+      | someone/foreign         | public              | feature |
     And the repositories span multiple pages
     When the worker checks auto-merge branches
     Then the repositories should have these branch outcomes:
-      | repository             | branch  | outcome     |
-      | alexfalkowski/infraops | feature | rebased     |
-      | alexfalkowski/private  | feature | rebased     |
-      | alexfalkowski/archived | feature | not rebased |
-      | alexfalkowski/disabled | feature | not rebased |
-      | someone/foreign        | feature | not rebased |
+      | repository              | branch  | outcome     |
+      | alexfalkowski/infraops  | feature | rebased     |
+      | alexfalkowski/private   | feature | rebased     |
+      | alexfalkowski/archived  | feature | not rebased |
+      | alexfalkowski/disabled  | feature | not rebased |
+      | alexfalkowski/opted-out | feature | not rebased |
+      | someone/foreign         | feature | not rebased |
     And the branch check should succeed
     And accepted rebases should identify their repositories
 
@@ -66,6 +68,25 @@ Feature: Owner-wide auto-merge reconciliation
       | alexfalkowski/ready   | feature | rebased     |
     And the branch check should fail without affecting worker health
     And the failure should identify repository "alexfalkowski/blocked"
+
+  Scenario Outline: Isolate repository settings failures
+    Given GitHub has repositories with stale auto-merge branches:
+      | repository            | state  | branch  |
+      | alexfalkowski/blocked | public | feature |
+      | alexfalkowski/ready   | public | feature |
+    And repository "alexfalkowski/blocked" fails with "<failure>"
+    When the worker checks auto-merge branches
+    Then the repositories should have these branch outcomes:
+      | repository            | branch  | outcome     |
+      | alexfalkowski/blocked | feature | not rebased |
+      | alexfalkowski/ready   | feature | rebased     |
+    And the branch check should fail without affecting worker health
+    And the failure should identify repository "alexfalkowski/blocked"
+
+    Examples:
+      | failure               |
+      | repository settings   |
+      | mismatched repository |
 
   Scenario Outline: Stop a sweep when GitHub reports throttling
     Given GitHub has repositories with stale auto-merge branches:

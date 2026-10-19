@@ -6,10 +6,10 @@ Use `bin/AGENTS.md` for shared skills and cross-repository defaults.
 
 ## Project purpose
 
-Abgleich is a background worker that keeps eligible auto-merge pull requests
-current with their base branches. GitHub performs the rebases; the worker does
-not clone repositories or execute Git. Each run reconciles fresh remote state
-without local checkpoints.
+Abgleich is a background worker that enables auto-merge or merges ready Dependabot
+pull requests and keeps eligible auto-merge branches current. Repositories opt in
+through their auto-merge setting. GitHub performs all mutations; the worker does
+not clone repositories or execute Git. Each run reconciles fresh remote state.
 
 ## Package ownership
 
@@ -17,7 +17,7 @@ without local checkpoints.
 | --- | --- |
 | `internal/cmd` | Command registration and composition of package modules. |
 | `internal/github` | Service, API client, SDK aliases, owner-wide discovery, repository identity, remote access, and response validation. |
-| `internal/automerge` | Rebase eligibility, reconciliation decisions, and registration of its own job. |
+| `internal/automerge` | Repository opt-in, PR eligibility, merge and rebase decisions, and registration of its own job. |
 | `internal/scheduler` | Reusable named jobs, timing, overlap prevention, logging, and lifecycle. |
 | `internal/config` | Composition and injection of package-owned configuration. |
 | `internal/health` | Health observers, independent of job outcomes. |
@@ -28,7 +28,7 @@ without local checkpoints.
 - Keep owner-wide discovery and case-insensitive repository identity checks in
   `github.Service`. The reconciler receives the service and uses SDK repository
   snapshots, not GitHub configuration or a separately cached repository name.
-- Keep accepted-rebase logging in the service's logging decorator, separate from
+- Keep accepted-action logging in the service's logging decorator, separate from
   remote access and reconciliation decisions.
 
 ## Background jobs
@@ -54,10 +54,14 @@ without local checkpoints.
   GraphQL `updatePullRequestBranch` mutation with `updateMethod: REBASE`. The REST
   branch-update operation merges; the custom GraphQL payload types remain local.
 - Use the pull request's `NodeID` for GraphQL mutations, not its numeric `ID`.
-  Recheck eligibility, identity, and branch state before mutation, and include
-  `expectedHeadOid` to guard concurrent author changes.
-- Only open, non-draft, auto-merge pull requests with both branches in the
-  same discovered repository are eligible. Finish repository discovery and each
+  Recheck eligibility, identity, and branch state before each mutation. Guard
+  rebases with `expectedHeadOid` and immediate merges with the expected head SHA.
+- Read full repository settings before listing PRs; discovery omits merge
+  settings. Skip repositories without auto-merge enabled. Only open, non-draft
+  PRs with both branches in the same discovered repository are eligible. Rebase
+  PRs with auto-merge enabled; enable squash auto-merge or squash-merge ready PRs
+  only for author `dependabot[bot]`. Never approve reviews or bypass rules.
+  Attempt at most one mutation per PR per sweep. Finish repository discovery and each
   repository's pull request pagination before mutating;
   continue processing other pull requests after an individual failure.
 - HTTP retries apply only to safe methods. Do not automatically retry mutation
