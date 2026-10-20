@@ -24,6 +24,17 @@ Feature: Dependabot merge automation
       | ready to merge                |
       | ready with auto-merge enabled |
 
+  Scenario: Defer another ready pull request when a merge advances its base
+    Given the Dependabot pull request for branch "first" is "ready with auto-merge enabled"
+    And the Dependabot pull request for branch "second" is "ready with auto-merge enabled"
+    And merging a pull request makes other branches stale
+    When the worker checks auto-merge branches
+    Then branch "first" should be squash-merged
+    And branch "second" should be rebased
+    And branch "second" should wait for checks before merging
+    And the branch check should succeed
+    And no branch checks should have failed
+
   Scenario: Rebase a stale Dependabot branch after enabling auto-merge
     Given the Dependabot pull request for branch "dependencies" is "behind its base"
     When the worker checks auto-merge branches

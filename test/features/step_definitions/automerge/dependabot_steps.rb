@@ -51,6 +51,10 @@ Given('GitHub rejects Dependabot changes on branch {string}') do |branch|
   Abgleich.github.fail_with("conflict:#{branch}")
 end
 
+Given('merging a pull request makes other branches stale') do
+  Abgleich.github.fail_with('stale after merge')
+end
+
 Given('the worker lost confirmation of a Dependabot action on branch {string} that was {string}') do |branch, condition|
   options = { 'waiting for checks' => {}, 'ready to merge' => { mergeable_state: 'clean' } }.fetch(condition)
   Abgleich.github.add_pull(branch, author: 'dependabot[bot]', auto_merge: false, current: true, **options)
@@ -67,6 +71,14 @@ end
 
 Then('branch {string} should be squash-merged') do |branch|
   wait_for { Abgleich.github.pull_state(branch).fetch(:merged) }.to be(true), "expected a squash merge for #{branch}"
+end
+
+Then('branch {string} should wait for checks before merging') do |branch|
+  expected_checks = Abgleich.job_logs.length + 2
+  wait_for { Abgleich.job_logs.length }.to be >= expected_checks, "expected two more checks while #{branch} waits for checks after rebasing"
+  expect(Abgleich.github.pull_state(branch).fetch(:merged)).to be(false), "expected #{branch} to wait for checks after rebasing"
+  expect(Abgleich.logs).not_to include(a_hash_including('msg' => 'merged pull request', 'branch' => branch))
+  expect(Abgleich::GitHubService.request_counts.fetch(:mutation_requests)).to eq(2), 'expected only the first merge and second rebase'
 end
 
 Then('the worker should report {string} for branch {string}') do |message, branch|

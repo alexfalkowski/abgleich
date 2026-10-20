@@ -7,10 +7,16 @@ require 'base64'
 
 require 'abgleich/assertions'
 require 'abgleich/credentials'
-require 'abgleich/github'
+require 'abgleich/github/repository'
+require 'abgleich/github/service'
+require 'abgleich/github/server'
 
 module Abgleich
   class << self
+    def github
+      @github ||= GitHubRepository.new
+    end
+
     # Ignore an incomplete final line while the service is writing a log record.
     def logs
       path = Nonnative.configuration.process_by_name('server').log
