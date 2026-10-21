@@ -51,12 +51,25 @@ type Service interface {
 	// repository, comparing names case-insensitively.
 	IsSameRepository(repo *Repository, pull *PullRequest) bool
 
+	// IsBaseRepository checks that the PR targets the discovered repository,
+	// comparing names case-insensitively. Its head may belong to a fork.
+	IsBaseRepository(repo *Repository, pull *PullRequest) bool
+
+	// IsSamePullRequest compares identity, branch repositories, refs, and head
+	// SHA across snapshots. Repository names are compared case-insensitively.
+	IsSamePullRequest(current, expected *PullRequest) bool
+
 	// ListOpenPullRequests collects all pages before returning so mutations
 	// cannot change ordering partway through pagination.
 	ListOpenPullRequests(ctx context.Context, repo *Repository) ([]*PullRequest, error)
 
 	// GetPullRequest reads fresh auto-merge, branch, and identity state.
 	GetPullRequest(ctx context.Context, repo *Repository, number int) (*PullRequest, error)
+
+	// ListPullRequestAutomationEvents collects all label and auto-merge-disable
+	// events through GraphQL. Event names are GraphQL type names. Errors,
+	// incomplete pages, and mismatched PR identities reject the whole history.
+	ListPullRequestAutomationEvents(ctx context.Context, pull *PullRequest) ([]*IssueEvent, error)
 
 	// Compare reports commits missing from head relative to base. A missing
 	// behind_by is an error rather than evidence that the branch is current.
@@ -67,8 +80,8 @@ type Service interface {
 	// retrying the mutation. Success confirms acceptance, not completion.
 	Rebase(ctx context.Context, pull *PullRequest) error
 
-	// EnableAutoMerge requests squash merging once GitHub's requirements pass.
-	// GraphQL failures and mismatched identities fail without retrying.
+	// EnableAutoMerge requests squash merging once GitHub's requirements pass,
+	// guarded by the expected head SHA. Failures are not retried.
 	EnableAutoMerge(ctx context.Context, pull *PullRequest) error
 
 	// Merge squash-merges a ready pull request, guarded by its head SHA.
@@ -147,16 +160,6 @@ func (s *service) GetRepository(ctx context.Context, repo *Repository) (*Reposit
 	return current, nil
 }
 
-// IsSameRepository compares both pull request branch repositories with the
-// discovered repository using case-insensitive full names.
-func (s *service) IsSameRepository(repo *Repository, pull *PullRequest) bool {
-	name := strings.ToLower(repo.GetFullName())
-	headRepository := strings.ToLower(pull.GetHead().GetRepo().GetFullName())
-	baseRepository := strings.ToLower(pull.GetBase().GetRepo().GetFullName())
-
-	return headRepository == name && baseRepository == name
-}
-
 // ListOpenPullRequests returns all open pull requests for repo. Every page must
 // succeed before results are returned, so callers can finish pagination before
 // mutating branches.
@@ -233,11 +236,13 @@ func (s *service) Rebase(ctx context.Context, pull *PullRequest) error {
 	return response.Validate(nodeID)
 }
 
-// EnableAutoMerge enables squash auto-merge using the PR's node ID. GitHub
-// enforces repository rules. The mutation is not retried after a failure.
+// EnableAutoMerge enables squash auto-merge using the PR's node ID and expected
+// head SHA. GitHub enforces repository rules. Failures are not retried.
 func (s *service) EnableAutoMerge(ctx context.Context, pull *PullRequest) error {
 	body := EnablePullRequestAutoMergeRequest{Query: autoMergeMutation}
-	body.Variables.Input = EnablePullRequestAutoMergeInput{PullRequestID: pull.GetNodeID(), MergeMethod: "SQUASH"}
+	body.Variables.Input = EnablePullRequestAutoMergeInput{
+		PullRequestID: pull.GetNodeID(), ExpectedHeadOID: pull.GetHead().GetSHA(), MergeMethod: "SQUASH",
+	}
 
 	request, err := s.client.NewRequest(ctx, http.MethodPost, "/graphql", body)
 	if err != nil {

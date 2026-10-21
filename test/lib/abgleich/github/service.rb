@@ -34,11 +34,13 @@ module Abgleich
     reset_request_counts
 
     before do
-      GitHubService.record_mutation_request if (request.post? && request.path_info == '/graphql') || request.put?
+      @graphql_payload = JSON.parse(request.body.read) if request.post? && request.path_info == '/graphql'
+      mutation = request.put? || @graphql_payload&.fetch('query')&.start_with?('mutation ')
+      GitHubService.record_mutation_request if mutation
       content_type :json
       expected = "Bearer #{GITHUB_TOKEN}"
       halt 401, { message: 'Bad credentials' }.to_json unless request.env['HTTP_AUTHORIZATION'] == expected
-      if (request.post? || request.put?) && Abgleich.github.failure == 'one-shot mutation HTTP'
+      if mutation && Abgleich.github.failure == 'one-shot mutation HTTP'
         Abgleich.github.fail_with('list')
         halt 503
       end
@@ -106,6 +108,7 @@ module Abgleich
       halt 503 if failure == 'pull request'
       repository = "#{params.fetch('owner')}/#{params.fetch('repository')}"
       pull, rechecked = Abgleich.github.pull(params.fetch('number').to_i, repository)
+      pull[:head][:repo] = nil if failure == 'missing head repository'
       if failure&.start_with?('changed:')
         change_snapshot(pull, failure.delete_prefix('changed:'))
       elsif rechecked && failure&.start_with?('before mutation:')
@@ -127,7 +130,11 @@ module Abgleich
     end
 
     post '/graphql' do
-      payload = JSON.parse(request.body.read)
+      payload = @graphql_payload
+      if payload.fetch('query').include?('query PullRequestAutomationEvents')
+        halt automation_events_response(payload.fetch('variables')).to_json
+      end
+
       operation = if payload.fetch('query').include?('enablePullRequestAutoMerge(input: $input)')
                     :enable_auto_merge
                   elsif payload.fetch('query').include?('updatePullRequestBranch(input: $input)')
@@ -177,8 +184,17 @@ module Abgleich
       when :state then 'closed'
       when :number then value + 1
       when :mergeable_state then 'blocked'
+      when :labels then []
       else "#{value}-changed"
       end
+    end
+
+    def automation_events_response(input)
+      failure = Abgleich.github.failure
+      halt 503 if failure == 'history HTTP' || (failure == 'history page' && input['after'])
+      halt 200, '{' if failure == 'malformed history'
+
+      Abgleich.github.automation_events(input)
     end
 
     def rate_limit_response(failure)

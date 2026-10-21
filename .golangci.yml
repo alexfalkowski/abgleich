@@ -12,6 +12,7 @@ linters:
     - goconst
     - gomodguard
     - gomodguard_v2
+    - interfacebloat
     - ireturn
     - nlreturn
     - noinlineerr

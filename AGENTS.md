@@ -7,7 +7,7 @@ Use `bin/AGENTS.md` for shared skills and cross-repository defaults.
 ## Project purpose
 
 Abgleich is a background worker that enables auto-merge or merges ready Dependabot
-pull requests and keeps eligible auto-merge branches current. Repositories opt in
+and labeled pull requests and keeps eligible auto-merge branches current. Repositories opt in
 through their auto-merge setting. GitHub performs all mutations; the worker does
 not clone repositories or execute Git. Each run reconciles fresh remote state.
 
@@ -30,6 +30,9 @@ not clone repositories or execute Git. Each run reconciles fresh remote state.
   snapshots, not GitHub configuration or a separately cached repository name.
 - Keep accepted-action logging in the service's logging decorator, separate from
   remote access and reconciliation decisions.
+- Keep the strategy interface, implementations, and shared PR eligibility helpers
+  in `internal/automerge/internal/strategy`; its module provides their precedence
+  order for injection into the reconciler.
 
 ## Background jobs
 
@@ -53,17 +56,25 @@ not clone repositories or execute Git. Each run reconciles fresh remote state.
 - Read pull requests through REST and request server-side rebases through the
   GraphQL `updatePullRequestBranch` mutation with `updateMethod: REBASE`. The REST
   branch-update operation merges; the custom GraphQL payload types remain local.
-- Use the pull request's `NodeID` for GraphQL mutations, not its numeric `ID`.
+- Use the pull request's `NodeID` for GraphQL operations, not its numeric `ID`.
   Recheck eligibility, identity, and branch state before each mutation. Guard
-  rebases with `expectedHeadOid` and immediate merges with the expected head SHA.
+  rebases and auto-merge enablement with `expectedHeadOid`, and immediate merges
+  with the expected head SHA.
 - Read full repository settings before listing PRs; discovery omits merge
   settings. Skip repositories without auto-merge enabled. Only open, non-draft
-  PRs with both branches in the same discovered repository are eligible. Rebase
-  PRs with auto-merge enabled; enable squash auto-merge or squash-merge ready PRs
-  only for author `dependabot[bot]`. Never approve reviews or bypass rules.
+  PRs targeting the discovered repository are eligible. Evaluate strategies in
+  Dependabot, label, rebase order; stop after the first match, including errors
+  and no-op outcomes. Automatic Dependabot merging and rebasing require both
+  branches in the discovered repository. The exact `automerge` label also permits
+  fork PRs to enable squash auto-merge or squash-merge when ready. Never approve
+  reviews or bypass rules.
   Attempt at most one mutation per PR per sweep. Finish repository discovery and each
   repository's pull request pagination before mutating;
   continue processing other pull requests after an individual failure.
+- Read complete label and auto-merge-disable history before labeled actions.
+  A label must be newer than its removal and the latest auto-merge disable event;
+  equal timestamps defer automation. Removing a label does not cancel an
+  existing GitHub auto-merge. Keep this policy stateless across restarts.
 - HTTP retries apply only to safe methods. Do not automatically retry mutation
   requests; the next run reads current state after failures or ambiguous
   responses. Validate GraphQL errors and matching response identity even on HTTP

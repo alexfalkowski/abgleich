@@ -67,6 +67,8 @@ module Abgleich
           state: options.fetch(:state, 'open'), draft: options.fetch(:draft, false), merged: false, actions: [],
           user: { login: options.fetch(:author, 'author') }, mergeable: options.fetch(:mergeable, true),
           mergeable_state: options.fetch(:mergeable_state, 'blocked'),
+          labels: options.fetch(:labels, []).map { |name| { name: } },
+          automation_events: options.fetch(:labels, []).map { |name| automation_event('LabeledEvent', 1, name) },
           auto_merge: options.fetch(:auto_merge, true) ? { merge_method: 'squash' } : nil,
           head: { ref: branch, sha:, repo: { full_name: options[:fork] ? 'someone/infraops' : repository } },
           base: { ref: 'master', sha: 'b' * 40, repo: { full_name: repository } } }
