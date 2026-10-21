@@ -1,5 +1,7 @@
-// Package automerge enables auto-merge or merges ready Dependabot PRs and keeps
-// eligible branches current in opted-in repositories. Reconciler owns policy;
-// github owns remote state and mutations. Module registers Reconcile with the
-// shared scheduler as the automerge job.
+// Package automerge applies ordered Dependabot, label, and rebase strategies in
+// opted-in repositories. Labeled PRs may come from forks; rebasing requires both
+// branches in the discovered repository. The internal strategy package owns
+// policy and fresh pre-mutation checks; the reconciler owns strategy order and
+// repository opt-in. GitHub access and mutations belong to github.
+// Module registers Reconcile with the shared scheduler as the automerge job.
 package automerge

@@ -11,6 +11,9 @@ type Repository = github.Repository
 // PullRequest aliases [github.PullRequest] so consumers use the project-owned package.
 type PullRequest = github.PullRequest
 
+// IssueEvent aliases [github.IssueEvent] for pull request automation history.
+type IssueEvent = github.IssueEvent
+
 // CommitsComparison aliases [github.CommitsComparison] so consumers use the project-owned package.
 type CommitsComparison = github.CommitsComparison
 
@@ -60,10 +63,12 @@ func (r *UpdatePullRequestBranchResponse) Validate(expectedID string) error {
 	return nil
 }
 
-// EnablePullRequestAutoMergeInput selects a PR and merge method for auto-merge.
+// EnablePullRequestAutoMergeInput selects a PR and merge method for auto-merge,
+// guarded by ExpectedHeadOID against concurrent pushes.
 type EnablePullRequestAutoMergeInput struct {
-	PullRequestID string `json:"pullRequestId"`
-	MergeMethod   string `json:"mergeMethod"`
+	PullRequestID   string `json:"pullRequestId"`
+	ExpectedHeadOID string `json:"expectedHeadOid"`
+	MergeMethod     string `json:"mergeMethod"`
 }
 
 // EnablePullRequestAutoMergeRequest encodes GitHub's auto-merge mutation.
@@ -99,6 +104,53 @@ func (r *EnablePullRequestAutoMergeResponse) Validate(expectedID string) error {
 	return nil
 }
 
+// PullRequestAutomationEventsRequest identifies a PR by node ID and supplies the cursor
+// for the next page of its automation history.
+type PullRequestAutomationEventsRequest struct {
+	Variables struct {
+		ID    string  `json:"id"`
+		After *string `json:"after"`
+	} `json:"variables"`
+	Query string `json:"query"`
+}
+
+// PullRequestAutomationEventsResponse decodes timeline history into SDK issue-event snapshots.
+// Call Validate before using the history, even when the HTTP request succeeds.
+type PullRequestAutomationEventsResponse struct {
+	Data struct {
+		Node struct {
+			ID            string `json:"id"`
+			TimelineItems struct {
+				Nodes    []*IssueEvent `json:"nodes"`
+				PageInfo struct {
+					EndCursor   *string `json:"endCursor"`
+					HasNextPage *bool   `json:"hasNextPage"`
+				} `json:"pageInfo"`
+			} `json:"timelineItems"`
+		} `json:"node"`
+	} `json:"data"`
+	Errors Errors `json:"errors"`
+}
+
+// Validate rejects GraphQL errors, a PR node ID different from expectedID,
+// incomplete pages, and events that cannot establish valid automation history.
+func (r *PullRequestAutomationEventsResponse) Validate(expectedID string) error {
+	if err := r.Errors.Validate(); err != nil {
+		return errors.Prefix("github automation events", err)
+	}
+
+	node := r.Data.Node
+	if node.ID != expectedID {
+		return errors.New("github automation events returned no matching pull request")
+	}
+
+	if node.TimelineItems.Nodes == nil || node.TimelineItems.PageInfo.HasNextPage == nil {
+		return errors.New("github automation events returned an incomplete page")
+	}
+
+	return validateAutomationEvents(node.TimelineItems.Nodes)
+}
+
 // Errors contains GraphQL failures that may accompany data even on HTTP success.
 type Errors []struct {
 	Message string `json:"message"`
@@ -118,4 +170,26 @@ func (e Errors) Validate() error {
 	}
 
 	return failures
+}
+
+// validateAutomationEvents requires timestamps, supported event types, and label
+// names for label changes so incomplete history cannot authorize automation.
+func validateAutomationEvents(events []*IssueEvent) error {
+	for _, event := range events {
+		if event.GetCreatedAt().IsZero() {
+			return errors.New("github automation event is missing its timestamp")
+		}
+
+		switch event.GetEvent() {
+		case "LabeledEvent", "UnlabeledEvent":
+			if event.GetLabel().GetName() == "" {
+				return errors.New("github automation event is missing its label")
+			}
+		case "AutoMergeDisabledEvent":
+		default:
+			return errors.New("github automation event has an unexpected type")
+		}
+	}
+
+	return nil
 }

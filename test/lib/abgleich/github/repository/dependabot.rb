@@ -7,10 +7,7 @@ module Abgleich
       def enable_auto_merge(input)
         @mutex.synchronize do
           pull = @state[:pulls].values.find { |item| item[:node_id] == input['pullRequestId'] }
-          valid_request = pull && input['mergeMethod'] == 'SQUASH' && discovered?(pull)
-          return { errors: [{ message: 'Invalid or premature auto-merge request' }] } unless valid_request
-
-          failure = mutation_failure(pull, :enablePullRequestAutoMerge)
+          failure = auto_merge_rejection(input, pull)
           return failure if failure
 
           pull[:auto_merge] = { merge_method: 'squash' }
@@ -33,6 +30,16 @@ module Abgleich
       end
 
       private
+
+      def auto_merge_rejection(input, pull)
+        valid_request = pull && input['mergeMethod'] == 'SQUASH' && discovered?(pull)
+        return { errors: [{ message: 'Invalid or premature auto-merge request' }] } unless valid_request
+
+        race(pull) if @state[:failure] == 'concurrent push'
+        return { errors: [{ message: 'Head OID changed' }] } unless input['expectedHeadOid'] == pull.dig(:head, :sha)
+
+        mutation_failure(pull, :enablePullRequestAutoMerge)
+      end
 
       def advance_base(repository, pull)
         @state[:pulls].each do |(name, _number), other|

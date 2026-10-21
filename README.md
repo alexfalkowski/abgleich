@@ -6,8 +6,8 @@
 # 🔄 Abgleich
 
 Abgleich is a background worker that enables auto-merge or merges ready
-Dependabot pull requests and keeps auto-merge branches current across a GitHub
-account's opted-in repositories.
+Dependabot and labeled pull requests, and keeps auto-merge branches current
+across a GitHub account's opted-in repositories.
 
 ## 🎯 Background
 
@@ -21,8 +21,35 @@ enabled are skipped entirely. That repository setting is the opt-in for the work
 For Dependabot PRs, the worker also enables squash auto-merge while requirements
 are pending, or requests a squash merge when GitHub reports the PR ready. It
 identifies Dependabot by the PR author `dependabot[bot]`, independent of branch
-names. Draft, closed, and fork PRs are excluded. Other authors must enable
-auto-merge themselves; the worker only rebases their eligible branches.
+names. This automatic Dependabot policy excludes draft, closed, and fork PRs.
+Other authors can enable auto-merge themselves or opt in with a label.
+
+### 🏷️ Labeled pull requests
+
+Apply the exact label `automerge` to an open, non-draft PR to request squash
+auto-merge. If GitHub reports the PR ready, the worker requests a guarded squash
+merge immediately. The repository must allow auto-merge and squash merging.
+
+This policy supports PRs from forks as well as branches in the repository. The
+base must belong to the discovered repository. The worker never rebases fork
+branches; their authors keep them current. Labeled branches in the same
+repository can be rebased on a later sweep once auto-merge is enabled.
+
+Label permissions in the target repository control who can opt a PR in. Forking
+or opening a PR grants no labeling permission. Authorized bots and workflows can
+also apply labels, so configure them accordingly. The label requests automation
+for the PR; it is not an approval tied to a particular commit. Configure GitHub's
+required reviews and stale-review rules when changes need human approval.
+
+If GitHub disables auto-merge, including after an external contributor pushes,
+the existing label cannot restore it. Remove and reapply `automerge` to renew the
+request. Wait at least a second between removing and reapplying the label so
+the event timestamps are unambiguous. The worker reads complete label and
+disable-event history on each run, including after restart. Missing or invalid
+history prevents automation; equal application and revocation timestamps defer it.
+
+Removing the label prevents a new request; it does not cancel auto-merge already
+enabled on GitHub. To stop that merge, disable auto-merge in GitHub as well.
 
 ## 🚀 Quickstart
 
@@ -93,21 +120,21 @@ mutation with `updateMethod: REBASE`. This is the server-side operation used by
 GitHub's update-with-rebase UI and CLI. GitHub performs the branch update.
 
 Before listing PRs, the worker reads the full repository settings; GitHub's
-repository list omits merge settings. Dependabot automation uses GraphQL
+repository list omits merge settings. Dependabot and labeled automation use GraphQL
 [`enablePullRequestAutoMerge`](https://docs.github.com/en/graphql/reference/pulls#enablepullrequestautomerge)
-with `mergeMethod: SQUASH`, or the REST merge API with `merge_method: squash`
-and the expected head SHA. Immediate merges require `mergeable: true` and
+with `mergeMethod: SQUASH` and `expectedHeadOid`, or the REST merge API with
+`merge_method: squash` and the expected head SHA. Immediate merges require `mergeable: true` and
 `mergeable_state: clean`; unknown or failing check states never trigger an
 immediate merge. GitHub still enforces checks, reviews, and repository rules.
 The worker does not approve reviews or request rule bypasses.
 
 Each sweep attempts at most one mutation per PR. After enabling auto-merge,
 a later sweep can rebase a stale branch. If squash merging is disabled, the
-Dependabot action fails with an operator-visible error instead of choosing
+merge action fails with an operator-visible error instead of choosing
 another merge method. Other authors' auto-merge PRs retain their selected method.
 
-Pull requests are rechecked immediately before each mutation. Rebases include
-`expectedHeadOid` and immediate merges include `sha`, so concurrent branch changes
+Pull requests are rechecked immediately before each mutation. Rebases and
+auto-merge enablement include `expectedHeadOid`, and immediate merges include `sha`, so concurrent branch changes
 reject those requests and are discovered on the next run. Conflicts reported by GitHub fail the branch and
 require an author to repair it. One failed branch does not prevent other
 eligible branches or repositories from being processed. After a timeout, the
@@ -197,7 +224,7 @@ Use a personal access token belonging to `github.owner`, covering all repositori
 to manage, including private and newly created repositories. A fine-grained token
 needs **Pull requests: read and write** and **Contents: read and write**.
 Enable **Allow auto-merge** on each repository to opt in, and **Allow squash
-merging** for Dependabot automation. Required checks and reviews must still pass;
+merging** for Dependabot and labeled automation. Required checks and reviews must still pass;
 repository rules can reject a rebase or merge. Repositories outside the token's
 access cannot be discovered.
 A source such as
@@ -277,7 +304,8 @@ image is sufficient.
 
 | Package | Responsibility |
 | --- | --- |
-| [`automerge`](internal/automerge/reconciler.go) | Repository opt-in, PR eligibility, Dependabot merge and rebase decisions, and job registration. |
+| [`automerge`](internal/automerge/reconciler.go) | Repository opt-in, strategy selection and ordering, and job registration. |
+| [`automerge/internal/strategy`](internal/automerge/internal/strategy/doc.go) | Dependabot, label, and rebase policies with fresh pre-mutation checks. |
 | [`github`](internal/github/service.go) | Owner-wide repository discovery, identity checks, authenticated API access, pagination, and response validation. |
 | [`scheduler`](internal/scheduler/scheduler.go) | Independent schedules, timeouts, overlap protection, outcome logs, and job lifecycle. |
 | [`cmd`](internal/cmd/module.go) | Composition of package modules. |
@@ -298,6 +326,15 @@ they contain no service behavior. The service uses an injected `github.Client`,
 which aliases the go-github client. The GitHub module constructs it once through
 `github.NewClient`, with shared HTTP options and lifecycle dependencies injected.
 SDK imports stay inside `internal/github`.
+
+The strategy module provides the policies in this order: Dependabot, label,
+rebase. The reconciler receives the ordered slice through DI and selects the first match.
+A selected strategy owns the PR for that sweep, including no-op and error
+outcomes. The strategy interface, implementations, and shared PR
+eligibility helpers live in `internal/automerge/internal/strategy`.
+Each strategy owns its applicability and fresh pre-mutation checks.
+Label authorization uses paginated GraphQL history; GitHub field aliases
+decode events into SDK issue-event snapshots.
 
 Logging is composed around operations. `github.NewService` wraps the API service
 with a logging decorator to report accepted actions after response validation.
@@ -351,6 +388,8 @@ Nonnative starts the worker and a local fake GitHub REST and GraphQL API:
   pagination, conflicts, and concurrent changes.
 - [Dependabot](test/features/automerge/dependabot.feature) covers repository opt-in,
   enabling auto-merge, guarded squash merges, exclusions, and failure recovery.
+- [Labels](test/features/automerge/label.feature) covers labeled fork and repository
+  PRs, authorization renewal, complete history, and concurrent changes.
 - [Repositories](test/features/automerge/repositories.feature) covers owner-wide
   discovery, private repositories, failure isolation, throttling, and timeout recovery.
 - [Recovery](test/features/automerge/recovery.feature) covers GitHub failures,

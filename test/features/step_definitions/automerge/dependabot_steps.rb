@@ -62,7 +62,7 @@ Given('the worker lost confirmation of a Dependabot action on branch {string} th
   Nonnative.start
   expect_failed_check
   expect(Abgleich.github.pull_state(branch).fetch(:actions).length).to eq(1), "expected GitHub to accept one action on #{branch}"
-  expect_no_accepted_dependabot_actions
+  expect_no_accepted_merge_actions
 end
 
 Then('branch {string} should have squash auto-merge enabled') do |branch|
@@ -102,7 +102,7 @@ end
 
 Then('no Dependabot actions should be accepted') do
   expect(Abgleich.github.progress.fetch(:actions)).to eq(0), 'expected no accepted Dependabot actions'
-  expect_no_accepted_dependabot_actions
+  expect_no_accepted_merge_actions
 end
 
 Then('only one mutation request should have been sent') do
