@@ -21,6 +21,7 @@ not clone repositories or execute Git. Each run reconciles fresh remote state.
 | `internal/scheduler` | Reusable named jobs, timing, overlap prevention, logging, and lifecycle. |
 | `internal/config` | Composition and injection of package-owned configuration. |
 | `internal/health` | Health observers, independent of job outcomes. |
+| `internal/transport/http` | Webhook HTTP registration, request deadlines, and responses. |
 
 - Constructors belong in the packages owning their types; `cmd` composes their
   modules. Keep dependencies directed from `automerge` to `github` and

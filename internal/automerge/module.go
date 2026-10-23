@@ -9,7 +9,7 @@ import (
 // Module constructs the reconciler and registers its scheduled job before startup.
 var Module = di.Module(
 	strategy.Module,
-	di.Constructor(NewReconciler),
+	di.Constructor(NewReconciler, NewCommands),
 	di.Register(register),
 )
 

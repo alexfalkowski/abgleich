@@ -7,7 +7,7 @@ module Abgleich
     class << self
       def reset_request_counts
         @request_mutex ||= Mutex.new
-        @request_mutex.synchronize { @request_counts = { active_scans: 0, peak_scans: 0, mutation_requests: 0 } }
+        @request_mutex.synchronize { @request_counts = { active_scans: 0, peak_scans: 0, mutation_requests: 0, installation_requests: 0 } }
       end
 
       def request_counts
@@ -29,17 +29,21 @@ module Abgleich
       def record_mutation_request
         @request_mutex.synchronize { @request_counts[:mutation_requests] += 1 }
       end
+
+      def record_installation_request
+        @request_mutex.synchronize { @request_counts[:installation_requests] += 1 }
+      end
     end
 
     reset_request_counts
 
     before do
       @graphql_payload = JSON.parse(request.body.read) if request.post? && request.path_info == '/graphql'
-      mutation = request.put? || @graphql_payload&.fetch('query')&.start_with?('mutation ')
+      mutation = request.put? || (request.path_info.end_with?('/labels') && request.post?) ||
+                 @graphql_payload&.fetch('query')&.start_with?('mutation ')
       GitHubService.record_mutation_request if mutation
       content_type :json
-      expected = "Bearer #{GITHUB_TOKEN}"
-      halt 401, { message: 'Bad credentials' }.to_json unless request.env['HTTP_AUTHORIZATION'] == expected
+      authenticate_request
       if mutation && Abgleich.github.failure == 'one-shot mutation HTTP'
         Abgleich.github.fail_with('list')
         halt 503
@@ -51,20 +55,6 @@ module Abgleich
         headers 'Retry-After' => '1'
         halt 429, { message: 'Rate limit exceeded' }.to_json
       end
-    end
-
-    get '/user' do
-      { login: Abgleich.github.authenticated_owner }.to_json
-    end
-
-    get '/user/repos' do
-      halt 400 unless params['affiliation'] == 'owner' && params['visibility'] == 'all'
-      page = params.fetch('page', '1').to_i
-      halt 503 if Abgleich.github.failure == 'discovery' || (page > 1 && Abgleich.github.failure == 'discovery page')
-
-      repositories, more = Abgleich.github.repositories(page)
-      headers 'Link' => "<http://localhost:11001/user/repos?page=#{page + 1}&affiliation=owner&visibility=all>; rel=\"next\"" if more
-      repositories.to_json
     end
 
     get '/repos/:owner/:repository' do
@@ -94,7 +84,7 @@ module Abgleich
 
         halt 403, { message: 'You have exceeded a secondary rate limit' }.to_json if failure == 'secondary rate limit without metadata'
 
-        halt 403, { message: 'Resource not accessible by personal access token' }.to_json if failure == 'permission'
+        halt 403, { message: 'Resource not accessible by integration' }.to_json if failure == 'permission'
         halt 200, '{' if failure == 'malformed response'
         sleep 1.1 if failure == 'slow list'
         sleep 3 if failure == 'timeout'

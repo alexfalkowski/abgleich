@@ -268,10 +268,15 @@ Feature: Labeled pull request automation
     And only one merge action should occur for branch "dependencies"
     And the branch check should succeed
 
-  Scenario: Refuse a fork contribution with incomplete branch identity
+  Scenario Outline: Refuse a fork contribution with incomplete pull request metadata
     Given a pull request from "a fork" for branch "contribution" is "waiting for checks"
     And branch "contribution" has the "automerge" label
-    And the labeled operation fails with "missing head repository"
+    And the labeled operation fails with "<metadata>"
     When the worker checks auto-merge branches
     Then the branch check should fail without affecting worker health
     And no pull request mutations should be requested
+
+    Examples:
+      | metadata                |
+      | missing head repository |
+      | missing node ID         |

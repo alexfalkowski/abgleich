@@ -20,7 +20,7 @@ type Rebase struct {
 
 // Matches identifies eligible same-repository pull requests with auto-merge enabled.
 func (s *Rebase) Matches(repository *github.Repository, pull *github.PullRequest) bool {
-	return eligible(pull) && s.github.IsSameRepository(repository, pull) && pull.GetAutoMerge() != nil
+	return Eligible(pull) && s.github.IsSameRepository(repository, pull) && pull.GetAutoMerge() != nil
 }
 
 // Reconcile compares branch state and rebases only after a fresh identity check.

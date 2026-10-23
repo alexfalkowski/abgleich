@@ -2,8 +2,8 @@ package strategy
 
 import "github.com/alexfalkowski/abgleich/internal/github"
 
-// eligible applies the shared requirement that closed and draft PRs remain untouched.
-func eligible(pull *github.PullRequest) bool {
+// Eligible applies the shared requirement that closed and draft PRs remain untouched.
+func Eligible(pull *github.PullRequest) bool {
 	return pull.GetState() == "open" && !pull.GetDraft()
 }
 

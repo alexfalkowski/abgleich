@@ -37,9 +37,9 @@ Feature: Owner-wide auto-merge reconciliation
     Then the branch check should succeed
     And no repositories should have been checked
 
-  Scenario: Reject a token for another account
+  Scenario: Reject an installation for another account
     Given GitHub has a stale auto-merge branch "feature"
-    And the token belongs to account "someone"
+    And the App installation belongs to account "someone"
     When the worker checks auto-merge branches
     Then the branch check should fail without affecting worker health
     And no repositories should have been checked

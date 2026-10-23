@@ -14,7 +14,7 @@ across a GitHub account's opted-in repositories.
 An open, non-draft pull request is stale when its branch is missing commits from
 its base branch. Age does not affect eligibility. Only pull requests with
 auto-merge enabled and both branches in the same discovered repository are rebased.
-Public and private repositories visible to the owner's token are discovered on
+Public and private repositories accessible to the App installation are discovered on
 each run. Archived, disabled, foreign, and repositories without **Allow auto-merge**
 enabled are skipped entirely. That repository setting is the opt-in for the worker.
 
@@ -51,6 +51,41 @@ history prevents automation; equal application and revocation timestamps defer i
 Removing the label prevents a new request; it does not cancel auto-merge already
 enabled on GitHub. To stop that merge, disable auto-merge in GitHub as well.
 
+### 💬 Comment requests
+
+With GitHub App authentication and webhooks configured, post a new PR comment
+containing exactly `@abgleich automerge`. Surrounding whitespace is allowed.
+The worker checks the author's current write or admin permissions, re-reads the
+comment and PR, and adds `automerge`. The App reacts on the original command:
+
+| Reaction | Meaning |
+| --- | --- |
+| 👀 | The signed command was received and processing started. |
+| 👍 | The request was accepted: the label was added or automation was already enabled or labeled. |
+| 😕 | The request was ineligible, rejected, or failed. |
+
+Acceptance confirms command processing; the PR's status shows when merging finishes.
+The label remains the durable request for automation;
+the next scheduled sweep applies the existing merge policy. Fork PRs are supported.
+Edited comments and bot authors do not authorize requests.
+
+An existing label or enabled auto-merge needs no label write. The App still checks
+the current comment and the author's permission before acknowledging acceptance.
+A delivery whose original comment is at or before a label removal or auto-merge disablement
+cannot add the label. Missing history prevents action. After a revocation, remove
+any remaining label and post a new command with a later timestamp to renew the
+request. These checks survive restarts without local storage. GitHub label writes
+do not support an expected-state guard: a simultaneous manual change can still
+race the final write. This is not an exactly-once delivery guarantee.
+
+Reactions are best effort and do not control automation. Each reaction gets at
+most one second and a quarter of the remaining delivery budget, so slow feedback
+leaves time for the label operation. An outage or exhausted deadline can leave
+feedback incomplete; reaction failures are logged. Reactions remain on the
+comment, and GitHub reuses an existing reaction on redelivery. A later attempt
+can therefore leave both rejection and acceptance reactions; consult the label
+and current PR state for the outcome.
+
 ## 🚀 Quickstart
 
 Run these steps from the repository root.
@@ -75,27 +110,16 @@ make build
 
 ### ▶️ Configure and start
 
-Save the example in **Configuration** below as `config.yaml`, choosing the GitHub
-personal account to manage. Supply that account's token with the permissions described
-under **Credentials**. The example reads it from `GITHUB_TOKEN`.
+Save the example in **Configuration** below as `config.yaml`. Set the owner,
+App ID, installation ID, and path to the App's RSA private key. The key uses a
+go-service source such as `file:/etc/secrets/abgleich/github-app-private-key.pem`
+and is read once at startup. App registration and permissions are described
+under **GitHub App setup**.
 
-If `GITHUB_TOKEN` is already exported in your shell, start the worker directly:
+Start the worker:
 
 ```sh
 ./abgleich server -config file:config.yaml
-```
-
-The `github.token: env:GITHUB_TOKEN` setting tells the worker to read the exported
-environment variable once at startup.
-
-If you need to set the token first, you can use this optional hidden prompt in
-Bash or Zsh, then run the startup command above:
-
-```bash
-printf 'GitHub token: '
-read -r -s GITHUB_TOKEN
-printf '\n'
-export GITHUB_TOKEN
 ```
 
 The worker begins checking the account's repositories immediately. Leave it
@@ -140,7 +164,7 @@ require an author to repair it. One failed branch does not prevent other
 eligible branches or repositories from being processed. After a timeout, the
 next scheduled sweep starts with fresh repository discovery.
 
-Discovery validates that the authenticated personal account matches `github.owner`.
+Discovery validates that the App installation belongs to `github.owner`.
 All repository pages must succeed before processing begins. Pull request pagination
 also finishes before any branches in that repository are updated.
 
@@ -165,7 +189,10 @@ github:
       attempts: 2
       backoff: 100ms
   owner: alexfalkowski
-  token: env:GITHUB_TOKEN
+  app:
+    id: 5427450
+    installationId: 174152088
+    privateKey: file:/etc/secrets/abgleich/github-app-private-key.pem
 scheduler:
   interval: 15m
   timeout: 5m
@@ -184,10 +211,12 @@ transport:
   http:
     address: tcp://:11000
     timeout: 5s
+    max_receive_size: 1048576B
 ```
 
-Set `github.owner` and `github.token`. The schedule and
-HTTP client settings are optional:
+Set `github.owner` and `github.app` for all GitHub access. Add
+`github.webhook` for comment commands. The schedule and HTTP client settings
+are optional:
 
 | Setting | Default | Purpose |
 | --- | --- | --- |
@@ -195,6 +224,8 @@ HTTP client settings are optional:
 | `scheduler.timeout` | `5m` | Deadline for a complete owner-wide sweep. |
 | `github.client.timeout` | `1m` | Deadline for an individual HTTP request. |
 | `github.url` | `https://api.github.com/` | REST API origin; GraphQL uses `/graphql` on the same origin. |
+| `github.webhook.timeout` | `5s` | Complete synchronous delivery budget; must be positive and below `10s`. |
+| `transport.http.max_receive_size` | `4MB` | Incoming request body limit for all HTTP routes; the example sets 1 MiB. |
 
 Omitted or zero scheduler durations and GitHub client timeouts use the defaults
 above. Negative schedule durations are invalid.
@@ -209,32 +240,87 @@ current GitHub state before deciding whether another action is needed.
 
 ### 🚦 API usage
 
-One shared go-github client processes repositories and pull requests serially.
+The shared go-github client processes repositories and pull requests serially.
 The fifteen-minute interval limits polling volume; there is no additional rate-limit
 library or configuration. If GitHub reports throttling, the current sweep stops
 instead of continuing through other repositories. go-github retains its built-in
 rate-limit checks, and a later scheduled run reads current state again.
 
-Personal access tokens share the account's API budget with other automation.
-Monitor repeated rate-limit failures and increase `scheduler.interval` if needed.
+Polling and comment commands share the installation's API budget. Monitor repeated
+rate-limit failures and increase `scheduler.interval` if needed.
 
 ### 🔐 Credentials
 
-Use a personal access token belonging to `github.owner`, covering all repositories
-to manage, including private and newly created repositories. A fine-grained token
-needs **Pull requests: read and write** and **Contents: read and write**.
+The worker and comment handler share one App installation. Configure
+`github.app.id`, `github.app.installationId`, and `github.app.privateKey`;
+`github.owner` must match the installation's account. A personal access token
+is not used. `ghinstallation` signs App requests and caches and renews the
+installation access token. REST and GraphQL use the same installation credentials;
+App clients reject redirects to another API origin.
+
+The worker validates the installation's App ID, owner, and suspension state before
+repository access. It discovers only repositories granted to that installation,
+including private repositories. Install the App on all owned repositories to
+include new repositories automatically, or select repositories explicitly.
 Enable **Allow auto-merge** on each repository to opt in, and **Allow squash
-merging** for Dependabot and labeled automation. Required checks and reviews must still pass;
-repository rules can reject a rebase or merge. Repositories outside the token's
-access cannot be discovered.
-A source such as
-`file:/run/secrets/github-token` supports mounted secrets. Both REST and GraphQL
-requests use the same authenticated client. go-github restricts authentication
-to the configured API origin.
+merging** for Dependabot and labeled automation. Required reviews and checks still
+apply; give the App no ruleset bypass.
+
+### 🤖 GitHub App setup
+
+Register the App with **Contents: read and write**, **Pull requests: read and
+write**, and **Issues: read and write**. Metadata read access is automatic. The worker
+uses server-side rebases and squash merges; the comment handler adds the existing
+`automerge` label and reactions. Issues write access is required for comment
+reactions. When upgrading an existing App, update its permissions and approve
+the installation's permission change. Use your own App and installation IDs in
+the configuration.
+
+Omit `github.webhook` to run the worker without exposing a webhook endpoint.
+To receive comments, add this block to the existing `github` configuration:
+
+```yaml
+github:
+  webhook:
+    secret: file:/etc/secrets/abgleich/github-webhook-secret
+    timeout: 4s
+```
+
+The webhook secret uses go-service sources such as `file:` or `env:`. Keep HTTP
+request, webhook, job, and health timeouts independent; the server HTTP timeout
+must accommodate the webhook budget. The explicit `4s` budget leaves response
+time within the example's `5s` HTTP timeout.
+
+To enable comment commands, configure the App's **Issue comment** subscription,
+a random webhook secret matching `github.webhook.secret`, and an HTTPS webhook
+URL ending in `/webhooks/github`. The proposed deployment URL is
+`https://abgleich.lean-thoughts.com/webhooks/github`; DNS and ingress must be
+provisioned before activation. The handler requires SHA-256 signatures. The shared
+HTTP transport enforces `transport.http.max_receive_size`; set `1048576B` for a
+1 MiB limit as shown above. It acknowledges ignored and completed deliveries with
+HTTP 204, rejects invalid signatures with 401 and unauthorized commands with 403,
+and returns non-success for API failures, conflicts, or processing timeouts.
+
+Processing stays inside the request; no background queue or delivery cache is
+used. Each process runs one command at a time, with concurrent commands receiving 503.
+GitHub does not automatically redeliver failed webhooks. Inspect delivery results
+in the App settings and redeliver failures after recovery. Ambiguous label
+responses are not retried automatically; redelivery re-reads current state.
+Polling continues when webhook delivery is unavailable. App API failures can
+prevent both polling and comment operations; they do not affect process health.
+Installation requests share a cancellable request slot so a webhook deadline
+also bounds waiting for another request or token renewal.
+
+For rollout, replace `github.token` in runtime configuration with the `github.app`
+block above. The existing deployed secret can retain its old token entry while
+the new version is deployed; remove that unused entry after a successful rollout.
 
 > [!IMPORTANT]
-> Credentials are read once at startup. Missing or empty tokens prevent startup.
-> Restart the worker after changing or restoring its token.
+> App private keys and webhook secrets are read once at startup.
+> Missing or empty configured sources and invalid RSA PEM files prevent startup.
+> Restart the worker after changing these sources. Installation access tokens
+> renew automatically. GitHub authentication failures occur during requests and
+> do not make worker health fail.
 
 ## 🩺 Health
 
@@ -304,16 +390,19 @@ image is sufficient.
 
 | Package | Responsibility |
 | --- | --- |
-| [`automerge`](internal/automerge/reconciler.go) | Repository opt-in, strategy selection and ordering, and job registration. |
+| [`automerge`](internal/automerge/reconciler.go) | Repository opt-in, strategy selection and ordering, comment command policy, and job registration. |
 | [`automerge/internal/strategy`](internal/automerge/internal/strategy/doc.go) | Dependabot, label, and rebase policies with fresh pre-mutation checks. |
 | [`github`](internal/github/service.go) | Owner-wide repository discovery, identity checks, authenticated API access, pagination, and response validation. |
 | [`scheduler`](internal/scheduler/scheduler.go) | Independent schedules, timeouts, overlap protection, outcome logs, and job lifecycle. |
+| [`transport/http`](internal/transport/http/doc.go) | Webhook route registration, request deadlines, and HTTP responses. |
 | [`cmd`](internal/cmd/module.go) | Composition of package modules. |
 
 Dependencies follow the responsibilities:
 
 ```mermaid
 flowchart LR
+    transport[transport/http] --> automerge
+    transport --> github
     automerge --> github
     automerge --> scheduler
 ```
@@ -323,8 +412,15 @@ that service for repository settings, PR reads, identity checks, comparisons,
 auto-merge enablement, and guarded rebase and merge requests. `github.Repository`
 and pull request types alias SDK snapshots;
 they contain no service behavior. The service uses an injected `github.Client`,
-which aliases the go-github client. The GitHub module constructs it once through
-`github.NewClient`, with shared HTTP options and lifecycle dependencies injected.
+which holds the installation SDK client and a private JWT client for installation
+identity checks. The GitHub module constructs it once through `github.NewClient`.
+The reconciler, strategies, and `Commands` receive the same `github.Service`.
+`transport/http` verifies deliveries through `github.Webhook`, then calls
+`automerge.Commands.Handle` for command recognition and authorization. The
+transport owns HTTP responses and delivery deadlines; go-service enforces the
+configured body limit. `cmd.Module` composes the transport with the domain modules.
+Shared HTTP options and connection cleanup are provided through
+`github.NewConnection`.
 SDK imports stay inside `internal/github`.
 
 The strategy module provides the policies in this order: Dependabot, label,
@@ -334,7 +430,9 @@ outcomes. The strategy interface, implementations, and shared PR
 eligibility helpers live in `internal/automerge/internal/strategy`.
 Each strategy owns its applicability and fresh pre-mutation checks.
 Label authorization uses paginated GraphQL history; GitHub field aliases
-decode events into SDK issue-event snapshots.
+decode events into SDK issue-event snapshots. The GitHub package owns snapshot
+completeness checks, exact label lookup, and extraction of the latest event
+timestamps. Automerge applies its authorization and revocation rules to those facts.
 
 Logging is composed around operations. `github.NewService` wraps the API service
 with a logging decorator to report accepted actions after response validation.

@@ -4,15 +4,30 @@ require 'securerandom'
 require 'json'
 require 'yaml'
 require 'base64'
+require 'fileutils'
+require 'openssl'
+require 'jwt'
 
 require 'abgleich/assertions'
 require 'abgleich/credentials'
 require 'abgleich/github/repository'
 require 'abgleich/github/service'
+require 'abgleich/github/app_service'
 require 'abgleich/github/server'
 
 module Abgleich
   class << self
+    # Send a signed delivery to the actual worker HTTP boundary.
+    def deliver_comment(event, signature: nil)
+      payload = event.is_a?(String) ? event : JSON.generate(event)
+      signature ||= "sha256=#{OpenSSL::HMAC.hexdigest('SHA256', WEBHOOK_SECRET, payload)}"
+      RestClient::Request.execute(method: :post, url: 'http://localhost:11000/webhooks/github', payload:,
+                                  headers: { content_type: :json, 'X-GitHub-Event' => 'issue_comment', 'X-Hub-Signature-256' => signature },
+                                  timeout: 5)
+    rescue RestClient::ExceptionWithResponse => e
+      e.response
+    end
+
     def github
       @github ||= GitHubRepository.new
     end

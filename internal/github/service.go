@@ -30,7 +30,7 @@ const autoMergeMutation = `mutation EnableAutoMerge($input: EnablePullRequestAut
   }
 }`
 
-// NewService constructs owner-wide GitHub access using one shared client.
+// NewService constructs shared worker and webhook access through the App client.
 // Construction does not contact GitHub; each sweep discovers fresh remote state.
 func NewService(cfg *Config, client *Client, log *logger.Logger) Service {
 	return &loggingService{Service: &service{config: cfg, client: client}, logger: log}
@@ -39,8 +39,21 @@ func NewService(cfg *Config, client *Client, log *logger.Logger) Service {
 // Service owns repository discovery, identity checks, REST reads, and guarded
 // mutations. Callers own pull request eligibility, rebase, and merge policy.
 type Service interface {
+	// GetComment reads the current comment and verifies its PR and author identity.
+	GetComment(ctx context.Context, repo *Repository, number int, expected *IssueComment) (*IssueComment, error)
+
+	// HasWritePermission checks the author's current repository permissions.
+	HasWritePermission(ctx context.Context, repo *Repository, author *User) (bool, error)
+
+	// AddLabel adds one label without replacing others or retrying mutations.
+	AddLabel(ctx context.Context, repo *Repository, number int, label string) error
+
+	// AddCommentReaction adds a reaction as the App. Repeated reactions are
+	// idempotent in GitHub; mutation requests are not retried.
+	AddCommentReaction(ctx context.Context, repo *Repository, comment *IssueComment, content string) error
+
 	// ListRepositories validates the authenticated owner and collects all pages
-	// before returning active owned repositories visible to the token.
+	// before returning active owned repositories accessible to the installation.
 	ListRepositories(ctx context.Context) ([]*Repository, error)
 
 	// GetRepository reads full settings omitted by discovery and validates that
@@ -94,33 +107,29 @@ type service struct {
 	client *Client
 }
 
-// ListRepositories validates the authenticated personal account and discovers
-// all owned repositories visible to its token, including private repositories.
+// ListRepositories validates the installation and discovers owned repositories
+// it can access, including private repositories.
 // Archived, disabled, and foreign repositories are excluded. Every page must
 // succeed before any repositories are returned.
 func (s *service) ListRepositories(ctx context.Context) ([]*Repository, error) {
-	user, _, err := s.client.Users.Get(ctx, strings.Empty)
-	if err != nil {
-		return nil, errors.Prefix("github authenticated owner", err)
+	if err := s.validateInstallation(ctx); err != nil {
+		return nil, err
 	}
 
-	if strings.ToLower(user.GetLogin()) != strings.ToLower(s.config.Owner) {
-		return nil, errors.New("github authenticated account does not match configured owner")
-	}
-
-	opts := &github.RepositoryListByAuthenticatedUserOptions{
-		Affiliation: "owner", Visibility: "all", Sort: "full_name", Direction: "asc",
-		PerPage: pageSize,
-	}
+	opts := &github.ListOptions{PerPage: pageSize}
 
 	var repositories []*Repository
 	for {
-		page, response, err := s.client.Repositories.ListByAuthenticatedUser(ctx, opts)
+		page, response, err := s.client.installation.Apps.ListRepos(ctx, opts)
 		if err != nil {
 			return nil, errors.Prefix("github list repositories", err)
 		}
 
-		for _, repo := range page {
+		if page.GetRepositories() == nil {
+			return nil, errors.New("github installation repositories returned an incomplete page")
+		}
+
+		for _, repo := range page.GetRepositories() {
 			if !s.isActiveOwnedRepository(repo) {
 				continue
 			}
@@ -145,7 +154,11 @@ func (s *service) ListRepositories(ctx context.Context) ([]*Repository, error) {
 // AllowSquashMerge, which GitHub omits from repository lists. A mismatched
 // repository identity is an error rather than permission to process its PRs.
 func (s *service) GetRepository(ctx context.Context, repo *Repository) (*Repository, error) {
-	current, _, err := s.client.Repositories.Get(ctx, repo.GetOwner().GetLogin(), repo.GetName())
+	if err := s.validateInstallation(ctx); err != nil {
+		return nil, err
+	}
+
+	current, _, err := s.client.installation.Repositories.Get(ctx, repo.GetOwner().GetLogin(), repo.GetName())
 	if err != nil {
 		return nil, errors.Prefix("github get repository", err)
 	}
@@ -168,7 +181,7 @@ func (s *service) ListOpenPullRequests(ctx context.Context, repo *Repository) ([
 	opts := &github.PullRequestListOptions{State: "open", PerPage: pageSize}
 
 	for {
-		page, response, err := s.client.PullRequests.List(ctx, repo.GetOwner().GetLogin(), repo.GetName(), opts)
+		page, response, err := s.client.installation.PullRequests.List(ctx, repo.GetOwner().GetLogin(), repo.GetName(), opts)
 		if err != nil {
 			return nil, errors.Prefix("github list pull requests", err)
 		}
@@ -187,7 +200,7 @@ func (s *service) ListOpenPullRequests(ctx context.Context, repo *Repository) ([
 // GetPullRequest reads a fresh pull request snapshot by number from repo,
 // including its current auto-merge and branch state.
 func (s *service) GetPullRequest(ctx context.Context, repo *Repository, number int) (*PullRequest, error) {
-	pull, _, err := s.client.PullRequests.Get(ctx, repo.GetOwner().GetLogin(), repo.GetName(), number)
+	pull, _, err := s.client.installation.PullRequests.Get(ctx, repo.GetOwner().GetLogin(), repo.GetName(), number)
 	if err != nil {
 		return nil, errors.Prefix("github get pull request", err)
 	}
@@ -198,7 +211,7 @@ func (s *service) GetPullRequest(ctx context.Context, repo *Repository, number i
 // Compare compares head with base in repo and reports missing base commits
 // through BehindBy. An absent behind_by field is an error.
 func (s *service) Compare(ctx context.Context, repo *Repository, base, head string) (*CommitsComparison, error) {
-	comparison, _, err := s.client.Repositories.CompareCommits(ctx, repo.GetOwner().GetLogin(), repo.GetName(),
+	comparison, _, err := s.client.installation.Repositories.CompareCommits(ctx, repo.GetOwner().GetLogin(), repo.GetName(),
 		base, head, &github.ListOptions{PerPage: 1})
 	if err != nil {
 		return nil, errors.Prefix("github compare commits", err)
@@ -221,7 +234,7 @@ func (s *service) Rebase(ctx context.Context, pull *PullRequest) error {
 		PullRequestID: nodeID, ExpectedHeadOID: pull.GetHead().GetSHA(), UpdateMethod: "REBASE",
 	}
 
-	request, err := s.client.NewRequest(ctx, http.MethodPost, "/graphql", body)
+	request, err := s.client.installation.NewRequest(ctx, http.MethodPost, "/graphql", body)
 	if err != nil {
 		return err
 	}
@@ -229,7 +242,7 @@ func (s *service) Rebase(ctx context.Context, pull *PullRequest) error {
 	request.Header.Set(http.AcceptKey, media.JSON)
 
 	var response UpdatePullRequestBranchResponse
-	if _, err := s.client.Do(request, &response); err != nil {
+	if _, err := s.client.installation.Do(request, &response); err != nil {
 		return err
 	}
 
@@ -244,7 +257,7 @@ func (s *service) EnableAutoMerge(ctx context.Context, pull *PullRequest) error 
 		PullRequestID: pull.GetNodeID(), ExpectedHeadOID: pull.GetHead().GetSHA(), MergeMethod: "SQUASH",
 	}
 
-	request, err := s.client.NewRequest(ctx, http.MethodPost, "/graphql", body)
+	request, err := s.client.installation.NewRequest(ctx, http.MethodPost, "/graphql", body)
 	if err != nil {
 		return err
 	}
@@ -252,7 +265,7 @@ func (s *service) EnableAutoMerge(ctx context.Context, pull *PullRequest) error 
 	request.Header.Set(http.AcceptKey, media.JSON)
 
 	var response EnablePullRequestAutoMergeResponse
-	if _, err := s.client.Do(request, &response); err != nil {
+	if _, err := s.client.installation.Do(request, &response); err != nil {
 		return err
 	}
 
@@ -262,7 +275,7 @@ func (s *service) EnableAutoMerge(ctx context.Context, pull *PullRequest) error 
 // Merge requests a squash merge with the expected head SHA. GitHub enforces
 // repository rules. HTTP success without a confirmed merge is an error.
 func (s *service) Merge(ctx context.Context, repo *Repository, pull *PullRequest) error {
-	result, _, err := s.client.PullRequests.Merge(ctx, repo.GetOwner().GetLogin(), repo.GetName(), pull.GetNumber(),
+	result, _, err := s.client.installation.PullRequests.Merge(ctx, repo.GetOwner().GetLogin(), repo.GetName(), pull.GetNumber(),
 		strings.Empty, &github.PullRequestOptions{SHA: pull.GetHead().GetSHA(), MergeMethod: "squash"})
 	if err != nil {
 		return errors.Prefix("github merge", err)
