@@ -1,4 +1,4 @@
-@github @manual
+@github @manual @commands
 Feature: Comment requests for auto-merge
   Maintainers request existing label-based automation through signed App deliveries.
   Old comments do not renew a request after its authorization is revoked.
