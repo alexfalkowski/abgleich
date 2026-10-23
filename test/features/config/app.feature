@@ -41,7 +41,7 @@ Feature: Shared App installation access
     Given GitHub App comment commands are configured
     And a pull request from "the repository" for branch "contribution" is "waiting for checks"
     And an earlier command completed before its installation token approached expiry
-    When a maintainer with "write" access comments "@abgleich automerge"
+    When a maintainer with "write" access comments "/ab automerge"
     Then the comment delivery should return HTTP 204
     And the installation token should be renewed
     And exactly 2 label requests should reach GitHub
@@ -51,7 +51,7 @@ Feature: Shared App installation access
     Given GitHub App comment commands are configured
     And a pull request from "the repository" for branch "contribution" is "waiting for checks"
     And the labeled operation fails with "<failure>"
-    When a maintainer with "write" access comments "@abgleich automerge"
+    When a maintainer with "write" access comments "/ab automerge"
     Then the comment delivery should return HTTP 503
     And exactly 0 label requests should reach GitHub
     And the command comment should show "no" feedback
@@ -70,7 +70,7 @@ Feature: Shared App installation access
     And a pull request from "the repository" for branch "contribution" is "waiting for checks"
     And the worker has successfully checked the existing repositories
     And the App installation belongs to account "someone"
-    When a maintainer with "write" access comments "@abgleich automerge"
+    When a maintainer with "write" access comments "/ab automerge"
     Then the comment delivery should return HTTP 503
     And exactly 0 label requests should reach GitHub
     And the command comment should show "no" feedback

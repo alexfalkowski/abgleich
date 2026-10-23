@@ -17,7 +17,7 @@ Feature: Feedback on auto-merge command comments
 
   Scenario: Acknowledge an accepted request on its original comment
     Given a pull request from "a fork" for branch "contribution" is "waiting for checks"
-    When a maintainer with "write" access comments "@ab automerge"
+    When a maintainer with "write" access comments "/ab automerge"
     Then the comment delivery should return HTTP 204
     And the command comment should show "receipt and acceptance" feedback
     And exactly 1 label request should reach GitHub
@@ -27,7 +27,7 @@ Feature: Feedback on auto-merge command comments
     Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
     And branch "contribution" has the "automerge" label
     And the labeled operation fails with "history HTTP"
-    When a maintainer with "write" access comments "@ab automerge"
+    When a maintainer with "write" access comments "/ab automerge"
     Then the comment delivery should return HTTP 204
     And the command comment should show "receipt and acceptance" feedback
     And exactly 0 label requests should reach GitHub
@@ -35,7 +35,7 @@ Feature: Feedback on auto-merge command comments
   Scenario Outline: Wait for slow outcome feedback after processing the command
     Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
     And GitHub takes longer than one second to acknowledge the command outcome
-    When a maintainer with "<permission>" access comments "@ab automerge"
+    When a maintainer with "<permission>" access comments "/ab automerge"
     Then the comment delivery should return HTTP <status>
     And the command comment should show "<feedback>" feedback
     And exactly <labels> label requests should reach GitHub
@@ -49,7 +49,7 @@ Feature: Feedback on auto-merge command comments
     Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
     And the command has a short processing deadline
     And GitHub takes longer than one second to acknowledge the command outcome
-    When a maintainer with "write" access comments "@ab automerge"
+    When a maintainer with "write" access comments "/ab automerge"
     Then the comment delivery should return HTTP 204
     And the command comment should show "receipt" feedback
     And exactly 1 label request should reach GitHub
@@ -57,7 +57,7 @@ Feature: Feedback on auto-merge command comments
 
   Scenario: Confirm auto-merge that is already enabled
     Given a pull request from "the repository" for branch "contribution" is "waiting with auto-merge enabled"
-    When a maintainer with "write" access comments "@ab automerge"
+    When a maintainer with "write" access comments "/ab automerge"
     Then the comment delivery should return HTTP 204
     And the command comment should show "receipt and acceptance" feedback
     And exactly 0 label requests should reach GitHub
@@ -71,7 +71,7 @@ Feature: Feedback on auto-merge command comments
 
   Scenario: Reject a command from a reader
     Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
-    When a maintainer with "read" access comments "@ab automerge"
+    When a maintainer with "read" access comments "/ab automerge"
     Then the comment delivery should return HTTP 403
     And the command comment should show "receipt and rejection" feedback
     And exactly 0 label requests should reach GitHub
@@ -79,14 +79,14 @@ Feature: Feedback on auto-merge command comments
   Scenario: An existing label does not authorize a reader's command
     Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
     And branch "contribution" has the "automerge" label
-    When a maintainer with "read" access comments "@ab automerge"
+    When a maintainer with "read" access comments "/ab automerge"
     Then the comment delivery should return HTTP 403
     And the command comment should show "receipt and rejection" feedback
     And exactly 0 label requests should reach GitHub
 
   Scenario: Explain that an ineligible request was received but not accepted
     Given a pull request from "the repository" for branch "contribution" is "a draft"
-    When a maintainer with "write" access comments "@ab automerge"
+    When a maintainer with "write" access comments "/ab automerge"
     Then the comment delivery should return HTTP 204
     And the command comment should show "receipt and rejection" feedback
     And exactly 0 label requests should reach GitHub
@@ -102,7 +102,7 @@ Feature: Feedback on auto-merge command comments
   Scenario: Show a failed label request without claiming acceptance
     Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
     And the labeled operation fails with "label HTTP"
-    When a maintainer with "write" access comments "@ab automerge"
+    When a maintainer with "write" access comments "/ab automerge"
     Then the comment delivery should return HTTP 503
     And the command comment should show "receipt and rejection" feedback
     And exactly 0 label requests should reach GitHub
@@ -131,7 +131,7 @@ Feature: Feedback on auto-merge command comments
     Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
     And the command has a short processing deadline
     And GitHub cannot add comment reactions because of "<problem>"
-    When a maintainer with "write" access comments "@ab automerge"
+    When a maintainer with "write" access comments "/ab automerge"
     Then the comment delivery should return HTTP 204
     And the command comment should show "no" feedback
     And exactly 1 label request should reach GitHub

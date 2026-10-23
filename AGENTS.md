@@ -29,8 +29,8 @@ not clone repositories or execute Git. Each run reconciles fresh remote state.
   and `commands`. These dependencies do not import `automerge`.
 - Feature modules register named comment handlers through `commands.Dispatcher.Register`
   before startup. Keep each handler in its owning feature package; `commands`
-  stays independent of features. Use exact names with `@ab` and the compatible
-  `@abgleich` prefix. Re-read comments and current permissions before acting.
+  stays independent of features. Use exact names with the `/ab` prefix.
+  Re-read comments and current permissions before acting.
 - Keep owner-wide discovery and case-insensitive repository identity checks in
   `github.Service`. The reconciler receives the service and uses SDK repository
   snapshots, not GitHub configuration or a separately cached repository name.

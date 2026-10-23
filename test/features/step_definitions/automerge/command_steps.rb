@@ -64,8 +64,8 @@ Given('its original command comment now has {string}') do |change|
   @comment_event = Abgleich.github.add_comment('contribution')
   field, value = {
     'different text' => [:body, 'please wait'],
-    'an unknown command' => [:body, '@ab unknown'],
-    'extra command text' => [:body, '@ab automerge please'],
+    'an unknown command' => [:body, '/ab unknown'],
+    'extra command text' => [:body, '/ab automerge please'],
     'an edit timestamp' => [:updated_at, '2026-01-01T00:00:06Z'],
     'no edit timestamp' => [:updated_at, nil],
     'no author login' => [:user, { id: 77, login: '', type: 'User' }],

@@ -54,8 +54,9 @@ enabled on GitHub. To stop that merge, disable auto-merge in GitHub as well.
 ### 💬 Comment requests
 
 With GitHub App authentication and webhooks configured, post a new PR comment
-containing exactly `@ab automerge`. Surrounding whitespace is allowed.
-The original `@abgleich automerge` syntax remains supported as an alias.
+containing exactly `/ab automerge`. Surrounding whitespace is allowed.
+Mention-based commands are no longer supported; use `/ab automerge` to avoid
+notifying GitHub users.
 Commands are case-sensitive; extra text and unknown commands are ignored without reactions.
 The worker checks the author's current write or admin permissions, re-reads the
 comment and PR, and adds `automerge`. The App reacts on the original command:

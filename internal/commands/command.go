@@ -13,12 +13,12 @@ type Handler interface {
 	Handle(ctx context.Context, event *github.IssueCommentEvent) (bool, error)
 }
 
-// Parse returns the text after @ab or its compatibility alias @abgleich and a
-// single space. Surrounding whitespace is ignored; the remaining text is kept
+// Parse returns the text after /ab and a single space.
+// Surrounding whitespace is ignored; the remaining text is kept
 // intact for exact command-name matching. Unrelated comments return an empty string.
 func Parse(body string) string {
 	prefix, name, _ := strings.Cut(strings.TrimSpace(body), " ")
-	if prefix != "@ab" && prefix != "@abgleich" {
+	if prefix != "/ab" {
 		return strings.Empty
 	}
 
