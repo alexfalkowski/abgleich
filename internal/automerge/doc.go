@@ -4,6 +4,6 @@
 // policy and fresh pre-mutation checks; the reconciler owns strategy order and
 // repository opt-in. GitHub access and mutations belong to github.
 // Module registers Reconcile with the shared scheduler as the automerge job.
-// Commands handles verified PR comments by adding the existing opt-in label;
-// inbound HTTP handling belongs to transport/http.
+// Command handles automerge PR comments by adding the existing opt-in label;
+// shared dispatch belongs to commands and inbound HTTP handling to transport/http.
 package automerge
