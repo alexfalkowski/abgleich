@@ -7,7 +7,6 @@ import (
 	"github.com/alexfalkowski/abgleich/internal/github"
 	"github.com/alexfalkowski/go-service/v2/context"
 	"github.com/alexfalkowski/go-service/v2/errors"
-	"github.com/alexfalkowski/go-service/v2/strings"
 )
 
 // NewReconciler constructs owner-wide reconciliation using strategies in the
@@ -100,10 +99,8 @@ func (r *Reconciler) reconcilePullRequest(ctx context.Context, repository *githu
 		return nil
 	}
 
-	head, base := pull.GetHead(), pull.GetBase()
-	if strings.IsAnyEmpty(pull.GetNodeID(), head.GetSHA(), head.GetRef(), head.GetRepo().GetFullName(),
-		base.GetRef(), base.GetRepo().GetFullName()) {
-		return errors.New("pull request is missing branch metadata")
+	if err := github.ValidatePullRequestMetadata(pull); err != nil {
+		return err
 	}
 
 	for _, s := range r.strategies {

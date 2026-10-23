@@ -21,7 +21,7 @@ Given('GitHub has no repositories') do
   Abgleich.github.clear_repositories
 end
 
-Given('the token belongs to account {string}') do |owner|
+Given('the App installation belongs to account {string}') do |owner|
   Abgleich.github.authenticated_owner = owner
 end
 

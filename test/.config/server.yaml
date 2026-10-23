@@ -6,7 +6,10 @@ github:
       attempts: 2
       backoff: 10ms
   owner: alexfalkowski
-  token: file:secrets/github-token
+  app:
+    id: 42
+    installationId: 99
+    privateKey: file:reports/github-app-private-key.pem
   url: http://localhost:11001/
 scheduler:
   interval: 1s
@@ -29,3 +32,4 @@ transport:
   http:
     address: tcp://:11000
     timeout: 5s
+    max_receive_size: 1048576B

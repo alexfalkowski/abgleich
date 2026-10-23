@@ -1,76 +1,76 @@
 package github
 
 import (
-	"github.com/alexfalkowski/go-service/v2/bytes"
-	"github.com/alexfalkowski/go-service/v2/context"
-	"github.com/alexfalkowski/go-service/v2/di"
-	"github.com/alexfalkowski/go-service/v2/env"
 	"github.com/alexfalkowski/go-service/v2/errors"
-	"github.com/alexfalkowski/go-service/v2/id"
+	"github.com/alexfalkowski/go-service/v2/net/http"
+	"github.com/alexfalkowski/go-service/v2/net/http/body"
 	"github.com/alexfalkowski/go-service/v2/os"
-	"github.com/alexfalkowski/go-service/v2/telemetry/logger"
-	"github.com/alexfalkowski/go-service/v2/transport/http"
-	"github.com/alexfalkowski/go-service/v2/transport/http/breaker"
-	"github.com/alexfalkowski/go-service/v2/transport/http/retry"
+	"github.com/bradleyfalzon/ghinstallation/v2"
 	"github.com/google/go-github/v93/github"
 )
 
-// Client aliases [github.Client] so consumers use the project-owned package.
-type Client = github.Client
-
-// ClientParams supplies the GitHub endpoint, shared HTTP configuration, and injected
-// transport dependencies. Credentials are resolved through Filesystem at startup.
-type ClientParams struct {
-	di.In
-
-	Lifecycle  di.Lifecycle
-	ID         id.Generator
-	Config     *Config
-	Filesystem *os.FS
-	Logger     *logger.Logger
-	UserAgent  env.UserAgent
+// Client supplies installation access to the worker and webhook. The private
+// application client uses JWT authentication to validate installation ownership.
+type Client struct {
+	installation *github.Client
+	application  *github.Client
 }
 
-// NewClient constructs a reusable API client without contacting GitHub. It reads
-// the token source once at startup; a missing or empty token prevents startup.
-// Credential changes require a process restart.
-func NewClient(params ClientParams) (*Client, error) {
-	token, err := params.Filesystem.ReadSource(params.Config.Token)
+// NewClient reads the App key once at startup. Missing or empty sources and
+// invalid RSA PEMs prevent startup; replacement requires a restart. Signing and
+// installation token renewal are handled by ghinstallation. Construction makes
+// no GitHub requests.
+func NewClient(cfg *Config, fs *os.FS, conn *http.Client) (*Client, error) {
+	key, err := fs.ReadSource(cfg.App.PrivateKey)
 	if err != nil {
-		return nil, errors.Prefix("github token", err)
+		return nil, errors.Prefix("github app private key", err)
 	}
 
-	endpoint := params.Config.GetURL()
-	opts := []http.ClientOption{
-		http.WithClientLogger(params.Logger),
-		http.WithClientUserAgent(params.UserAgent),
-		http.WithClientID(params.ID),
-		http.WithClientTimeout(params.Config.GetTimeout()),
-	}
-
-	if cfg := params.Config.Client; cfg.IsEnabled() {
-		opts = append(opts,
-			http.WithClientBreaker(breaker.NewConfig(cfg.Breaker)),
-			http.WithClientRetry(retry.NewConfig(cfg.Retry), retry.SafeMethods),
-			http.WithClientTLS(cfg.TLS),
-		)
-	}
-
-	connection, err := http.NewClient(opts...)
+	application, err := ghinstallation.NewAppsTransport(conn.Transport, cfg.App.ID, key)
 	if err != nil {
 		return nil, err
 	}
 
-	params.Lifecycle.Append(di.Hook{
-		OnStop: func(context.Context) error {
-			connection.CloseIdleConnections()
-			return nil
-		},
-	})
+	endpoint := cfg.GetURL()
+	application.BaseURL = endpoint
 
-	return github.NewClient(
-		github.WithHTTPClient(connection),
-		github.WithURLs(&endpoint, &endpoint),
-		github.WithAuthToken(bytes.String(token)),
-	)
+	tokenConnection := *conn
+	tokenConnection.CheckRedirect = http.SameOriginRedirect
+
+	installation := ghinstallation.NewFromAppsTransport(application, cfg.App.InstallationID)
+	installation.Client = &tokenConnection
+
+	appConnection, installationConnection := tokenConnection, tokenConnection
+	appConnection.Transport = application
+	installationConnection.Transport = &installationTransport{RoundTripper: installation, requests: make(chan struct{}, 1)}
+
+	app, err := github.NewClient(github.WithHTTPClient(&appConnection), github.WithURLs(&endpoint, &endpoint))
+	if err != nil {
+		return nil, err
+	}
+
+	client, err := github.NewClient(github.WithHTTPClient(&installationConnection), github.WithURLs(&endpoint, &endpoint))
+	if err != nil {
+		return nil, err
+	}
+
+	return &Client{installation: client, application: app}, nil
+}
+
+// ghinstallation holds a mutex while renewing tokens; waiting for that mutex
+// cannot be cancelled. A request slot bounds the wait by each caller's context.
+type installationTransport struct {
+	http.RoundTripper
+	requests chan struct{}
+}
+
+func (t *installationTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	select {
+	case t.requests <- struct{}{}:
+		defer func() { <-t.requests }()
+		return t.RoundTripper.RoundTrip(req)
+	case <-req.Context().Done():
+		body.Close(req.Body)
+		return nil, req.Context().Err()
+	}
 }

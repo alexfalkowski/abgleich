@@ -11,8 +11,20 @@ type Repository = github.Repository
 // PullRequest aliases [github.PullRequest] so consumers use the project-owned package.
 type PullRequest = github.PullRequest
 
+// Label aliases [github.Label] for shared label membership checks.
+type Label = github.Label
+
 // IssueEvent aliases [github.IssueEvent] for pull request automation history.
 type IssueEvent = github.IssueEvent
+
+// IssueComment aliases [github.IssueComment] for signed command requests.
+type IssueComment = github.IssueComment
+
+// IssueCommentEvent aliases [github.IssueCommentEvent] for verified deliveries.
+type IssueCommentEvent = github.IssueCommentEvent
+
+// User aliases [github.User] for current command-author permission checks.
+type User = github.User
 
 // CommitsComparison aliases [github.CommitsComparison] so consumers use the project-owned package.
 type CommitsComparison = github.CommitsComparison

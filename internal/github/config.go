@@ -6,16 +6,42 @@ import (
 	"github.com/alexfalkowski/go-service/v2/time"
 )
 
-// Config identifies the account whose owned repositories are reconciled.
-// Token is a go-service source (for example env:GITHUB_TOKEN or
-// file:/run/secrets/github-token), resolved once at startup. Credential changes
-// require a process restart. URL optionally overrides the REST API base URL;
-// an empty URL uses api.github.com.
+const defaultWebhookTimeout = 5 * time.Second
+
+// Config identifies the owner whose installation repositories are reconciled.
+// App credentials supply worker and comment access. The private key is loaded
+// at startup; installation tokens renew automatically.
+// URL optionally overrides the REST API base URL; an empty URL uses api.github.com.
 type Config struct {
-	Client *client.Config `yaml:"client,omitempty" json:"client,omitempty" toml:"client,omitempty"`
-	Owner  string         `yaml:"owner,omitempty" json:"owner,omitempty" toml:"owner,omitempty" validate:"required"`
-	Token  string         `yaml:"token,omitempty" json:"token,omitempty" toml:"token,omitempty" validate:"required"`
-	URL    string         `yaml:"url,omitempty" json:"url,omitempty" toml:"url,omitempty" validate:"omitempty,http_url"`
+	Client  *client.Config `yaml:"client,omitempty" json:"client,omitempty" toml:"client,omitempty"`
+	App     *AppConfig     `yaml:"app,omitempty" json:"app,omitempty" toml:"app,omitempty" validate:"required"`
+	Webhook *WebhookConfig `yaml:"webhook,omitempty" json:"webhook,omitempty" toml:"webhook,omitempty" validate:"omitempty"`
+	Owner   string         `yaml:"owner,omitempty" json:"owner,omitempty" toml:"owner,omitempty" validate:"required"`
+	URL     string         `yaml:"url,omitempty" json:"url,omitempty" toml:"url,omitempty" validate:"omitempty,http_url"`
+}
+
+// AppConfig identifies one installation. PrivateKey is a go-service source read
+// once at startup; installation access tokens are renewed automatically.
+type AppConfig struct {
+	PrivateKey     string `yaml:"privateKey,omitempty" json:"privateKey,omitempty" toml:"private_key,omitempty" validate:"required"`
+	ID             int64  `yaml:"id,omitempty" json:"id,omitempty" toml:"id,omitempty" validate:"gt=0"`
+	InstallationID int64  `yaml:"installationId,omitempty" json:"installationId,omitempty" toml:"installation_id,omitempty" validate:"gt=0"`
+}
+
+// WebhookConfig enables signed GitHub comment deliveries with App credentials.
+// Secret is a go-service source read at startup. Timeout bounds synchronous
+// processing and defaults to five seconds, below GitHub's ten-second deadline.
+type WebhookConfig struct {
+	Secret  string        `yaml:"secret,omitempty" json:"secret,omitempty" toml:"secret,omitempty" validate:"required"`
+	Timeout time.Duration `yaml:"timeout,omitempty" json:"timeout,omitempty" toml:"timeout,omitempty"`
+}
+
+// GetTimeout returns the delivery processing budget, defaulting to five seconds.
+func (c *WebhookConfig) GetTimeout() time.Duration {
+	if c.Timeout == 0 {
+		return defaultWebhookTimeout
+	}
+	return c.Timeout
 }
 
 // GetTimeout returns the HTTP request timeout, defaulting to one minute when

@@ -20,7 +20,7 @@ type Dependabot struct {
 
 // Matches identifies eligible Dependabot pull requests that need a merge action.
 func (s *Dependabot) Matches(repository *github.Repository, pull *github.PullRequest) bool {
-	return eligible(pull) && s.github.IsSameRepository(repository, pull) && isDependabot(pull) &&
+	return Eligible(pull) && s.github.IsSameRepository(repository, pull) && isDependabot(pull) &&
 		(readyToMerge(pull) || pull.GetAutoMerge() == nil)
 }
 
