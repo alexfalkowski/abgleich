@@ -39,6 +39,10 @@ func NewService(cfg *Config, client *Client, log *logger.Logger) Service {
 // Service owns repository discovery, identity checks, REST reads, and guarded
 // mutations. Callers own pull request eligibility, rebase, and merge policy.
 type Service interface {
+	// ValidateInstallation checks the configured App, owner, and suspension state
+	// without caching. Comment commands must call it before accessing repositories.
+	ValidateInstallation(ctx context.Context) error
+
 	// GetComment reads the current comment and verifies its PR and author identity.
 	GetComment(ctx context.Context, repo *Repository, number int, expected *IssueComment) (*IssueComment, error)
 
@@ -112,7 +116,7 @@ type service struct {
 // Archived, disabled, and foreign repositories are excluded. Every page must
 // succeed before any repositories are returned.
 func (s *service) ListRepositories(ctx context.Context) ([]*Repository, error) {
-	if err := s.validateInstallation(ctx); err != nil {
+	if err := s.ValidateInstallation(ctx); err != nil {
 		return nil, err
 	}
 
@@ -154,10 +158,6 @@ func (s *service) ListRepositories(ctx context.Context) ([]*Repository, error) {
 // AllowSquashMerge, which GitHub omits from repository lists. A mismatched
 // repository identity is an error rather than permission to process its PRs.
 func (s *service) GetRepository(ctx context.Context, repo *Repository) (*Repository, error) {
-	if err := s.validateInstallation(ctx); err != nil {
-		return nil, err
-	}
-
 	current, _, err := s.client.installation.Repositories.Get(ctx, repo.GetOwner().GetLogin(), repo.GetName())
 	if err != nil {
 		return nil, errors.Prefix("github get repository", err)

@@ -7,7 +7,10 @@ module Abgleich
     class << self
       def reset_request_counts
         @request_mutex ||= Mutex.new
-        @request_mutex.synchronize { @request_counts = { active_scans: 0, peak_scans: 0, mutation_requests: 0, installation_requests: 0 } }
+        @request_mutex.synchronize do
+          @request_counts = { active_scans: 0, peak_scans: 0, mutation_requests: 0, installation_requests: 0,
+                              installation_checks: 0, repository_discoveries: 0 }
+        end
       end
 
       def request_counts
@@ -32,6 +35,14 @@ module Abgleich
 
       def record_installation_request
         @request_mutex.synchronize { @request_counts[:installation_requests] += 1 }
+      end
+
+      def record_installation_check
+        @request_mutex.synchronize { @request_counts[:installation_checks] += 1 }
+      end
+
+      def record_repository_discovery
+        @request_mutex.synchronize { @request_counts[:repository_discoveries] += 1 }
       end
     end
 

@@ -258,10 +258,11 @@ is not used. `ghinstallation` signs App requests and caches and renews the
 installation access token. REST and GraphQL use the same installation credentials;
 App clients reject redirects to another API origin.
 
-The worker validates the installation's App ID, owner, and suspension state before
-repository access. It discovers only repositories granted to that installation,
-including private repositories. Install the App on all owned repositories to
-include new repositories automatically, or select repositories explicitly.
+The worker validates the installation's App ID, owner, and suspension state once
+per sweep and once per comment command, before repository access. It discovers
+only repositories granted to that installation, including private repositories.
+Install the App on all owned repositories to include new repositories
+automatically, or select repositories explicitly.
 Enable **Allow auto-merge** on each repository to opt in, and **Allow squash
 merging** for Dependabot and labeled automation. Required reviews and checks still
 apply; give the App no ruleset bypass.

@@ -44,6 +44,10 @@ func (c *Commands) Handle(ctx context.Context, event *github.IssueCommentEvent) 
 	}
 	defer c.mutex.Unlock()
 
+	if err := c.github.ValidateInstallation(ctx); err != nil {
+		return err
+	}
+
 	c.react(ctx, event, "eyes")
 
 	accepted, err := c.requestLabel(ctx, event)
