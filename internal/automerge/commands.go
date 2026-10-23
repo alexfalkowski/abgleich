@@ -10,12 +10,12 @@ import (
 )
 
 const (
-	autoMergeCommand   = "@abgleich automerge"
-	maxReactionTimeout = time.Second
+	autoMergeCommand  = "@abgleich automerge"
+	maxReceiptTimeout = time.Second
 
-	// Limit each reaction to a quarter of the remaining command time, leaving
+	// Limit receipt feedback to a quarter of the remaining command time, leaving
 	// most of the deadline for permission checks and labeling.
-	reactionTimeoutDivisor = 4
+	receiptTimeoutDivisor = 4
 )
 
 // NewCommands constructs synchronous PR comment handling. Concurrent commands
@@ -48,31 +48,37 @@ func (c *Commands) Handle(ctx context.Context, event *github.IssueCommentEvent) 
 		return err
 	}
 
-	c.react(ctx, event, "eyes")
+	c.acknowledgeReceipt(ctx, event)
 
 	accepted, err := c.requestLabel(ctx, event)
+	c.reportOutcome(ctx, event, accepted)
+
+	return err
+}
+
+func (c *Commands) acknowledgeReceipt(ctx context.Context, event *github.IssueCommentEvent) {
+	timeout := maxReceiptTimeout
+	if deadline, ok := ctx.Deadline(); ok {
+		timeout = min(timeout, time.Until(deadline)/receiptTimeoutDivisor)
+	}
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	c.react(ctx, event, "eyes")
+}
+
+func (c *Commands) reportOutcome(ctx context.Context, event *github.IssueCommentEvent, accepted bool) {
 	reaction := "confused"
 	if accepted {
 		reaction = "+1"
 	}
 	c.react(ctx, event, reaction)
-
-	return err
 }
 
-// Feedback is best effort and bounded by the reaction limit and command deadline.
 func (c *Commands) react(ctx context.Context, event *github.IssueCommentEvent, content string) {
 	if ctx.Err() != nil {
 		return
 	}
-
-	timeout := maxReactionTimeout
-	if deadline, ok := ctx.Deadline(); ok {
-		timeout = min(timeout, time.Until(deadline)/reactionTimeoutDivisor)
-	}
-
-	ctx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
 
 	// The service logs feedback failures; they do not change command outcomes.
 	_ = c.github.AddCommentReaction(ctx, event.GetRepo(), event.GetComment(), content)

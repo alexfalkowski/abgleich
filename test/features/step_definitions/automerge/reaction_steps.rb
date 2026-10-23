@@ -12,6 +12,10 @@ Given('the command has a short processing deadline') do
   File.write('.config/server.yaml', YAML.dump(config))
 end
 
+Given('GitHub takes longer than one second to acknowledge the command outcome') do
+  Abgleich.github.fail_with('slow final reaction')
+end
+
 When('a maintainer requests auto-merge while GitHub is still applying the label') do
   @comment_event = Abgleich.github.add_comment('contribution')
   Nonnative.start
@@ -31,7 +35,8 @@ Then('receipt should have been visible before the command completed') do
 end
 
 Then('the command comment should show {string} feedback') do |outcome|
-  expected = { 'receipt and acceptance' => %w[eyes +1], 'receipt and rejection' => %w[eyes confused], 'no' => [] }.fetch(outcome)
+  expected = { 'receipt and acceptance' => %w[eyes +1], 'receipt and rejection' => %w[eyes confused],
+               'receipt' => ['eyes'], 'no' => [] }.fetch(outcome)
   comment_id = @comment_event.fetch(:comment).fetch('id')
   reactions = Abgleich.github.comment_reactions(comment_id)
   expect(reactions).to match_array(expected), "expected #{outcome} feedback on comment #{comment_id}, got #{reactions}"
