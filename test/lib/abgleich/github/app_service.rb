@@ -48,6 +48,7 @@ module Abgleich
     post '/repos/:owner/:repository/issues/comments/:id/reactions' do
       failure = Abgleich.github.failure
       content = JSON.parse(request.body.read).fetch('content')
+      sleep 1.2 if failure == 'slow final reaction' && content != 'eyes'
       if failure == 'reaction timeout'
         sleep 3
         halt 503

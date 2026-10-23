@@ -32,6 +32,29 @@ Feature: Feedback on auto-merge command comments
     And the command comment should show "receipt and acceptance" feedback
     And exactly 0 label requests should reach GitHub
 
+  Scenario Outline: Wait for slow outcome feedback after processing the command
+    Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
+    And GitHub takes longer than one second to acknowledge the command outcome
+    When a maintainer with "<permission>" access comments "@abgleich automerge"
+    Then the comment delivery should return HTTP <status>
+    And the command comment should show "<feedback>" feedback
+    And exactly <labels> label requests should reach GitHub
+
+    Examples:
+      | permission | status | feedback               | labels |
+      | write      | 204    | receipt and acceptance | 1      |
+      | read       | 403    | receipt and rejection  | 0      |
+
+  Scenario: Final feedback cannot prevent completion when GitHub remains slow
+    Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
+    And the command has a short processing deadline
+    And GitHub takes longer than one second to acknowledge the command outcome
+    When a maintainer with "write" access comments "@abgleich automerge"
+    Then the comment delivery should return HTTP 204
+    And the command comment should show "receipt" feedback
+    And exactly 1 label request should reach GitHub
+    And the reaction failure should be logged
+
   Scenario: Confirm auto-merge that is already enabled
     Given a pull request from "the repository" for branch "contribution" is "waiting with auto-merge enabled"
     When a maintainer with "write" access comments "@abgleich automerge"

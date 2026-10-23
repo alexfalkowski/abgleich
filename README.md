@@ -78,13 +78,14 @@ request. These checks survive restarts without local storage. GitHub label write
 do not support an expected-state guard: a simultaneous manual change can still
 race the final write. This is not an exactly-once delivery guarantee.
 
-Reactions are best effort and do not control automation. Each reaction gets at
+Reactions are best effort and do not control automation. Receipt feedback gets at
 most one second and a quarter of the remaining delivery budget, so slow feedback
-leaves time for the label operation. An outage or exhausted deadline can leave
-feedback incomplete; reaction failures are logged. Reactions remain on the
-comment, and GitHub reuses an existing reaction on redelivery. A later attempt
-can therefore leave both rejection and acceptance reactions; consult the label
-and current PR state for the outcome.
+leaves time for the label operation. Final acceptance or rejection feedback uses
+the remaining delivery budget. An outage or exhausted deadline can leave feedback
+incomplete; reaction failures are logged.
+Reactions remain on the comment, and GitHub reuses an existing reaction on
+redelivery. A later attempt can therefore leave both rejection and acceptance
+reactions; consult the label and current PR state for the outcome.
 
 ## 🚀 Quickstart
 
@@ -210,7 +211,7 @@ telemetry:
 transport:
   http:
     address: tcp://:11000
-    timeout: 5s
+    timeout: 9s
     max_receive_size: 1048576B
 ```
 
@@ -284,13 +285,14 @@ To receive comments, add this block to the existing `github` configuration:
 github:
   webhook:
     secret: file:/etc/secrets/abgleich/github-webhook-secret
-    timeout: 4s
+    timeout: 8s
 ```
 
 The webhook secret uses go-service sources such as `file:` or `env:`. Keep HTTP
 request, webhook, job, and health timeouts independent; the server HTTP timeout
-must accommodate the webhook budget. The explicit `4s` budget leaves response
-time within the example's `5s` HTTP timeout.
+must accommodate the webhook budget. The explicit `8s` budget gives permission
+checks, labeling, and final feedback room to complete within the example's `9s`
+HTTP timeout and GitHub's ten-second delivery deadline.
 
 To enable comment commands, configure the App's **Issue comment** subscription,
 a random webhook secret matching `github.webhook.secret`, and an HTTPS webhook
