@@ -2,6 +2,7 @@ package github
 
 import (
 	"github.com/alexfalkowski/go-service/v2/errors"
+	"github.com/alexfalkowski/go-service/v2/meta"
 	"github.com/alexfalkowski/go-service/v2/net/http"
 	"github.com/alexfalkowski/go-service/v2/net/http/body"
 	"github.com/alexfalkowski/go-service/v2/os"
@@ -26,7 +27,8 @@ func NewClient(cfg *Config, fs *os.FS, conn *http.Client) (*Client, error) {
 		return nil, errors.Prefix("github app private key", err)
 	}
 
-	application, err := ghinstallation.NewAppsTransport(conn.Transport, cfg.App.ID, key)
+	transport := &userAgentTransport{RoundTripper: conn.Transport}
+	application, err := ghinstallation.NewAppsTransport(transport, cfg.App.ID, key)
 	if err != nil {
 		return nil, err
 	}
@@ -35,6 +37,7 @@ func NewClient(cfg *Config, fs *os.FS, conn *http.Client) (*Client, error) {
 	application.BaseURL = endpoint
 
 	tokenConnection := *conn
+	tokenConnection.Transport = transport
 	tokenConnection.CheckRedirect = http.SameOriginRedirect
 
 	installation := ghinstallation.NewFromAppsTransport(application, cfg.App.InstallationID)
@@ -55,6 +58,17 @@ func NewClient(cfg *Config, fs *os.FS, conn *http.Client) (*Client, error) {
 	}
 
 	return &Client{installation: client, application: app}, nil
+}
+
+// GitHub rejects Hookshot user agents on API requests. Clear the inbound
+// identity so the shared transport uses the SDK header or application default.
+type userAgentTransport struct {
+	http.RoundTripper
+}
+
+func (t *userAgentTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	ctx := meta.WithAttributes(req.Context(), meta.WithUserAgent(meta.Blank()))
+	return t.RoundTripper.RoundTrip(req.Clone(ctx))
 }
 
 // ghinstallation holds a mutex while renewing tokens; waiting for that mutex
