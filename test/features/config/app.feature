@@ -64,6 +64,8 @@ Feature: Shared App installation access
       | mismatched installation |
       | mismatched app          |
       | suspended installation  |
+      | empty installation      |
+      | null installation       |
 
   Scenario: Reject an installation whose owner changed after a successful sweep
     Given GitHub App comment commands are configured

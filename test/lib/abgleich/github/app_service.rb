@@ -8,6 +8,8 @@ module Abgleich
       GitHubService.record_installation_check
       installation = { id: INSTALLATION_ID, app_id: APP_ID, account: { login: Abgleich.github.authenticated_owner } }
       case Abgleich.github.failure
+      when 'empty installation' then halt 200, ''
+      when 'null installation' then halt 200, 'null'
       when 'mismatched installation' then installation[:id] += 1
       when 'mismatched app' then installation[:app_id] += 1
       when 'suspended installation' then installation[:suspended_at] = '2026-01-01T00:00:00Z'

@@ -27,37 +27,38 @@ func NewClient(cfg *Config, fs *os.FS, conn *http.Client) (*Client, error) {
 		return nil, errors.Prefix("github app private key", err)
 	}
 
-	transport := &userAgentTransport{RoundTripper: conn.Transport}
-	application, err := ghinstallation.NewAppsTransport(transport, cfg.App.ID, key)
+	// Copy HTTP settings so token renewal, App requests, and installation requests
+	// can use different transports while sharing the underlying connection pool.
+	tokenConnection := *conn
+	tokenConnection.Transport = &userAgentTransport{RoundTripper: conn.Transport}
+	tokenConnection.CheckRedirect = http.SameOriginRedirect
+
+	applicationTransport, err := ghinstallation.NewAppsTransport(tokenConnection.Transport, cfg.App.ID, key)
 	if err != nil {
 		return nil, err
 	}
 
 	endpoint := cfg.GetURL()
-	application.BaseURL = endpoint
+	applicationTransport.BaseURL = endpoint
 
-	tokenConnection := *conn
-	tokenConnection.Transport = transport
-	tokenConnection.CheckRedirect = http.SameOriginRedirect
-
-	installation := ghinstallation.NewFromAppsTransport(application, cfg.App.InstallationID)
-	installation.Client = &tokenConnection
-
-	appConnection, installationConnection := tokenConnection, tokenConnection
-	appConnection.Transport = application
-	installationConnection.Transport = &installationTransport{RoundTripper: installation, requests: make(chan struct{}, 1)}
-
-	app, err := github.NewClient(github.WithHTTPClient(&appConnection), github.WithURLs(&endpoint, &endpoint))
+	applicationConnection := tokenConnection
+	applicationConnection.Transport = applicationTransport
+	application, err := github.NewClient(github.WithHTTPClient(&applicationConnection), github.WithURLs(&endpoint, &endpoint))
 	if err != nil {
 		return nil, err
 	}
 
-	client, err := github.NewClient(github.WithHTTPClient(&installationConnection), github.WithURLs(&endpoint, &endpoint))
+	installationAuth := ghinstallation.NewFromAppsTransport(applicationTransport, cfg.App.InstallationID)
+	installationAuth.Client = &tokenConnection
+	installationConnection := tokenConnection
+	installationConnection.Transport = &installationTransport{RoundTripper: installationAuth, requests: make(chan struct{}, 1)}
+
+	installation, err := github.NewClient(github.WithHTTPClient(&installationConnection), github.WithURLs(&endpoint, &endpoint))
 	if err != nil {
 		return nil, err
 	}
 
-	return &Client{installation: client, application: app}, nil
+	return &Client{installation: installation, application: application}, nil
 }
 
 // GitHub rejects Hookshot user agents on API requests. Clear the inbound

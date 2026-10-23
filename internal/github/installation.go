@@ -14,8 +14,12 @@ func (s *service) ValidateInstallation(ctx context.Context) error {
 		return errors.Prefix("github installation", err)
 	}
 
-	if installation.GetID() != s.config.App.InstallationID || installation.GetAppID() != s.config.App.ID ||
-		strings.ToLower(installation.GetAccount().GetLogin()) != strings.ToLower(s.config.Owner) || installation.SuspendedAt != nil {
+	sameInstallation := installation.GetID() == s.config.App.InstallationID
+	sameApp := installation.GetAppID() == s.config.App.ID
+	sameOwner := strings.ToLower(installation.GetAccount().GetLogin()) == strings.ToLower(s.config.Owner)
+	suspended := installation != nil && installation.SuspendedAt != nil
+
+	if !sameInstallation || !sameApp || !sameOwner || suspended {
 		return errors.New("github installation does not match the configured app and owner or is suspended")
 	}
 

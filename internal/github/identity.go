@@ -23,7 +23,8 @@ func (s *service) IsSamePullRequest(current, expected *PullRequest) bool {
 	currentHead, expectedHead := current.GetHead(), expected.GetHead()
 	currentBase, expectedBase := current.GetBase(), expected.GetBase()
 	sameID := current.GetNodeID() == expected.GetNodeID() && current.GetNumber() == expected.GetNumber()
-	sameHead := currentHead.GetRef() == expectedHead.GetRef() && currentHead.GetSHA() == expectedHead.GetSHA() &&
+	sameHead := currentHead.GetRef() == expectedHead.GetRef() &&
+		currentHead.GetSHA() == expectedHead.GetSHA() &&
 		strings.ToLower(currentHead.GetRepo().GetFullName()) == strings.ToLower(expectedHead.GetRepo().GetFullName())
 	sameBase := currentBase.GetRef() == expectedBase.GetRef() &&
 		strings.ToLower(currentBase.GetRepo().GetFullName()) == strings.ToLower(expectedBase.GetRepo().GetFullName())

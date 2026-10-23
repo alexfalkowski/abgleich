@@ -30,8 +30,10 @@ func IsRateLimited(err error) bool {
 		return false
 	}
 
-	return response.Response.StatusCode == http.StatusTooManyRequests ||
-		(response.Response.StatusCode == http.StatusForbidden && rateLimitMessage(response.Message))
+	tooManyRequests := response.Response.StatusCode == http.StatusTooManyRequests
+	forbiddenRateLimit := response.Response.StatusCode == http.StatusForbidden && rateLimitMessage(response.Message)
+
+	return tooManyRequests || forbiddenRateLimit
 }
 
 func rateLimitMessage(message string) bool {

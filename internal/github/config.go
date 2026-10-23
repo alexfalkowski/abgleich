@@ -36,6 +36,18 @@ type WebhookConfig struct {
 	Timeout time.Duration `yaml:"timeout,omitempty" json:"timeout,omitempty" toml:"timeout,omitempty"`
 }
 
+// IsEnabled reports whether webhook configuration is present.
+func (c *WebhookConfig) IsEnabled() bool {
+	return c != nil
+}
+
+// IsValid reports whether the configured processing budget is positive and below
+// GitHub's ten-second deadline. A zero timeout uses the default budget.
+func (c *WebhookConfig) IsValid() bool {
+	timeout := c.GetTimeout()
+	return timeout > 0 && timeout < 10*time.Second
+}
+
 // GetTimeout returns the delivery processing budget, defaulting to five seconds.
 func (c *WebhookConfig) GetTimeout() time.Duration {
 	if c.Timeout == 0 {
