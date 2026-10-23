@@ -22,7 +22,8 @@ module Abgleich
       payload = event.is_a?(String) ? event : JSON.generate(event)
       signature ||= "sha256=#{OpenSSL::HMAC.hexdigest('SHA256', WEBHOOK_SECRET, payload)}"
       RestClient::Request.execute(method: :post, url: 'http://localhost:11000/webhooks/github', payload:,
-                                  headers: { content_type: :json, 'X-GitHub-Event' => 'issue_comment', 'X-Hub-Signature-256' => signature },
+                                  headers: { content_type: :json, user_agent: 'GitHub-Hookshot/nonnative',
+                                             'X-GitHub-Event' => 'issue_comment', 'X-Hub-Signature-256' => signature },
                                   timeout: 5)
     rescue RestClient::ExceptionWithResponse => e
       e.response

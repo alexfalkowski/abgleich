@@ -10,6 +10,7 @@ Feature: Comment requests for auto-merge
     Given a pull request from "<source>" for branch "contribution" is "waiting for checks"
     When a maintainer with "write" access comments "@abgleich automerge"
     Then the comment delivery should return HTTP 204
+    And the command comment should show "receipt and acceptance" feedback
     And branch "contribution" should have squash auto-merge enabled
     And exactly 1 label request should reach GitHub
 

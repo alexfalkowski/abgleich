@@ -43,6 +43,7 @@ module Abgleich
                  @graphql_payload&.fetch('query')&.start_with?('mutation ')
       GitHubService.record_mutation_request if mutation
       content_type :json
+      halt 403 if request.user_agent.to_s.start_with?('GitHub-Hookshot/')
       authenticate_request
       if mutation && Abgleich.github.failure == 'one-shot mutation HTTP'
         Abgleich.github.fail_with('list')
