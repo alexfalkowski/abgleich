@@ -13,6 +13,16 @@ Feature: Shared App installation access
     Then branch "feature" should be rebased
     And branch "another" in repository "alexfalkowski/another" should be rebased
     And the branch check should succeed
+    And GitHub should receive one installation check per sweep and 0 for comment commands
+
+  Scenario: Check installation access once per comment command
+    Given GitHub App comment commands are configured
+    And a pull request from "the repository" for branch "contribution" is "waiting for checks"
+    When GitHub delivers the same automerge comment twice
+    Then the comment delivery should return HTTP 204
+    And exactly 1 label request should reach GitHub
+    And the command comment should show "receipt and acceptance" feedback
+    And GitHub should receive one installation check per sweep and 2 for comment commands
 
   Scenario: Poll with App credentials while comment deliveries are disabled
     Given comment deliveries are disabled
@@ -44,20 +54,26 @@ Feature: Shared App installation access
     When a maintainer with "write" access comments "@abgleich automerge"
     Then the comment delivery should return HTTP 503
     And exactly 0 label requests should reach GitHub
+    And the command comment should show "no" feedback
     And the branch check should fail without affecting worker health
 
     Examples:
       | failure                 |
       | installation token HTTP |
       | authentication          |
+      | mismatched installation |
+      | mismatched app          |
+      | suspended installation  |
 
-  Scenario: Reject an installation belonging to another owner
+  Scenario: Reject an installation whose owner changed after a successful sweep
     Given GitHub App comment commands are configured
     And a pull request from "the repository" for branch "contribution" is "waiting for checks"
+    And the worker has successfully checked the existing repositories
     And the App installation belongs to account "someone"
     When a maintainer with "write" access comments "@abgleich automerge"
     Then the comment delivery should return HTTP 503
     And exactly 0 label requests should reach GitHub
+    And the command comment should show "no" feedback
     And the branch check should fail without affecting worker health
 
   Scenario: Reject an incomplete installation repository page

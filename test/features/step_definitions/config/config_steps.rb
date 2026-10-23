@@ -36,3 +36,11 @@ end
 When('the worker restarts with valid App credentials') do
   Abgleich.restart { Abgleich.prepare_github_key('valid') }
 end
+
+Then('GitHub should receive one installation check per sweep and {int} for comment commands') do |command_checks|
+  wait_for { Abgleich.job_logs.length }.to be >= 2, 'expected at least two completed sweeps to check installation freshness'
+  wait_for do
+    counts = Abgleich::GitHubService.request_counts
+    counts.fetch(:installation_checks) - counts.fetch(:repository_discoveries)
+  end.to eq(command_checks), "expected one installation check per sweep and #{command_checks} for comment commands"
+end

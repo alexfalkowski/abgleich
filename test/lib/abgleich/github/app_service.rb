@@ -5,7 +5,14 @@ module Abgleich
   class GitHubService
     get '/app/installations/:installation' do
       halt 404 unless params.fetch('installation').to_i == INSTALLATION_ID
-      { id: INSTALLATION_ID, app_id: APP_ID, account: { login: Abgleich.github.authenticated_owner } }.to_json
+      GitHubService.record_installation_check
+      installation = { id: INSTALLATION_ID, app_id: APP_ID, account: { login: Abgleich.github.authenticated_owner } }
+      case Abgleich.github.failure
+      when 'mismatched installation' then installation[:id] += 1
+      when 'mismatched app' then installation[:app_id] += 1
+      when 'suspended installation' then installation[:suspended_at] = '2026-01-01T00:00:00Z'
+      end
+      installation.to_json
     end
 
     post '/app/installations/:installation/access_tokens' do
@@ -18,6 +25,7 @@ module Abgleich
 
     get '/installation/repositories' do
       page = params.fetch('page', '1').to_i
+      GitHubService.record_repository_discovery if page == 1
       halt 503 if Abgleich.github.failure == 'discovery' || (page > 1 && Abgleich.github.failure == 'discovery page')
       halt 200, '{}' if Abgleich.github.failure == 'incomplete discovery'
 

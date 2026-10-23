@@ -6,9 +6,9 @@ import (
 	"github.com/alexfalkowski/go-service/v2/strings"
 )
 
-// validateInstallation rejects an installation for another App or account and
-// suspended installations before repository access. It does not cache identity.
-func (s *service) validateInstallation(ctx context.Context) error {
+// ValidateInstallation rejects an installation for another App or account and
+// suspended installations. Each sweep and comment command checks fresh state.
+func (s *service) ValidateInstallation(ctx context.Context) error {
 	installation, _, err := s.client.application.Apps.GetInstallation(ctx, s.config.App.InstallationID)
 	if err != nil {
 		return errors.Prefix("github installation", err)
