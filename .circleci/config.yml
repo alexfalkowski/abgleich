@@ -10,6 +10,27 @@ commands:
       - checkout:
           method: blobless
       - sync-submodules
+  prepare-service:
+    steps:
+      - checkout-submodules
+      - run: make source-key
+      - restore_cache:
+          name: restore go cache
+          keys:
+            - abgleich-go-cache-{{ checksum "go.sum" }}-{{ checksum "~/.go-version" }}
+            - abgleich-go-cache-
+      - restore_cache:
+          name: restore ruby cache
+          keys:
+            - abgleich-ruby-cache-{{ checksum "test/Gemfile.lock" }}-{{ checksum "~/.ruby-version" }}
+            - abgleich-ruby-cache-
+      - run: make clean
+      - run: make dep
+      - restore_cache:
+          name: restore go build cache
+          keys:
+            - abgleich-go-build-cache-{{ checksum "go.sum" }}-{{ checksum "~/.go-version" }}-{{ checksum ".source-key" }}
+            - abgleich-go-build-cache-
 
 executors:
   go:
@@ -27,20 +48,7 @@ jobs:
     executor: go
     working_directory: ~/abgleich
     steps:
-      - checkout-submodules
-      - run: make source-key
-      - restore_cache:
-          name: restore go cache
-          keys:
-            - abgleich-go-cache-{{ checksum "go.sum" }}-{{ checksum "~/.go-version" }}
-            - abgleich-go-cache-
-      - restore_cache:
-          name: restore ruby cache
-          keys:
-            - abgleich-ruby-cache-{{ checksum "test/Gemfile.lock" }}-{{ checksum "~/.ruby-version" }}
-            - abgleich-ruby-cache-
-      - run: make clean
-      - run: make dep
+      - prepare-service
       - save_cache:
           name: save go cache
           key: abgleich-go-cache-{{ checksum "go.sum" }}-{{ checksum "~/.go-version" }}
@@ -51,11 +59,6 @@ jobs:
           key: abgleich-ruby-cache-{{ checksum "test/Gemfile.lock" }}-{{ checksum "~/.ruby-version" }}
           paths:
             - test/vendor
-      - restore_cache:
-          name: restore go build cache
-          keys:
-            - abgleich-go-build-cache-{{ checksum "go.sum" }}-{{ checksum "~/.go-version" }}-{{ checksum ".source-key" }}
-            - abgleich-go-build-cache-
       - restore_cache:
           name: restore go lint cache
           keys:
@@ -69,13 +72,70 @@ jobs:
           paths:
             - ~/.cache/golangci-lint
       - run: make sec
-      - run: make features
+      - run: make build-test
       - run: make analyse
       - save_cache:
           name: save go build cache
           key: abgleich-go-build-cache-{{ checksum "go.sum" }}-{{ checksum "~/.go-version" }}-{{ checksum ".source-key" }}
           paths:
             - ~/.cache/go-build
+    resource_class: arm.large
+  features-merges:
+    executor: go
+    working_directory: ~/abgleich
+    steps:
+      - prepare-service
+      - run: make features-merges
+      - store_test_results:
+          path: test/reports
+      - store_artifacts:
+          path: test/reports
+      - run: make coverage-workspace-stage partition=merges
+      - persist_to_workspace:
+          root: /tmp/abgleich-reports
+          paths:
+            - merges
+    resource_class: arm.large
+  features-commands:
+    executor: go
+    working_directory: ~/abgleich
+    steps:
+      - prepare-service
+      - run: make features-commands
+      - store_test_results:
+          path: test/reports
+      - store_artifacts:
+          path: test/reports
+      - run: make coverage-workspace-stage partition=commands
+      - persist_to_workspace:
+          root: /tmp/abgleich-reports
+          paths:
+            - commands
+    resource_class: arm.large
+  features-worker:
+    executor: go
+    working_directory: ~/abgleich
+    steps:
+      - prepare-service
+      - run: make features-worker
+      - store_test_results:
+          path: test/reports
+      - store_artifacts:
+          path: test/reports
+      - run: make coverage-workspace-stage partition=worker
+      - persist_to_workspace:
+          root: /tmp/abgleich-reports
+          paths:
+            - worker
+    resource_class: arm.large
+  coverage:
+    executor: go
+    working_directory: ~/abgleich
+    steps:
+      - checkout-submodules
+      - attach_workspace:
+          at: /tmp/abgleich-reports
+      - run: make coverage-workspace-restore
       - run: make coverage
       - store_test_results:
           path: test/reports
@@ -192,6 +252,20 @@ workflows:
   abgleich:
     jobs:
       - build-service
+      - features-merges:
+          requires:
+            - build-service
+      - features-commands:
+          requires:
+            - build-service
+      - features-worker:
+          requires:
+            - build-service
+      - coverage:
+          requires:
+            - features-merges
+            - features-commands
+            - features-worker
       - test-docker-amd64:
           filters:
             branches:
@@ -202,7 +276,7 @@ workflows:
               ignore: master
       - sync:
           requires:
-            - build-service
+            - coverage
             - test-docker-amd64
             - test-docker-arm64
           filters:
@@ -212,7 +286,7 @@ workflows:
           context: gh
           serial-group: << pipeline.project.slug >>/version
           requires:
-            - build-service
+            - coverage
           filters:
             branches:
               only: master
@@ -248,7 +322,10 @@ workflows:
               only: master
       - wait-all:
           requires:
-            - build-service
+            - coverage
+            - features-merges
+            - features-commands
+            - features-worker
             - sync
             - test-docker-amd64
             - test-docker-arm64

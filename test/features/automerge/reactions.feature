@@ -1,4 +1,4 @@
-@github @manual
+@github @manual @commands
 Feature: Feedback on auto-merge command comments
   Maintainers see when a command is received and whether it was accepted.
   Reactions describe command processing rather than the eventual merge result.

@@ -480,6 +480,12 @@ make features feature=features/automerge
 
 Use `make help` to discover the other development commands.
 
+Run a CI feature group locally with `make features-merges`,
+`make features-commands`, or `make features-worker`. These select `@merges`,
+`@commands`, and all remaining features, respectively. New features belong to
+the worker group unless tagged for one of the other groups. Run groups one at
+a time locally because the harness shares ports and configuration files.
+
 Nonnative starts the worker and a local fake GitHub REST and GraphQL API:
 
 - [Rebasing](test/features/automerge/rebase.feature) covers eligibility,
