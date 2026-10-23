@@ -8,33 +8,28 @@ Feature: Comment requests for auto-merge
 
   Scenario Outline: Request automation on an eligible contribution
     Given a pull request from "<source>" for branch "contribution" is "waiting for checks"
-    When a maintainer with "write" access comments "  <command>  "
+    When a maintainer with "write" access comments "  /ab automerge  "
     Then the comment delivery should return HTTP 204
     And the command comment should show "receipt and acceptance" feedback
     And branch "contribution" should have squash auto-merge enabled
     And exactly 1 label request should reach GitHub
 
     Examples:
-      | source         | command             |
-      | the repository | @ab automerge       |
-      | a fork         | @ab automerge       |
-      | the repository | @abgleich automerge |
-      | a fork         | @abgleich automerge |
+      | source         |
+      | the repository |
+      | a fork         |
 
   Scenario Outline: Enforce the comment author's current permissions
     Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
-    When a maintainer with "<permission>" access comments "<command>"
+    When a maintainer with "<permission>" access comments "/ab automerge"
     Then the comment delivery should return HTTP <status>
     And exactly <requests> label requests should reach GitHub
 
     Examples:
-      | command             | permission | status | requests |
-      | @ab automerge       | admin      | 204    | 1        |
-      | @ab automerge       | read       | 403    | 0        |
-      | @ab automerge       | none       | 403    | 0        |
-      | @abgleich automerge | admin      | 204    | 1        |
-      | @abgleich automerge | read       | 403    | 0        |
-      | @abgleich automerge | none       | 403    | 0        |
+      | permission | status | requests |
+      | admin      | 204    | 1        |
+      | read       | 403    | 0        |
+      | none       | 403    | 0        |
 
   Scenario Outline: Ignore unrelated comment text
     Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
@@ -44,22 +39,23 @@ Feature: Comment requests for auto-merge
     And exactly 0 label requests should reach GitHub
 
     Examples:
-      | comment                    |
-      | @ab automerge please       |
-      | @abgleich automerge please |
-      | @ab unknown                |
-      | @abgleich unknown          |
-      | @ab                        |
-      | @abautomerge               |
-      | @ab  automerge             |
-      | @AB automerge              |
-      | @ab AUTOMERGE              |
-      | please @ab automerge       |
-      | automerge                  |
+      | comment              |
+      | /ab automerge please |
+      | /ab unknown          |
+      | /ab                  |
+      | /abautomerge         |
+      | /ab  automerge       |
+      | /AB automerge        |
+      | /ab AUTOMERGE        |
+      | please /ab automerge |
+      | automerge            |
+      | /abgleich automerge  |
+      | @ab automerge        |
+      | @abgleich automerge  |
 
   Scenario Outline: Ignore an ineligible pull request
     Given a pull request from "the repository" for branch "contribution" is "<state>"
-    When a maintainer with "write" access comments "@ab automerge"
+    When a maintainer with "write" access comments "/ab automerge"
     Then the comment delivery should return HTTP 204
     And exactly 0 label requests should reach GitHub
 
@@ -71,7 +67,7 @@ Feature: Comment requests for auto-merge
   Scenario: Ignore a pull request without its GraphQL identity
     Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
     And the labeled operation fails with "missing node ID"
-    When a maintainer with "write" access comments "@ab automerge"
+    When a maintainer with "write" access comments "/ab automerge"
     Then the comment delivery should return HTTP 204
     And exactly 0 label requests should reach GitHub
 
@@ -92,21 +88,21 @@ Feature: Comment requests for auto-merge
     Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
     And branch "contribution" has the "automerge" label
     And the labeled operation fails with "history HTTP"
-    When a maintainer with "write" access comments "@ab automerge"
+    When a maintainer with "write" access comments "/ab automerge"
     Then the comment delivery should return HTTP 204
     And exactly 0 label requests should reach GitHub
 
   Scenario: Respect repository opt-in
     Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
     And the repository has auto-merge disabled
-    When a maintainer with "write" access comments "@ab automerge"
+    When a maintainer with "write" access comments "/ab automerge"
     Then the comment delivery should return HTTP 204
     And exactly 0 label requests should reach GitHub
 
   Scenario: Respect the repository's squash-merge setting
     Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
     And the repository has squash merging disabled
-    When a maintainer with "write" access comments "@ab automerge"
+    When a maintainer with "write" access comments "/ab automerge"
     Then the comment delivery should return HTTP 204
     And exactly 0 label requests should reach GitHub
 
@@ -184,7 +180,7 @@ Feature: Comment requests for auto-merge
   Scenario Outline: Fail without labeling when GitHub reads fail
     Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
     And the labeled operation fails with "<failure>"
-    When a maintainer with "write" access comments "@ab automerge"
+    When a maintainer with "write" access comments "/ab automerge"
     Then the comment delivery should return HTTP 503
     And exactly 0 label requests should reach GitHub
 
@@ -198,7 +194,7 @@ Feature: Comment requests for auto-merge
   Scenario Outline: Recheck the PR immediately before labeling
     Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
     And its "<field>" changes before labeled automation
-    When a maintainer with "write" access comments "@ab automerge"
+    When a maintainer with "write" access comments "/ab automerge"
     Then the comment delivery should return HTTP <status>
     And exactly 0 label requests should reach GitHub
 
