@@ -54,7 +54,9 @@ enabled on GitHub. To stop that merge, disable auto-merge in GitHub as well.
 ### 💬 Comment requests
 
 With GitHub App authentication and webhooks configured, post a new PR comment
-containing exactly `@abgleich automerge`. Surrounding whitespace is allowed.
+containing exactly `@ab automerge`. Surrounding whitespace is allowed.
+The original `@abgleich automerge` syntax remains supported as an alias.
+Commands are case-sensitive; extra text and unknown commands are ignored without reactions.
 The worker checks the author's current write or admin permissions, re-reads the
 comment and PR, and adds `automerge`. The App reacts on the original command:
 
@@ -393,8 +395,9 @@ image is sufficient.
 
 | Package | Responsibility |
 | --- | --- |
-| [`automerge`](internal/automerge/reconciler.go) | Repository opt-in, strategy selection and ordering, comment command policy, and job registration. |
+| [`automerge`](internal/automerge/reconciler.go) | Repository opt-in, strategy selection and ordering, automerge command authorization and action, and job and command registration. |
 | [`automerge/internal/strategy`](internal/automerge/internal/strategy/doc.go) | Dependabot, label, and rebase policies with fresh pre-mutation checks. |
+| [`commands`](internal/commands/doc.go) | Comment parsing, named handler dispatch, installation validation, overlap protection, and reaction feedback. |
 | [`github`](internal/github/service.go) | Owner-wide repository discovery, identity checks, authenticated API access, pagination, and response validation. |
 | [`scheduler`](internal/scheduler/scheduler.go) | Independent schedules, timeouts, overlap protection, outcome logs, and job lifecycle. |
 | [`transport/http`](internal/transport/http/doc.go) | Webhook route registration, request deadlines, and HTTP responses. |
@@ -404,8 +407,10 @@ Dependencies follow the responsibilities:
 
 ```mermaid
 flowchart LR
-    transport[transport/http] --> automerge
+    transport[transport/http] --> commands
     transport --> github
+    commands --> github
+    automerge --> commands
     automerge --> github
     automerge --> scheduler
 ```
@@ -417,14 +422,23 @@ and pull request types alias SDK snapshots;
 they contain no service behavior. The service uses an injected `github.Client`,
 which holds the installation SDK client and a private JWT client for installation
 identity checks. The GitHub module constructs it once through `github.NewClient`.
-The reconciler, strategies, and `Commands` receive the same `github.Service`.
+The reconciler, strategies, command handler, and dispatcher receive the same `github.Service`.
 `transport/http` verifies deliveries through `github.Webhook`, then calls
-`automerge.Commands.Handle` for command recognition and authorization. The
+`commands.Dispatcher.Handle` for command recognition, installation validation,
+overlap protection, and feedback. The dispatcher selects a handler by exact
+command name; `automerge.Command.Handle` owns current-comment validation,
+permissions, and the label request. The
 transport owns HTTP responses and delivery deadlines; go-service enforces the
 configured body limit. `cmd.Module` composes the transport with the domain modules.
 Shared HTTP options and connection cleanup are provided through
 `github.NewConnection`.
 SDK imports stay inside `internal/github`.
+
+Feature modules register their comment handlers through `commands.Dispatcher.Register`
+before startup. The automerge module registers `automerge`; new commands live in
+the feature packages that own their behavior. Duplicate names prevent startup.
+The dispatcher stays independent of feature packages. Commands select an explicit
+action, while reconciliation strategies select the policy applicable to a PR.
 
 The strategy module provides the policies in this order: Dependabot, label,
 rebase. The reconciler receives the ordered slice through DI and selects the first match.
@@ -508,6 +522,10 @@ Nonnative starts the worker and a local fake GitHub REST and GraphQL API:
 
 Failure scenarios also verify that process probes remain healthy. Tests use an
 accelerated schedule and disposable credentials; they do not modify GitHub.
+The harness reuses committed test credentials in `test/secrets/`, including RSA
+keys created for the local fake GitHub API. Failure scenarios select
+separate invalid or missing fixture paths; tests leave these files unchanged.
+Reports contain logs and test results.
 See [CI](.circleci/config.yml) for the build and release workflow.
 
 ### 📝 Changes

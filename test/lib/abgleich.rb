@@ -4,7 +4,6 @@ require 'securerandom'
 require 'json'
 require 'yaml'
 require 'base64'
-require 'fileutils'
 require 'openssl'
 require 'jwt'
 

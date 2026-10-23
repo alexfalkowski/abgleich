@@ -5,8 +5,7 @@ Given('the App private key is {string}') do |state|
 end
 
 Given('the webhook secret comes from {string} with {string} content') do |source, content|
-  secret = { 'empty' => '', 'whitespace' => " \n\t " }.fetch(content)
-  Abgleich.prepare_github_webhook(secret:, source:)
+  Abgleich.prepare_github_webhook(content:, source:)
 end
 
 Given('the worker could not start with a {string} App private key') do |state|

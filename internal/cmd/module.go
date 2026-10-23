@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"github.com/alexfalkowski/abgleich/internal/automerge"
+	"github.com/alexfalkowski/abgleich/internal/commands"
 	"github.com/alexfalkowski/abgleich/internal/config"
 	"github.com/alexfalkowski/abgleich/internal/github"
 	"github.com/alexfalkowski/abgleich/internal/health"
@@ -16,6 +17,7 @@ var Module = di.Module(
 	module.Server,
 	config.Module,
 	github.Module,
+	commands.Module,
 	automerge.Module,
 	http.Module,
 	scheduler.Module,

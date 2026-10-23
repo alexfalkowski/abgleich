@@ -9,7 +9,7 @@ github:
   app:
     id: 42
     installation_id: 99
-    private_key: file:reports/github-app-private-key.pem
+    private_key: file:secrets/github-app-private-key.pem
   url: http://localhost:11001/
 scheduler:
   interval: 1s

@@ -15,17 +15,22 @@ not clone repositories or execute Git. Each run reconciles fresh remote state.
 
 | Package | Owns |
 | --- | --- |
-| `internal/cmd` | Command registration and composition of package modules. |
+| `internal/cmd` | CLI command registration and composition of package modules. |
+| `internal/commands` | PR comment parsing, named handler dispatch, installation validation, overlap prevention, and reaction feedback. |
 | `internal/github` | Service, API client, SDK aliases, owner-wide discovery, repository identity, remote access, and response validation. |
-| `internal/automerge` | Repository opt-in, PR eligibility, merge and rebase decisions, and registration of its own job. |
+| `internal/automerge` | Repository opt-in, PR eligibility, merge and rebase decisions, automerge comment authorization and action, and registration of its own job and command. |
 | `internal/scheduler` | Reusable named jobs, timing, overlap prevention, logging, and lifecycle. |
 | `internal/config` | Composition and injection of package-owned configuration. |
 | `internal/health` | Health observers, independent of job outcomes. |
 | `internal/transport/http` | Webhook HTTP registration, request deadlines, and responses. |
 
 - Constructors belong in the packages owning their types; `cmd` composes their
-  modules. Keep dependencies directed from `automerge` to `github` and
-  `scheduler`. Neither dependency imports `automerge`.
+  modules. Keep dependencies directed from `automerge` to `github`, `scheduler`,
+  and `commands`. These dependencies do not import `automerge`.
+- Feature modules register named comment handlers through `commands.Dispatcher.Register`
+  before startup. Keep each handler in its owning feature package; `commands`
+  stays independent of features. Use exact names with `@ab` and the compatible
+  `@abgleich` prefix. Re-read comments and current permissions before acting.
 - Keep owner-wide discovery and case-insensitive repository identity checks in
   `github.Service`. The reconciler receives the service and uses SDK repository
   snapshots, not GitHub configuration or a separately cached repository name.
@@ -88,6 +93,10 @@ not clone repositories or execute Git. Each run reconciles fresh remote state.
   Keep HTTP request, complete job, and health-check timeouts independent.
 - Credentials are resolved once at startup through go-service sources. Missing
   or empty credentials prevent startup; replacement requires a process restart.
+- Store credential files in a `secrets/` directory. The harness reuses committed
+  test-only App keys and webhook secrets in `test/secrets/`, outside test reports.
+  Keep these fixtures unchanged during scenarios; select invalid or missing
+  fixture paths through test configuration for credential-failure coverage.
 - Keep operator setup, defaults, recovery, and monitoring guidance in
   `README.md`. Update it when those contracts change, retaining scannable emoji
   headings and concise examples. Keep this file focused on project decisions;

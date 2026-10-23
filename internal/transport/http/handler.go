@@ -1,7 +1,7 @@
 package http
 
 import (
-	"github.com/alexfalkowski/abgleich/internal/automerge"
+	"github.com/alexfalkowski/abgleich/internal/commands"
 	"github.com/alexfalkowski/abgleich/internal/github"
 	"github.com/alexfalkowski/go-service/v2/context"
 	"github.com/alexfalkowski/go-service/v2/errors"
@@ -11,16 +11,16 @@ import (
 )
 
 // NewHandler keeps verification and command execution within each delivery's deadline.
-func NewHandler(webhook *github.Webhook, commands *automerge.Commands, log *logger.Logger) *Handler {
-	return &Handler{webhook: webhook, commands: commands, logger: log}
+func NewHandler(webhook *github.Webhook, dispatcher *commands.Dispatcher, log *logger.Logger) *Handler {
+	return &Handler{webhook: webhook, dispatcher: dispatcher, logger: log}
 }
 
 // Handler verifies GitHub deliveries before passing comments to command policy.
 // Processing remains synchronous; ignored and completed deliveries return HTTP 204.
 type Handler struct {
-	webhook  *github.Webhook
-	commands *automerge.Commands
-	logger   *logger.Logger
+	webhook    *github.Webhook
+	dispatcher *commands.Dispatcher
+	logger     *logger.Logger
 }
 
 // ServeHTTP bounds processing by the webhook budget. The shared HTTP transport
@@ -40,7 +40,7 @@ func (h *Handler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	if err := h.commands.Handle(ctx, event); err != nil {
+	if err := h.dispatcher.Handle(ctx, event); err != nil {
 		h.writeError(req.Context(), res, err)
 		return
 	}

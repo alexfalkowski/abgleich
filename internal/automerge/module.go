@@ -2,17 +2,24 @@ package automerge
 
 import (
 	"github.com/alexfalkowski/abgleich/internal/automerge/internal/strategy"
+	"github.com/alexfalkowski/abgleich/internal/commands"
 	"github.com/alexfalkowski/abgleich/internal/scheduler"
 	"github.com/alexfalkowski/go-service/v2/di"
 )
 
-// Module constructs the reconciler and registers its scheduled job before startup.
+// Module constructs and registers the scheduled reconciler and comment command
+// before startup.
 var Module = di.Module(
 	strategy.Module,
-	di.Constructor(NewReconciler, NewCommands),
-	di.Register(register),
+	di.Constructor(NewReconciler, NewCommand),
+	di.Register(registerSchedule),
+	di.Register(registerCommand),
 )
 
-func register(schedules *scheduler.Scheduler, cfg *scheduler.Config, reconciler *Reconciler) error {
+func registerSchedule(schedules *scheduler.Scheduler, cfg *scheduler.Config, reconciler *Reconciler) error {
 	return schedules.Register("automerge", cfg, reconciler.Reconcile)
+}
+
+func registerCommand(dispatcher *commands.Dispatcher, command *Command) error {
+	return dispatcher.Register(autoMergeCommand, command)
 }
