@@ -10,9 +10,6 @@ import (
 	"github.com/alexfalkowski/go-sync"
 )
 
-// ErrJobRegistered is returned when a job name is already registered.
-var ErrJobRegistered = errors.New("job already registered")
-
 // NewScheduler constructs a scheduler with no jobs. Feature packages register
 // their jobs before the application starts.
 func NewScheduler(log *logger.Logger) *Scheduler {

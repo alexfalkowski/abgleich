@@ -13,16 +13,15 @@ import (
 // ErrIgnoredDelivery identifies a verified delivery that needs no command action.
 var ErrIgnoredDelivery = errors.New("github delivery does not contain a new PR comment")
 
-// NewWebhook resolves optional delivery credentials at startup. A configured
-// webhook requires App credentials, a nonempty secret, and a timeout below ten seconds.
+// NewWebhook resolves optional delivery credentials at startup, returning nil
+// when webhook configuration is disabled. A configured webhook requires App
+// credentials, a nonempty secret, and a timeout below ten seconds.
 func NewWebhook(cfg *Config, filesystem *os.FS) (*Webhook, error) {
-	hook := &Webhook{config: cfg}
-
-	if cfg.Webhook == nil {
-		return hook, nil
+	if !cfg.Webhook.IsEnabled() {
+		return nil, nil
 	}
 
-	if timeout := cfg.Webhook.GetTimeout(); timeout <= 0 || timeout >= 10*time.Second {
+	if !cfg.Webhook.IsValid() {
 		return nil, errors.New("github webhook timeout must be positive and below ten seconds")
 	}
 
@@ -35,9 +34,7 @@ func NewWebhook(cfg *Config, filesystem *os.FS) (*Webhook, error) {
 		return nil, errors.New("github webhook secret is empty")
 	}
 
-	hook.secret = secret
-
-	return hook, nil
+	return &Webhook{config: cfg, secret: secret}, nil
 }
 
 // Webhook verifies raw GitHub deliveries before exposing SDK events to policies.
@@ -46,9 +43,6 @@ type Webhook struct {
 	config *Config
 	secret []byte
 }
-
-// IsEnabled reports whether inbound delivery credentials were configured.
-func (w *Webhook) IsEnabled() bool { return w.config.Webhook != nil }
 
 // GetTimeout returns the independent synchronous processing budget.
 func (w *Webhook) GetTimeout() time.Duration { return w.config.Webhook.GetTimeout() }

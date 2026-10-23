@@ -34,7 +34,8 @@ func (s *service) GetComment(ctx context.Context, repo *Repository, number int, 
 	}
 
 	issueURL := s.client.installation.BaseURL() + "repos/" + repo.GetFullName() + "/issues/" + strconv.Itoa(number)
-	sameComment := comment.GetID() == expected.GetID() && comment.GetUser().GetID() == expected.GetUser().GetID() &&
+	sameComment := comment.GetID() == expected.GetID() &&
+		comment.GetUser().GetID() == expected.GetUser().GetID() &&
 		comment.GetCreatedAt().Equal(expected.GetCreatedAt())
 	samePullRequest := strings.ToLower(comment.GetIssueURL()) == strings.ToLower(issueURL)
 

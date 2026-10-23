@@ -11,7 +11,12 @@ import (
 )
 
 // NewHandler keeps verification and command execution within each delivery's deadline.
+// It returns nil when webhook deliveries are disabled.
 func NewHandler(webhook *github.Webhook, dispatcher *commands.Dispatcher, log *logger.Logger) *Handler {
+	if webhook == nil {
+		return nil
+	}
+
 	return &Handler{webhook: webhook, dispatcher: dispatcher, logger: log}
 }
 

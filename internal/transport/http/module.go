@@ -14,7 +14,7 @@ var Module = di.Module(
 // Register exposes the webhook only when configured. GitHub signatures protect
 // the route, which bypasses the service's transport token authentication.
 func Register(router *http.Router, handler *Handler) {
-	if handler.webhook.IsEnabled() {
+	if handler != nil {
 		router.HandleRoute("POST /webhooks/github", handler, http.WithRouteUnauthenticated())
 	}
 }

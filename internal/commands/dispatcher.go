@@ -73,6 +73,7 @@ func (d *Dispatcher) acknowledgeReceipt(ctx context.Context, event *github.Issue
 	if deadline, ok := ctx.Deadline(); ok {
 		timeout = min(timeout, time.Until(deadline)/receiptTimeoutDivisor)
 	}
+
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
@@ -80,10 +81,13 @@ func (d *Dispatcher) acknowledgeReceipt(ctx context.Context, event *github.Issue
 }
 
 func (d *Dispatcher) reportOutcome(ctx context.Context, event *github.IssueCommentEvent, accepted bool) {
-	reaction := "confused"
+	var reaction string
 	if accepted {
 		reaction = "+1"
+	} else {
+		reaction = "confused"
 	}
+
 	d.react(ctx, event, reaction)
 }
 

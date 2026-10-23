@@ -8,8 +8,7 @@ import (
 // AddCommentReaction validates the returned reaction after the command has
 // validated installation ownership.
 func (s *service) AddCommentReaction(ctx context.Context, repo *Repository, comment *IssueComment, content string) error {
-	reaction, _, err := s.client.installation.Reactions.CreateIssueCommentReaction(ctx, repo.GetOwner().GetLogin(), repo.GetName(),
-		comment.GetID(), content)
+	reaction, _, err := s.client.installation.Reactions.CreateIssueCommentReaction(ctx, repo.GetOwner().GetLogin(), repo.GetName(), comment.GetID(), content)
 	if err != nil {
 		return err
 	}
