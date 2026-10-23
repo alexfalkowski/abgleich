@@ -23,9 +23,9 @@ type Config struct {
 // AppConfig identifies one installation. PrivateKey is a go-service source read
 // once at startup; installation access tokens are renewed automatically.
 type AppConfig struct {
-	PrivateKey     string `yaml:"privateKey,omitempty" json:"privateKey,omitempty" toml:"private_key,omitempty" validate:"required"`
+	PrivateKey     string `yaml:"private_key,omitempty" json:"private_key,omitempty" toml:"private_key,omitempty" validate:"required"`
 	ID             int64  `yaml:"id,omitempty" json:"id,omitempty" toml:"id,omitempty" validate:"gt=0"`
-	InstallationID int64  `yaml:"installationId,omitempty" json:"installationId,omitempty" toml:"installation_id,omitempty" validate:"gt=0"`
+	InstallationID int64  `yaml:"installation_id,omitempty" json:"installation_id,omitempty" toml:"installation_id,omitempty" validate:"gt=0"`
 }
 
 // WebhookConfig enables signed GitHub comment deliveries with App credentials.

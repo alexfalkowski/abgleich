@@ -24,6 +24,12 @@ linters:
   settings:
     lll:
       line-length: 150
+    tagliatelle:
+      case:
+        rules:
+          json: snake
+          yaml: snake
+          toml: snake
   exclusions:
     generated: lax
     presets:
@@ -33,6 +39,12 @@ linters:
       - std-error-handling
     paths:
       - .*\.pb*
+    rules:
+      # GitHub GraphQL payloads must match the external API's field names.
+      - path: internal/github/github\.go
+        text: 'json\(snake\)'
+        linters:
+          - tagliatelle
 formatters:
   enable:
     - gci

@@ -191,8 +191,8 @@ github:
   owner: alexfalkowski
   app:
     id: 5427450
-    installationId: 174152088
-    privateKey: file:/etc/secrets/abgleich/github-app-private-key.pem
+    installation_id: 174152088
+    private_key: file:/etc/secrets/abgleich/github-app-private-key.pem
 scheduler:
   interval: 15m
   timeout: 5m
@@ -252,7 +252,7 @@ rate-limit failures and increase `scheduler.interval` if needed.
 ### 🔐 Credentials
 
 The worker and comment handler share one App installation. Configure
-`github.app.id`, `github.app.installationId`, and `github.app.privateKey`;
+`github.app.id`, `github.app.installation_id`, and `github.app.private_key`;
 `github.owner` must match the installation's account. A personal access token
 is not used. `ghinstallation` signs App requests and caches and renews the
 installation access token. REST and GraphQL use the same installation credentials;
