@@ -23,6 +23,29 @@ Given('the installation token approaches expiry after one second') do
   Abgleich.github.token_lifetime = 61
 end
 
+Given('installation-token renewal becomes {string} during a check') do |condition|
+  failure = { 'available' => 'installation token renewal', 'rate limited' => 'installation token renewal rate limit',
+              'unavailable' => 'installation token renewal HTTP' }.fetch(condition)
+  Abgleich.github.token_lifetime = 61
+  Abgleich.github.fail_with(failure)
+  config = YAML.safe_load_file('.config/server.yaml')
+  config['scheduler']['interval'] = '3s'
+  File.write('.config/server.yaml', YAML.dump(config))
+end
+
+Given('the first check stopped at throttled installation-token renewal') do
+  Nonnative.start
+  expect_failed_check
+  error = Abgleich.job_logs.first.fetch('error')
+  expect(error).to include('429', 'pull request #1:')
+  expect(error).not_to include('pull request #2:', 'alexfalkowski/later')
+  failed_renewals = Abgleich::GitHubService.request_counts.fetch(:installation_requests) - Abgleich.github.token_requests
+  expect(failed_renewals).to eq(1), 'expected one throttled renewal after pull request listing'
+  expect(Abgleich.github.unchanged?).to be(true), 'expected renewal throttling to leave every branch unchanged'
+  expect_no_accepted_rebases
+  expect_healthy_worker
+end
+
 Given('the worker cannot authenticate when checking branch {string}') do |branch|
   Abgleich.github.add_pull(branch)
   Abgleich.prepare_github_key('unrecognized')
@@ -42,4 +65,12 @@ Then('GitHub should receive one installation check per sweep and {int} for comme
     counts = Abgleich::GitHubService.request_counts
     counts.fetch(:installation_checks) - counts.fetch(:repository_discoveries)
   end.to eq(command_checks), "expected one installation check per sweep and #{command_checks} for comment commands"
+end
+
+Then('the first check should report ordinary renewal failures across pull requests and repositories') do
+  expect_failed_check
+  error = Abgleich.job_logs.first.fetch('error')
+  expect(error).to include('503', 'pull request #1:', 'pull request #2:', 'alexfalkowski/later')
+  failed_renewals = Abgleich::GitHubService.request_counts.fetch(:installation_requests) - Abgleich.github.token_requests
+  expect(failed_renewals).to eq(3), 'expected three renewal failures across pull requests and repositories'
 end

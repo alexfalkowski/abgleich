@@ -183,6 +183,34 @@ Feature: Dependabot merge automation
     And branch "second" should have squash auto-merge enabled
     And the branch check should succeed
 
+  Scenario: Process a repeated pull request only once per check
+    Given the Dependabot pull request for branch "dependencies" is "behind its base"
+    And the Dependabot pull request for branch "last" is "waiting for checks"
+    And GitHub repeats a pull request across list pages
+    When the worker checks auto-merge branches
+    Then branch "dependencies" should have squash auto-merge enabled
+    And branch "dependencies" should be rebased
+    And branch "last" should have squash auto-merge enabled
+    And the branch check should succeed
+    And enabling auto-merge and rebasing should occur in separate checks
+
+  Scenario: Do not retry a rejected action when a pull request repeats across pages
+    Given the Dependabot pull request for branch "blocked" is "waiting for checks"
+    And GitHub rejects Dependabot changes on branch "blocked"
+    And the Dependabot pull request for branch "last" is "waiting for checks"
+    And GitHub repeats a pull request across list pages
+    When the worker checks auto-merge branches
+    Then the first check should report only one failure for pull request 1
+    And branch "last" should have squash auto-merge enabled
+
+  Scenario: Leave all pull requests alone when a later list page fails
+    Given the Dependabot pull request for branch "first" is "waiting for checks"
+    And the Dependabot pull request for branch "last" is "waiting for checks"
+    And GitHub cannot return a later pull request page
+    When the worker checks auto-merge branches
+    Then the branch check should fail
+    And no pull request mutations should be requested
+
   Scenario: Continue processing other pull requests after a Dependabot failure
     Given the Dependabot pull request for branch "blocked" is "waiting for checks"
     And GitHub rejects Dependabot changes on branch "blocked"

@@ -88,6 +88,7 @@ module Abgleich
           halt 503
         end
         halt 503 if failure == 'list'
+        halt 503 if failure == 'pull request page' && page > 1
         if (limit = rate_limit_response(failure))
           code, payload, rate_headers = limit
           headers rate_headers
@@ -99,6 +100,7 @@ module Abgleich
         halt 403, { message: 'Resource not accessible by integration' }.to_json if failure == 'permission'
         halt 200, '{' if failure == 'malformed response'
         sleep 1.1 if failure == 'slow list'
+        wait_for_token_renewal(failure)
         sleep 3 if failure == 'timeout'
         headers 'Link' => "<http://localhost:11001/repos/#{repository}/pulls?page=#{page + 1}>; rel=\"next\"" if more
         pulls.to_json
@@ -172,6 +174,13 @@ module Abgleich
     end
 
     private
+
+    def wait_for_token_renewal(failure)
+      return unless failure&.start_with?('installation token renewal') && Abgleich.github.progress.fetch(:scans) == 1
+
+      sleep [Abgleich.github.token_renews_at - Time.now.utc + 0.01, 0].max
+      Abgleich.github.token_lifetime = 3600
+    end
 
     def change_snapshot(pull, field_path)
       *path, field = field_path.split('.').map(&:to_sym)

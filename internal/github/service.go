@@ -178,6 +178,7 @@ func (s *service) GetRepository(ctx context.Context, repo *Repository) (*Reposit
 // mutating branches.
 func (s *service) ListOpenPullRequests(ctx context.Context, repo *Repository) ([]*PullRequest, error) {
 	var pulls []*PullRequest
+	seen := make(map[int]bool)
 	opts := &github.PullRequestListOptions{State: "open", PerPage: pageSize}
 
 	for {
@@ -186,7 +187,15 @@ func (s *service) ListOpenPullRequests(ctx context.Context, repo *Repository) ([
 			return nil, errors.Prefix("github list pull requests", err)
 		}
 
-		pulls = append(pulls, page...)
+		// New pull requests can shift page boundaries while discovery is running.
+		for _, pull := range page {
+			if seen[pull.GetNumber()] {
+				continue
+			}
+
+			seen[pull.GetNumber()] = true
+			pulls = append(pulls, pull)
+		}
 
 		if response.NextPage == 0 {
 			break
