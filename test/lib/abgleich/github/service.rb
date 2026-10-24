@@ -113,7 +113,11 @@ module Abgleich
       repository = "#{params.fetch('owner')}/#{params.fetch('repository')}"
       pull, rechecked = Abgleich.github.pull(params.fetch('number').to_i, repository)
       pull[:head][:repo] = nil if failure == 'missing head repository'
-      if failure&.start_with?('changed:')
+      if rechecked && failure == 'hold before mutation'
+        Abgleich.github.label_pull(pull.dig(:head, :ref), 'hold')
+        pull[:labels] << { name: 'hold' }
+        Abgleich.github.fail_with(nil)
+      elsif failure&.start_with?('changed:')
         change_snapshot(pull, failure.delete_prefix('changed:'))
       elsif rechecked && failure&.start_with?('before mutation:')
         change_snapshot(pull, failure.delete_prefix('before mutation:'))
@@ -205,6 +209,7 @@ module Abgleich
       halt 503 if failure == 'history HTTP' || (failure == 'history page' && input['after'])
       halt 200, '{' if failure == 'malformed history'
 
+      Abgleich.github.fail_with('hold before mutation') if failure == 'hold before labeling'
       Abgleich.github.automation_events(input)
     end
 

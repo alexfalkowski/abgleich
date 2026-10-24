@@ -51,6 +51,28 @@ history prevents automation; equal application and revocation timestamps defer i
 Removing the label prevents a new request; it does not cancel auto-merge already
 enabled on GitHub. To stop that merge, disable auto-merge in GitHub as well.
 
+### ⏸️ Hold a pull request
+
+Apply the exact label `hold` to pause Abgleich on one PR. Maintainers apply and
+remove it using their existing GitHub permissions. Matching is case-sensitive;
+the label name is fixed and needs no worker configuration. Ensure the managed
+repository baseline has provisioned `hold` before using it.
+
+After observing the label, Abgleich skips auto-merge enablement, immediate merges,
+rebases, and `/ab automerge` label requests for that PR, including Dependabot and
+labeled fork PRs. Comment commands retain receipt and rejection reactions. Other
+PRs continue normally. A current hold survives worker restarts because each run
+reads GitHub state.
+
+Removing the hold resumes normal policy. Dependabot can be enrolled again;
+removing hold does not renew a labeled request revoked by auto-merge disablement
+or removal of `automerge`.
+
+The hold suppresses Abgleich requests only. It does not disable GitHub auto-merge
+or undo an accepted request. Disable auto-merge in GitHub separately when it is
+already enabled and must stop. The worker rechecks hold membership before acting,
+but a label applied after the final read can still race a mutation.
+
 ### 💬 Comment requests
 
 With GitHub App authentication and webhooks configured, post a new PR comment
