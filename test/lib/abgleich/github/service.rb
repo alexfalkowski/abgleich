@@ -81,7 +81,7 @@ module Abgleich
       GitHubService.track_scan do
         repository = "#{params.fetch('owner')}/#{params.fetch('repository')}"
         page = params.fetch('page', '1').to_i
-        pulls, more = Abgleich.github.list(page, repository)
+        pulls, more = Abgleich.github.list(page, repository, sort: params['sort'] || 'created', direction: params['direction'] || 'desc')
         failure = Abgleich.github.failure(repository)
         if failure == 'temporary list'
           Abgleich.github.fail_with(nil)

@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'time'
+
 module Abgleich
   class GitHubRepository
     # Pull request snapshots, pagination, and branch comparisons.
@@ -22,10 +24,10 @@ module Abgleich
         end
       end
 
-      def list(page, repository = DEFAULT_REPOSITORY)
+      def list(page, repository = DEFAULT_REPOSITORY, sort: 'created', direction: 'desc')
         @mutex.synchronize do
           @state[:scans] += 1 if page == 1
-          pulls = listed_pulls(repository)
+          pulls = listed_pulls(repository, sort, direction)
           more = @state[:pagination] && page < pulls.length
           @state[:listed][repository] = !more
           [@state[:pagination] ? pulls.slice(page - 1, 1).to_a : pulls, more]
@@ -61,14 +63,21 @@ module Abgleich
 
       private
 
-      def listed_pulls(repository)
+      def listed_pulls(repository, sort, direction)
         pulls = @state[:pulls].select { |(name, _number), _pull| name == repository }.values
+        pulls.sort_by! { |pull| pull.fetch(:"#{sort}_at") }
+        pulls.reverse! if direction == 'desc'
         pulls.insert(1, pulls.first) if @state[:overlapping_pages] && !pulls.empty?
         pulls
       end
 
       def disabled?(number)
         @state[:failure] == 'disabled auto-merge' || (@state[:failure] == 'disabled before rebase' && @state[:details][number] > 1)
+      end
+
+      def pull_timestamps(number, options)
+        created_at = options[:created_at] || Time.at(number).utc.iso8601
+        { created_at:, updated_at: options[:updated_at] || created_at }
       end
 
       def pull_data(repository, branch, number, sha, options)
@@ -80,7 +89,7 @@ module Abgleich
           automation_events: options.fetch(:labels, []).map { |name| automation_event('LabeledEvent', 1, name) },
           auto_merge: options.fetch(:auto_merge, true) ? { merge_method: 'squash' } : nil,
           head: { ref: branch, sha:, repo: { full_name: options[:fork] ? 'someone/infraops' : repository } },
-          base: { ref: 'master', sha: 'b' * 40, repo: { full_name: repository } } }
+          base: { ref: 'master', sha: 'b' * 40, repo: { full_name: repository } } }.merge(pull_timestamps(number, options))
       end
     end
   end
