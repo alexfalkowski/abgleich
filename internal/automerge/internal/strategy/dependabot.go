@@ -24,6 +24,13 @@ func (s *Dependabot) Matches(repository *github.Repository, pull *github.PullReq
 		(readyToMerge(pull) || pull.GetAutoMerge() == nil)
 }
 
+// Assess selects the Dependabot merge action using the same policy as reconciliation.
+func (s *Dependabot) Assess(_ context.Context, repository *github.Repository, pull *github.PullRequest) (Decision, error) {
+	decision, err := decideMerge(repository, pull)
+	decision.Policy = "Dependabot"
+	return decision, err
+}
+
 // Reconcile refreshes the pull request before merging or enabling auto-merge.
 func (s *Dependabot) Reconcile(ctx context.Context, repository *github.Repository, expected *github.PullRequest) error {
 	current, err := s.github.GetPullRequest(ctx, repository, expected.GetNumber())
@@ -39,15 +46,16 @@ func (s *Dependabot) Reconcile(ctx context.Context, repository *github.Repositor
 		return errors.New("pull request changed before merge; retry on the next run")
 	}
 
-	if !repository.GetAllowSquashMerge() {
-		return errors.New("repository does not allow squash merging")
+	decision, err := s.Assess(ctx, repository, current)
+	if err != nil {
+		return err
 	}
 
-	if readyToMerge(current) {
+	if decision.IsMerge() {
 		return s.github.Merge(ctx, repository, current)
 	}
 
-	if current.GetAutoMerge() == nil {
+	if decision.IsEnable() && current.GetAutoMerge() == nil {
 		return s.github.EnableAutoMerge(ctx, current)
 	}
 

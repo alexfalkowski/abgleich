@@ -48,12 +48,16 @@ module Abgleich
     get '/repos/:owner/:repository/issues/comments/:id' do
       halt 503 if Abgleich.github.failure == 'comment HTTP'
       sleep 3 if Abgleich.github.failure == 'comment timeout'
-      Abgleich.github.comment(params.fetch('id').to_i).to_json
+      comment = Abgleich.github.comment(params.fetch('id').to_i)
+      comment['updated_at'] = '2026-01-01T00:00:06Z' if Abgleich.github.failure == 'final authorization:an edited comment'
+      comment.to_json
     end
 
     get '/repos/:owner/:repository/collaborators/:user/permission' do
       halt 503 if Abgleich.github.failure == 'permission HTTP'
-      Abgleich.github.comment_permission.to_json
+      permission = Abgleich.github.comment_permission
+      permission[:permission] = 'read' if Abgleich.github.failure == 'final authorization:revoked write access'
+      permission.to_json
     end
 
     post '/repos/:owner/:repository/issues/comments/:id/reactions' do
@@ -73,6 +77,23 @@ module Abgleich
       reaction.to_json
     end
 
+    post '/repos/:owner/:repository/issues/:number/comments' do
+      Abgleich.github.record_reply_request
+      failure = Abgleich.github.failure
+      halt 503 if failure == 'reply HTTP'
+      halt 201, '{' if failure == 'malformed reply'
+      halt 201, '{}' if failure == 'incomplete reply'
+      sleep 3 if failure == 'reply timeout'
+      repository = "#{params.fetch('owner')}/#{params.fetch('repository')}"
+      reply = Abgleich.github.publish_reply(repository, params.fetch('number').to_i, JSON.parse(request.body.read).fetch('body'))
+      halt 503 if failure == 'lost reply response'
+      reply[:issue_url] = 'http://localhost:11001/repos/someone/other/issues/999' if failure == 'mismatched reply'
+      reply[:body] = 'different body' if failure == 'wrong reply body'
+      reply.delete(:id) if failure == 'missing reply ID'
+      status 201
+      reply.to_json
+    end
+
     post '/repos/:owner/:repository/issues/:number/labels' do
       halt 503 if Abgleich.github.failure == 'label HTTP'
       sleep 1 if Abgleich.github.failure == 'slow label'
@@ -84,6 +105,16 @@ module Abgleich
     end
 
     private
+
+    def change_status_state(repository, rechecked, failure)
+      if failure&.start_with?('status settings:')
+        setting = failure.delete_prefix('status settings:').to_sym
+        Abgleich.github.add_repository(repository, **{ setting => false })
+        Abgleich.github.fail_with(nil)
+      elsif rechecked && failure&.start_with?('status authorization:')
+        Abgleich.github.fail_with(failure.sub('status authorization:', 'final authorization:'))
+      end
+    end
 
     def authenticate_request
       return authenticate_app if request.path_info.start_with?('/app/')

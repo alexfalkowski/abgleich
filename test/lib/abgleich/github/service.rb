@@ -113,6 +113,7 @@ module Abgleich
       repository = "#{params.fetch('owner')}/#{params.fetch('repository')}"
       pull, rechecked = Abgleich.github.pull(params.fetch('number').to_i, repository)
       pull[:head][:repo] = nil if failure == 'missing head repository'
+      change_status_state(repository, rechecked, failure)
       if rechecked && failure == 'hold before mutation'
         Abgleich.github.label_pull(pull.dig(:head, :ref), 'hold')
         pull[:labels] << { name: 'hold' }
@@ -198,7 +199,8 @@ module Abgleich
       when :draft then true
       when :state then 'closed'
       when :number then value + 1
-      when :mergeable_state then 'blocked'
+      when :mergeable_state then { 'blocked' => 'clean' }.fetch(value, 'blocked')
+      when :auto_merge then { merge_method: 'squash' }
       when :labels then []
       else "#{value}-changed"
       end

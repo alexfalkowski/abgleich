@@ -252,3 +252,221 @@ Feature: Comment requests for auto-merge
     And exactly 0 label requests should reach GitHub
     And branch "contribution" should retain the "hold" label
     And no pull request mutations should be requested
+
+  Rule: Requested automation status
+    Background:
+      Given scheduled pull request listing is unavailable
+
+    Scenario Outline: Explain a status snapshot without requesting automation
+      Given a pull request from "<source>" for branch "contribution" is "<condition>"
+      And branch "contribution" has the "<label>" label
+      When a maintainer with "write" access comments "  /ab status  "
+      Then the comment delivery should return HTTP 204
+      And the status reply should explain "<decision>"
+      And the status reply should identify the observed revision and request with auto-merge "<auto-merge>"
+      And the command comment should show "receipt and acceptance" feedback
+      And the status request should cause no automation mutations
+
+      Examples:
+        | source         | condition                        | label     | decision                       | auto-merge |
+        | the repository | waiting for checks               | hold      | On hold                        | Disabled   |
+        | the repository | a draft                          | automerge | Draft pull request             | Disabled   |
+        | the repository | closed                           | automerge | Pull request is closed         | Disabled   |
+        | the repository | waiting for checks               | automerge | Would enable squash auto-merge | Disabled   |
+        | a fork         | ready to merge                   | automerge | Would squash-merge             | Disabled   |
+        | the repository | behind with auto-merge enabled   | bug       | Would request a rebase         | Enabled    |
+        | the repository | waiting with auto-merge enabled  | bug       | Branch is current              | Enabled    |
+        | a fork         | behind with auto-merge enabled   | bug       | Fork rebase unsupported        | Enabled    |
+        | the repository | waiting for checks               | bug       | No automation requested        | Disabled   |
+
+    Scenario Outline: Explain repository settings that prevent automation
+      Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
+      And branch "contribution" has the "automerge" label
+      And the repository has <setting> disabled
+      When a maintainer with "admin" access comments "/ab status"
+      Then the comment delivery should return HTTP 204
+      And the status reply should explain "<decision>"
+      And the status request should cause no automation mutations
+
+      Examples:
+        | setting        | decision                       |
+        | auto-merge     | Repository automation disabled |
+        | squash merging | Squash merging unavailable     |
+
+    Scenario Outline: Explain Dependabot policy before label authorization
+      Given the Dependabot pull request for branch "contribution" is "<condition>"
+      And branch "contribution" has the "automerge" label
+      And GitHub disabled auto-merge for branch "contribution" "after the maintainer disables it"
+      When a maintainer with "write" access comments "/ab status"
+      Then the comment delivery should return HTTP 204
+      And the status reply should explain "<decision>"
+      And the status reply should include "Dependabot"
+      And the status request should cause no automation mutations
+
+      Examples:
+        | condition          | decision                       |
+        | waiting for checks | Would enable squash auto-merge |
+        | ready to merge     | Would squash-merge             |
+
+    Scenario Outline: Explain the need to renew revoked label authorization
+      Given a pull request from "a fork" for branch "contribution" is "waiting for checks"
+      And branch "contribution" has the "automerge" label
+      And GitHub disabled auto-merge for branch "contribution" "<revocation>"
+      And the automation events span multiple pages
+      When a maintainer with "write" access comments "/ab status"
+      Then the comment delivery should return HTTP 204
+      And the status reply should explain "Waiting for renewed authorization"
+      And the status reply should include "Remove and reapply"
+      And the status reply should include "automerge"
+      And the status reply should identify the observed revision and request with auto-merge "Disabled"
+      And the status request should cause no automation mutations
+
+      Examples:
+        | revocation                                 |
+        | after the maintainer disables it           |
+        | at the same time as the label is reapplied  |
+
+    Scenario: A label without its authorization history needs renewal
+      Given a pull request from "a fork" for branch "contribution" is "waiting for checks"
+      And branch "contribution" has the "automerge" label
+      And the labeled operation fails with "empty history"
+      When a maintainer with "write" access comments "/ab status"
+      Then the comment delivery should return HTTP 204
+      And the status reply should explain "Waiting for renewed authorization"
+      And the status request should cause no automation mutations
+
+    Scenario Outline: Disclose unavailable evidence instead of guessing a policy outcome
+      Given a pull request from "the repository" for branch "contribution" is "<condition>"
+      And branch "contribution" has the "<label>" label
+      And the labeled operation fails with "<failure>"
+      When a maintainer with "write" access comments "/ab status"
+      Then the comment delivery should return HTTP 204
+      And the status reply should explain "Assessment unavailable"
+      And the status reply should include "<evidence>"
+      And the status request should cause no automation mutations
+
+      Examples:
+        | condition                       | label     | failure            | evidence   |
+        | waiting for checks              | automerge | history HTTP       | history    |
+        | waiting for checks              | automerge | incomplete history | history    |
+        | waiting with auto-merge enabled  | bug       | comparison         | comparison |
+        | waiting with auto-merge enabled  | bug       | missing comparison | comparison |
+
+    Scenario Outline: Do not publish status for unauthorized or unrelated commands
+      Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
+      When a maintainer with "<permission>" access comments "<command>"
+      Then the comment delivery should return HTTP <status>
+      And no status reply should be published
+      And the status request should cause no automation mutations
+
+      Examples:
+        | permission | command           | status |
+        | read       | /ab status        | 403    |
+        | none       | /ab status        | 403    |
+        | write      | /ab status please | 204    |
+        | write      | /AB status        | 204    |
+        | write      | /ab STATUS        | 204    |
+
+    Scenario Outline: Re-read the original status request before publication
+      Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
+      And its status request is "<condition>"
+      When GitHub delivers that comment
+      Then the comment delivery should return HTTP <status>
+      And no status reply should be published
+      And the status request should cause no automation mutations
+
+      Examples:
+        | condition          | status |
+        | edited             | 204    |
+        | now different text | 204    |
+        | now edited         | 204    |
+        | for another PR     | 503    |
+        | a bot request      | 204    |
+        | from another author | 503   |
+
+    Scenario Outline: Refuse to publish a changing status snapshot
+      Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
+      And branch "contribution" has the "automerge" label
+      And its "<field>" changes during status assessment
+      When a maintainer with "write" access comments "/ab status"
+      Then the comment delivery should return HTTP 409
+      And no status reply should be published
+      And the command comment should show "receipt and rejection" feedback
+      And the status request should cause no automation mutations
+
+      Examples:
+        | field       |
+        | head commit |
+        | base commit |
+        | draft       |
+        | state       |
+        | readiness   |
+        | auto-merge  |
+        | labels      |
+        | identity    |
+
+    Scenario Outline: Refuse to publish after repository policy changes
+      Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
+      And its repository "<setting>" setting changes during status assessment
+      When a maintainer with "write" access comments "/ab status"
+      Then the comment delivery should return HTTP 409
+      And no status reply should be published
+      And the command comment should show "receipt and rejection" feedback
+      And the status request should cause no automation mutations
+
+      Examples:
+        | setting        |
+        | auto-merge     |
+        | squash merging |
+
+    Scenario Outline: Revalidate authorization before publishing the assessment
+      Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
+      And its status authorization changes during assessment through "<change>"
+      When a maintainer with "write" access comments "/ab status"
+      Then the comment delivery should return HTTP <status>
+      And no status reply should be published
+      And the command comment should show "receipt and rejection" feedback
+      And the status request should cause no automation mutations
+
+      Examples:
+        | change               | status |
+        | revoked write access | 403    |
+        | an edited comment    | 204    |
+
+    Scenario Outline: Never acknowledge an unconfirmed status publication
+      Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
+      And the labeled operation fails with "<failure>"
+      When a maintainer with "write" access comments "/ab status"
+      Then the comment delivery should return HTTP 503
+      And exactly 1 status publication attempts should reach GitHub
+      And status publication should not be reported as accepted
+      And the status request should cause no automation mutations
+
+      Examples:
+        | failure             |
+        | reply HTTP          |
+        | malformed reply     |
+        | incomplete reply    |
+        | missing reply ID    |
+        | wrong reply body    |
+        | mismatched reply    |
+        | lost reply response |
+
+    Scenario: The command deadline also bounds publishing a status reply
+      Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
+      And the command has a short processing deadline
+      And the labeled operation fails with "reply timeout"
+      When a maintainer requests status while publication is slow
+      Then the comment delivery should return HTTP 503
+      And the command should finish within one second
+      And exactly 1 status publication attempts should reach GitHub
+      And status publication should not be reported as accepted
+      And the status request should cause no automation mutations
+
+    Scenario: Redelivery can publish another revision-specific status reply
+      Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
+      When GitHub delivers the same status request twice
+      Then the comment delivery should return HTTP 204
+      And exactly 2 status publication attempts should reach GitHub
+      And the status reply should identify the observed revision and request with auto-merge "Disabled"
+      And the status request should cause no automation mutations

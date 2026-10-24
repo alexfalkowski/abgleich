@@ -35,7 +35,7 @@ module Abgleich
         @state = { failure: nil, scans: 0, pagination: false, pulls: {}, behind: {}, original: {}, updates: [], details: Hash.new(0),
                    repositories: {}, repository_failures: {}, repository_pagination: false, discovery_complete: false,
                    login: 'alexfalkowski', listed: {}, automation_pagination: false,
-                   token_requests: 0, token_lifetime: 3600, comments: {}, label_requests: 0 }
+                   token_requests: 0, token_lifetime: 3600, comments: {}, replies: [], reply_requests: 0, label_requests: 0 }
         @state[:repositories][DEFAULT_REPOSITORY] = repository_data(DEFAULT_REPOSITORY)
         @raced_sha = nil
       end
