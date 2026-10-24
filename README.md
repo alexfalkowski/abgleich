@@ -141,8 +141,9 @@ whether a branch check succeeds.
 
 The worker runs immediately on startup and, by default, every fifteen minutes
 thereafter. It discovers all owned repositories before processing them serially.
-For each repository, it lists open pull requests through go-github, compares each eligible
-branch with its base, and asks GitHub to rebase stale branches using the GraphQL
+For each repository, it lists open pull requests through go-github and processes
+them oldest first by creation time. It compares each eligible branch with its base
+and asks GitHub to rebase stale branches using the GraphQL
 [`updatePullRequestBranch`](https://docs.github.com/en/graphql/reference/pulls#updatepullrequestbranch)
 mutation with `updateMethod: REBASE`. This is the server-side operation used by
 GitHub's update-with-rebase UI and CLI. GitHub performs the branch update.

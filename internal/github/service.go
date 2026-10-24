@@ -76,8 +76,8 @@ type Service interface {
 	// SHA across snapshots. Repository names are compared case-insensitively.
 	IsSamePullRequest(current, expected *PullRequest) bool
 
-	// ListOpenPullRequests collects all pages before returning so mutations
-	// cannot change ordering partway through pagination.
+	// ListOpenPullRequests collects all pages in ascending creation order before
+	// returning so mutations cannot change ordering partway through pagination.
 	ListOpenPullRequests(ctx context.Context, repo *Repository) ([]*PullRequest, error)
 
 	// GetPullRequest reads fresh auto-merge, branch, and identity state.
@@ -173,13 +173,13 @@ func (s *service) GetRepository(ctx context.Context, repo *Repository) (*Reposit
 	return current, nil
 }
 
-// ListOpenPullRequests returns all open pull requests for repo. Every page must
-// succeed before results are returned, so callers can finish pagination before
-// mutating branches.
+// ListOpenPullRequests returns all open pull requests for repo, oldest first by
+// creation time. Every page must succeed before results are returned, so callers
+// can finish pagination before mutating branches.
 func (s *service) ListOpenPullRequests(ctx context.Context, repo *Repository) ([]*PullRequest, error) {
 	var pulls []*PullRequest
 	seen := make(map[int]bool)
-	opts := &github.PullRequestListOptions{State: "open", PerPage: pageSize}
+	opts := &github.PullRequestListOptions{State: "open", Sort: "created", Direction: "asc", PerPage: pageSize}
 
 	for {
 		page, response, err := s.client.installation.PullRequests.List(ctx, repo.GetOwner().GetLogin(), repo.GetName(), opts)

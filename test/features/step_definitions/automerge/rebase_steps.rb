@@ -6,7 +6,7 @@ end
 
 Given('GitHub has stale auto-merge branches:') do |table|
   table.hashes.each do |row|
-    Abgleich.github.add_pull(row['branch'])
+    Abgleich.github.add_pull(row['branch'], created_at: row['created at'], updated_at: row['updated at'])
   end
 end
 
@@ -82,6 +82,11 @@ Then('the worker should report these accepted rebases:') do |table|
     a_hash_including('level' => 'info', 'pull_request' => Integer(row['pull request']), 'branch' => row['branch'])
   end
   wait_for { Abgleich.rebase_logs }.to contain_exactly(*expected)
+end
+
+Then('the branches should be rebased in this order:') do |table|
+  expected = table.hashes.map { |row| row.fetch('branch') }
+  wait_for { Abgleich.rebase_logs.map { |record| record.fetch('branch') } }.to eq(expected)
 end
 
 Then('branch {string} should remain unchanged') do |branch|

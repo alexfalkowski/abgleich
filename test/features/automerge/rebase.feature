@@ -38,17 +38,24 @@ Feature: Auto-merge branch rebasing
       | comparison |
       | rebase     |
 
-  Scenario: Rebase branches from every page
+  Scenario: Rebase branches oldest first across every page
     Given GitHub has stale auto-merge branches:
-      | branch |
-      | first  |
-      | second |
+      | branch | created at           | updated at           |
+      | newest | 2026-01-03T00:00:00Z | 2026-01-03T00:00:00Z |
+      | oldest | 2026-01-01T00:00:00Z | 2026-01-02T00:00:00Z |
+      | middle | 2026-01-02T00:00:00Z | 2026-01-01T00:00:00Z |
     And the pull requests span multiple pages
     When the worker checks auto-merge branches
     Then the branches should have these outcomes:
       | branch | outcome |
-      | first  | rebased |
-      | second | rebased |
+      | newest | rebased |
+      | oldest | rebased |
+      | middle | rebased |
+    And the branches should be rebased in this order:
+      | branch |
+      | oldest |
+      | middle |
+      | newest |
     And the branch check should succeed
 
   Scenario: Continue rebasing when another branch has a conflict
