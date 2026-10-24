@@ -112,6 +112,36 @@ Reactions remain on the comment, and GitHub reuses an existing reaction on
 redelivery. A later attempt can therefore leave both rejection and acceptance
 reactions; consult the label and current PR state for the outcome.
 
+### 🔎 Explain a pull request's automation status
+
+With the same App and webhook setup, post a new comment containing exactly
+`/ab status`. The requester needs current write or admin access. Surrounding
+whitespace is allowed; arguments, edited comments, and bot authors are ignored.
+The App replies with its observed policy decision, reason, and next step,
+including the head commit, UTC assessment time, GitHub auto-merge state, and a
+link to the request. Receipt and outcome reactions use the same delivery budget;
+acceptance means the status reply was confirmed published.
+
+Status explains repository opt-out, drafts, closed PRs, `hold`, squash-merge
+settings, label authorization, and the applicable Dependabot, label, or rebase
+strategy. For example, a label that predates auto-merge disablement reports
+**Waiting for renewed authorization** and explains how to remove and reapply it.
+Forks can use labeled merging, but their authors must keep their branches current.
+
+The reply describes what the worker would attempt under the observed state.
+It never labels, enables auto-merge, merges, rebases, approves, or bypasses rules.
+GitHub still enforces merge requirements. Coarse mergeability does not identify
+individual failing checks or missing reviews; consult GitHub's merge box for
+those details. Unavailable history or comparison evidence is reported explicitly.
+
+GitHub reads are separate observations, not an atomic snapshot. A detected
+change to the revision or policy state rejects the request without a reply
+(HTTP 409); post a new `/ab status` request to retry. State can still change after
+the final check. Publication is best effort within the configured command
+deadline and is never retried automatically. A failed or timed-out response can
+already have published a reply, and webhook redelivery can produce another
+comment with the same request link. No exactly-once publication is promised.
+
 ## 🚀 Quickstart
 
 Run these steps from the repository root.

@@ -23,14 +23,28 @@ func (s *Rebase) Matches(repository *github.Repository, pull *github.PullRequest
 	return Eligible(pull) && s.github.IsSameRepository(repository, pull) && pull.GetAutoMerge() != nil
 }
 
+// Assess compares branch freshness without requesting an update.
+func (s *Rebase) Assess(ctx context.Context, repository *github.Repository, pull *github.PullRequest) (Decision, error) {
+	comparison, err := s.github.Compare(ctx, repository, pull.GetBase().GetRef(), pull.GetHead().GetSHA())
+	if err != nil {
+		return Decision{Policy: "rebase", Reason: ReasonComparisonUnavailable}, err
+	}
+
+	if comparison.GetBehindBy() <= 0 {
+		return Decision{Policy: "rebase", Reason: ReasonBranchCurrent}, nil
+	}
+
+	return Decision{Policy: "rebase", Action: "rebase", Reason: ReasonBranchBehind}, nil
+}
+
 // Reconcile compares branch state and rebases only after a fresh identity check.
 func (s *Rebase) Reconcile(ctx context.Context, repository *github.Repository, pull *github.PullRequest) error {
-	comparison, err := s.github.Compare(ctx, repository, pull.GetBase().GetRef(), pull.GetHead().GetSHA())
+	decision, err := s.Assess(ctx, repository, pull)
 	if err != nil {
 		return err
 	}
 
-	if comparison.GetBehindBy() <= 0 {
+	if !decision.IsRebase() {
 		return nil
 	}
 

@@ -56,6 +56,10 @@ type Service interface {
 	// idempotent in GitHub; mutation requests are not retried.
 	AddCommentReaction(ctx context.Context, repo *Repository, comment *IssueComment, content string) error
 
+	// AddComment publishes feedback once and validates the response. An ambiguous
+	// failure may have published the comment; callers must not retry automatically.
+	AddComment(ctx context.Context, repo *Repository, number int, body string) error
+
 	// ListRepositories validates the authenticated owner and collects all pages
 	// before returning active owned repositories accessible to the installation.
 	ListRepositories(ctx context.Context) ([]*Repository, error)

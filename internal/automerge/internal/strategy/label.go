@@ -30,6 +30,22 @@ func (s *Label) Matches(repository *github.Repository, pull *github.PullRequest)
 	return github.HasLabel(pull.GetLabels(), AutoMergeLabel)
 }
 
+// Assess reads complete label authorization before selecting a merge action.
+func (s *Label) Assess(ctx context.Context, repository *github.Repository, pull *github.PullRequest) (Decision, error) {
+	events, err := s.github.ListPullRequestAutomationEvents(ctx, pull)
+	if err != nil {
+		return Decision{Policy: "automerge label", Reason: ReasonHistoryUnavailable}, err
+	}
+
+	if !labelAuthorizesAutoMerge(events) {
+		return Decision{Policy: "automerge label", Reason: ReasonLabelAuthorizationRevoked}, nil
+	}
+
+	decision, err := decideMerge(repository, pull)
+	decision.Policy = "automerge label"
+	return decision, err
+}
+
 // Reconcile verifies label authorization and refreshes the pull request before acting.
 func (s *Label) Reconcile(ctx context.Context, repository *github.Repository, expected *github.PullRequest) error {
 	events, err := s.github.ListPullRequestAutomationEvents(ctx, expected)
@@ -54,15 +70,20 @@ func (s *Label) Reconcile(ctx context.Context, repository *github.Repository, ex
 		return errors.New("pull request changed before labeled automation; retry on the next run")
 	}
 
-	if !repository.GetAllowSquashMerge() {
-		return errors.New("repository does not allow squash merging")
+	decision, err := decideMerge(repository, current)
+	if err != nil {
+		return err
 	}
 
-	if readyToMerge(current) {
+	if decision.IsMerge() {
 		return s.github.Merge(ctx, repository, current)
 	}
 
-	return s.github.EnableAutoMerge(ctx, current)
+	if decision.IsEnable() {
+		return s.github.EnableAutoMerge(ctx, current)
+	}
+
+	return nil
 }
 
 // labelAuthorizesAutoMerge requires a label application newer than any removal

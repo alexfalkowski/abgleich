@@ -1,0 +1,18 @@
+### 🤖 Abgleich status
+
+{{.Emoji}} **{{.Assessment.Decision}}**
+
+🔀 **GitHub auto-merge:** {{.AutoMerge}}{{"  "}}
+🔎 **Commit:** `{{.SHA}}`{{"  "}}
+🕒 **Checked:** {{.CheckedAt}}{{"  "}}
+📋 **Policy:** {{.Assessment.Policy}}
+
+📝 **Reason**
+{{.Assessment.Reason}}
+
+👉 **Next step**
+{{.Assessment.NextStep}}
+
+Snapshot from separate GitHub reads; state may change after checking. This command requests no automation.
+
+↩️ [Status request](#issuecomment-{{.RequestID}})

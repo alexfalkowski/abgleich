@@ -19,6 +19,7 @@ not clone repositories or execute Git. Each run reconciles fresh remote state.
 | `internal/commands` | PR comment parsing, named handler dispatch, installation validation, overlap prevention, and reaction feedback. |
 | `internal/github` | Service, API client, SDK aliases, owner-wide discovery, repository identity, remote access, and response validation. |
 | `internal/automerge` | Repository opt-in, PR eligibility, merge and rebase decisions, automerge comment authorization and action, and registration of its own job and command. |
+| `internal/status` | Status comment authorization, snapshot rechecks, reply rendering and publication, and registration of its own command. |
 | `internal/scheduler` | Reusable named jobs, timing, overlap prevention, logging, and lifecycle. |
 | `internal/config` | Composition and injection of package-owned configuration. |
 | `internal/health` | Health observers, independent of job outcomes. |
@@ -27,6 +28,11 @@ not clone repositories or execute Git. Each run reconciles fresh remote state.
 - Constructors belong in the packages owning their types; `cmd` composes their
   modules. Keep dependencies directed from `automerge` to `github`, `scheduler`,
   and `commands`. These dependencies do not import `automerge`.
+  `status` depends on `automerge` for read-only policy assessment and on `github`
+  and `commands` for remote access and command registration. `automerge` stays
+  independent of `status`; strategy implementations remain internal to it.
+  Strategies return decision data; `automerge` owns the assessment contract and
+  explanations, while `status` owns GitHub Markdown rendering.
 - Feature modules register named comment handlers through `commands.Dispatcher.Register`
   before startup. Keep each handler in its owning feature package; `commands`
   stays independent of features. Use exact names with the `/ab` prefix.

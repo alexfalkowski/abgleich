@@ -73,6 +73,26 @@ module Abgleich
         end
       end
 
+      def reply_requests
+        @mutex.synchronize { @state[:reply_requests] }
+      end
+
+      def record_reply_request
+        @mutex.synchronize { @state[:reply_requests] += 1 }
+      end
+
+      def replies
+        @mutex.synchronize { JSON.parse(@state[:replies].to_json, symbolize_names: true) }
+      end
+
+      def publish_reply(repository, number, body)
+        @mutex.synchronize do
+          reply = { id: 10_000 + @state[:replies].length, body:,
+                    issue_url: "http://localhost:11001/repos/#{repository}/issues/#{number}" }
+          @state[:replies].push(reply).last
+        end
+      end
+
       def request_labels(repository, number, labels)
         @mutex.synchronize do
           @state[:label_requests] += 1

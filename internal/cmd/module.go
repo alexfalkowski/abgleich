@@ -7,6 +7,7 @@ import (
 	"github.com/alexfalkowski/abgleich/internal/github"
 	"github.com/alexfalkowski/abgleich/internal/health"
 	"github.com/alexfalkowski/abgleich/internal/scheduler"
+	"github.com/alexfalkowski/abgleich/internal/status"
 	"github.com/alexfalkowski/abgleich/internal/transport/http"
 	"github.com/alexfalkowski/go-service/v2/di"
 	"github.com/alexfalkowski/go-service/v2/module"
@@ -19,6 +20,7 @@ var Module = di.Module(
 	github.Module,
 	commands.Module,
 	automerge.Module,
+	status.Module,
 	http.Module,
 	scheduler.Module,
 	health.Module,

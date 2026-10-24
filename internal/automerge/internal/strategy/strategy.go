@@ -12,6 +12,11 @@ type Strategy interface {
 	// Matches evaluates eligibility from the supplied snapshots without remote calls.
 	Matches(repository *github.Repository, pull *github.PullRequest) bool
 
+	// Assess evaluates the selected policy without mutating GitHub. Call only
+	// after Matches and metadata validation. Evidence failures return an error
+	// with a decision identifying the unavailable evidence.
+	Assess(ctx context.Context, repository *github.Repository, pull *github.PullRequest) (Decision, error)
+
 	// Reconcile refreshes remote state before attempting at most one mutation.
 	// Pull requests requiring no action return nil; failures are not retried.
 	Reconcile(ctx context.Context, repository *github.Repository, pull *github.PullRequest) error
