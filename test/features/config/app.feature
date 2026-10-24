@@ -37,6 +37,46 @@ Feature: Shared App installation access
     Then the installation token should be renewed
     And the branch check should succeed
 
+  Scenario: Renew an installation token while processing a check
+    Given GitHub has repositories with stale auto-merge branches:
+      | repository            | branch  | state  |
+      | alexfalkowski/infraops | feature | active |
+      | alexfalkowski/infraops | second  | active |
+      | alexfalkowski/later    | another | active |
+    And installation-token renewal becomes "available" during a check
+    When the worker checks auto-merge branches
+    Then branch "feature" should be rebased
+    And branch "second" should be rebased
+    And branch "another" in repository "alexfalkowski/later" should be rebased
+    And the installation token should be renewed
+    And the branch check should succeed
+
+  Scenario: Stop a check at throttled token renewal and recover on a later schedule
+    Given GitHub has repositories with stale auto-merge branches:
+      | repository            | branch  | state  |
+      | alexfalkowski/infraops | feature | active |
+      | alexfalkowski/infraops | second  | active |
+      | alexfalkowski/later    | another | active |
+    And installation-token renewal becomes "rate limited" during a check
+    And the first check stopped at throttled installation-token renewal
+    When GitHub becomes available again
+    Then branch "feature" should be rebased
+    And branch "second" should be rebased
+    And branch "another" in repository "alexfalkowski/later" should be rebased
+    And the branch check should succeed
+    And the worker should remain healthy
+
+  Scenario: Continue reporting ordinary token-renewal failures
+    Given GitHub has repositories with stale auto-merge branches:
+      | repository            | branch  | state  |
+      | alexfalkowski/infraops | feature | active |
+      | alexfalkowski/infraops | second  | active |
+      | alexfalkowski/later    | another | active |
+    And installation-token renewal becomes "unavailable" during a check
+    When the worker checks auto-merge branches
+    Then the first check should report ordinary renewal failures across pull requests and repositories
+    And the worker should remain healthy
+
   Scenario: Renew installation tokens between comment commands without restarting
     Given GitHub App comment commands are configured
     And a pull request from "the repository" for branch "contribution" is "waiting for checks"

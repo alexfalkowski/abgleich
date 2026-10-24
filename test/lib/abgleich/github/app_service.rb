@@ -20,6 +20,15 @@ module Abgleich
     post '/app/installations/:installation/access_tokens' do
       halt 404 unless params.fetch('installation').to_i == INSTALLATION_ID
       GitHubService.record_installation_request
+      if Abgleich.github.progress.fetch(:scans).positive?
+        case Abgleich.github.failure
+        when 'installation token renewal rate limit'
+          headers 'Retry-After' => '60'
+          halt 429, { message: 'Rate limit exceeded' }.to_json
+        when 'installation token renewal HTTP'
+          halt 503
+        end
+      end
       halt 503 if Abgleich.github.failure == 'installation token HTTP'
       sleep 3 if Abgleich.github.failure == 'installation token timeout'
       Abgleich.github.create_installation_token.to_json

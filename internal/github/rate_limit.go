@@ -4,6 +4,7 @@ import (
 	"github.com/alexfalkowski/go-service/v2/errors"
 	"github.com/alexfalkowski/go-service/v2/net/http"
 	"github.com/alexfalkowski/go-service/v2/strings"
+	"github.com/bradleyfalzon/ghinstallation/v2"
 	"github.com/google/go-github/v93/github"
 )
 
@@ -14,6 +15,10 @@ var ErrRateLimited = errors.New("github rate limit reached")
 // instead of making more requests for other repositories against the same limit.
 func IsRateLimited(err error) bool {
 	if errors.Is(err, ErrRateLimited) {
+		return true
+	}
+
+	if installationRateLimited(err) {
 		return true
 	}
 
@@ -34,6 +39,11 @@ func IsRateLimited(err error) bool {
 	forbiddenRateLimit := response.Response.StatusCode == http.StatusForbidden && rateLimitMessage(response.Message)
 
 	return tooManyRequests || forbiddenRateLimit
+}
+
+func installationRateLimited(err error) bool {
+	response, ok := errors.AsType[*ghinstallation.HTTPError](err)
+	return ok && response.Response != nil && response.Response.StatusCode == http.StatusTooManyRequests
 }
 
 func rateLimitMessage(message string) bool {

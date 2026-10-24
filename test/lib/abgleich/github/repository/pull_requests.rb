@@ -4,8 +4,11 @@ module Abgleich
   class GitHubRepository
     # Pull request snapshots, pagination, and branch comparisons.
     module PullRequests
-      def paginate
-        @mutex.synchronize { @state[:pagination] = true }
+      def paginate(overlap: false)
+        @mutex.synchronize do
+          @state[:pagination] = true
+          @state[:overlapping_pages] = overlap
+        end
       end
 
       def add_pull(branch, **options)
@@ -22,7 +25,7 @@ module Abgleich
       def list(page, repository = DEFAULT_REPOSITORY)
         @mutex.synchronize do
           @state[:scans] += 1 if page == 1
-          pulls = @state[:pulls].select { |(name, _number), _pull| name == repository }.values
+          pulls = listed_pulls(repository)
           more = @state[:pagination] && page < pulls.length
           @state[:listed][repository] = !more
           [@state[:pagination] ? pulls.slice(page - 1, 1).to_a : pulls, more]
@@ -57,6 +60,12 @@ module Abgleich
       end
 
       private
+
+      def listed_pulls(repository)
+        pulls = @state[:pulls].select { |(name, _number), _pull| name == repository }.values
+        pulls.insert(1, pulls.first) if @state[:overlapping_pages] && !pulls.empty?
+        pulls
+      end
 
       def disabled?(number)
         @state[:failure] == 'disabled auto-merge' || (@state[:failure] == 'disabled before rebase' && @state[:details][number] > 1)

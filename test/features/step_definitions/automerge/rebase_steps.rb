@@ -40,6 +40,15 @@ Given('the pull requests span multiple pages') do
   Abgleich.github.paginate
 end
 
+Given('GitHub repeats a pull request across list pages') do
+  Abgleich.github.paginate(overlap: true)
+end
+
+Given('GitHub cannot return a later pull request page') do
+  Abgleich.github.paginate
+  Abgleich.github.fail_with('pull request page')
+end
+
 Given('GitHub cannot rebase branch {string}') do |branch|
   Abgleich.github.fail_with("conflict:#{branch}")
 end

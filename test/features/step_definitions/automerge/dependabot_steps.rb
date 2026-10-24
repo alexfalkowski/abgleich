@@ -109,6 +109,12 @@ Then('only one mutation request should have been sent') do
   expect(Abgleich::GitHubService.request_counts.fetch(:mutation_requests)).to eq(1), 'expected no automatic mutation retries'
 end
 
+Then('the first check should report only one failure for pull request {int}') do |number|
+  wait_for { Abgleich.job_logs.first }.to include('level' => 'error')
+  error = Abgleich.job_logs.first.fetch('error')
+  expect(error.scan("pull request ##{number}:").length).to eq(1), "expected one failed attempt for pull request ##{number}: #{error}"
+end
+
 Then('enabling auto-merge and rebasing should occur in separate checks') do
   records = Abgleich.logs
   enabled = records.index { |record| record['msg'] == 'enabled pull request auto-merge' }
