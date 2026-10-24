@@ -227,3 +227,28 @@ Feature: Comment requests for auto-merge
     And the command should finish within one second
     And exactly 0 label requests should reach GitHub
     And the worker should remain healthy
+
+  Scenario Outline: A comment cannot override a hold
+    Given a pull request from "a fork" for branch "contribution" is "<condition>"
+    And branch "contribution" has the "hold" label
+    When a maintainer with "write" access comments "/ab automerge"
+    Then the comment delivery should return HTTP 204
+    And the command comment should show "receipt and rejection" feedback
+    And exactly 0 label requests should reach GitHub
+    And branch "contribution" should retain the "hold" label
+    And no pull request mutations should be requested
+
+    Examples:
+      | condition                       |
+      | waiting for checks              |
+      | waiting with auto-merge enabled  |
+
+  Scenario: Observe a hold added immediately before the command requests a label
+    Given a pull request from "a fork" for branch "contribution" is "waiting for checks"
+    And the hold label is added before the command labels the pull request
+    When a maintainer with "write" access comments "/ab automerge"
+    Then the comment delivery should return HTTP 204
+    And the command comment should show "receipt and rejection" feedback
+    And exactly 0 label requests should reach GitHub
+    And branch "contribution" should retain the "hold" label
+    And no pull request mutations should be requested

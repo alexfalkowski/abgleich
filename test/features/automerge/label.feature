@@ -280,3 +280,54 @@ Feature: Labeled pull request automation
       | metadata                |
       | missing head repository |
       | missing node ID         |
+
+  Scenario Outline: Hold labeled pull requests from either source
+    Given a pull request from "<source>" for branch "contribution" is "<condition>"
+    And branch "contribution" has the "automerge" label
+    And branch "contribution" has the "hold" label
+    When the worker checks auto-merge branches
+    Then no pull request mutations should be requested
+    And the branch check should succeed
+
+    Examples:
+      | source         | condition          |
+      | the repository | waiting for checks |
+      | the repository | ready to merge     |
+      | a fork         | waiting for checks |
+      | a fork         | ready to merge     |
+
+  Scenario Outline: Observe a hold added before the final labeled action
+    Given a pull request from "a fork" for branch "contribution" is "<condition>"
+    And branch "contribution" has the "automerge" label
+    And the hold label is added before automation
+    When the worker checks auto-merge branches
+    Then no pull request mutations should be requested
+    And branch "contribution" should retain the "hold" label
+    And the branch check should succeed
+
+    Examples:
+      | condition          |
+      | waiting for checks |
+      | ready to merge     |
+
+  Scenario: Removing a hold does not renew revoked fork authorization
+    Given a pull request from "a fork" for branch "contribution" is "waiting for checks"
+    And branch "contribution" has the "automerge" label
+    And GitHub disabled auto-merge for branch "contribution" "after the maintainer disables it"
+    And branch "contribution" has the "hold" label
+    And the worker has repeatedly respected the hold on branch "contribution"
+    When the hold label is removed from branch "contribution"
+    Then branch "contribution" should receive no worker mutations
+    And auto-merge should remain disabled for branch "contribution"
+    And no pull request mutations should be requested
+
+  Scenario: Removing a hold does not renew a removed positive label
+    Given a pull request from "a fork" for branch "contribution" is "waiting for checks"
+    And branch "contribution" has the "automerge" label
+    And branch "contribution" has the "hold" label
+    And the automerge label was removed from branch "contribution"
+    And the worker has repeatedly respected the hold on branch "contribution"
+    When the hold label is removed from branch "contribution"
+    Then branch "contribution" should receive no worker mutations
+    And branch "contribution" should have no automerge label
+    And no pull request mutations should be requested

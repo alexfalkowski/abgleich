@@ -12,6 +12,14 @@ module Abgleich
         end
       end
 
+      def remove_label(branch, label)
+        @mutex.synchronize do
+          pull = @state[:pulls].values.find { |item| item.dig(:head, :ref) == branch }
+          pull[:labels].reject! { |current| current[:name] == label }
+          pull[:automation_events] << automation_event('UnlabeledEvent', 6, label)
+        end
+      end
+
       def paginate_automation_events
         @mutex.synchronize { @state[:automation_pagination] = true }
       end

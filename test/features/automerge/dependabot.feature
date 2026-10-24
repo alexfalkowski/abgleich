@@ -230,3 +230,67 @@ Feature: Dependabot merge automation
       | condition          |
       | waiting for checks |
       | ready to merge     |
+
+  Scenario Outline: Leave held Dependabot pull requests alone
+    Given the Dependabot pull request for branch "dependencies" is "<condition>"
+    And branch "dependencies" has the "hold" label
+    When the worker checks auto-merge branches
+    Then no pull request mutations should be requested
+    And the branch check should succeed
+
+    Examples:
+      | condition                     |
+      | waiting for checks            |
+      | ready to merge                |
+      | ready with auto-merge enabled  |
+
+  Scenario: Continue processing an unheld Dependabot pull request
+    Given the Dependabot pull request for branch "held" is "ready to merge"
+    And branch "held" has the "hold" label
+    And the Dependabot pull request for branch "unheld" is "waiting for checks"
+    When the worker checks auto-merge branches
+    Then branch "unheld" should have squash auto-merge enabled
+    And branch "held" should receive no worker mutations
+    And only one mutation request should have been sent
+
+  Scenario Outline: Ignore labels other than the exact hold label
+    Given the Dependabot pull request for branch "dependencies" is "waiting for checks"
+    And branch "dependencies" has the "<label>" label
+    When the worker checks auto-merge branches
+    Then branch "dependencies" should have squash auto-merge enabled
+    And the branch check should succeed
+
+    Examples:
+      | label |
+      | Hold  |
+      | bug   |
+      | pause |
+
+  Scenario Outline: Observe a hold added before the final Dependabot action
+    Given the Dependabot pull request for branch "dependencies" is "<condition>"
+    And the hold label is added before automation
+    When the worker checks auto-merge branches
+    Then no pull request mutations should be requested
+    And branch "dependencies" should retain the "hold" label
+    And the branch check should succeed
+
+    Examples:
+      | condition          |
+      | waiting for checks |
+      | ready to merge     |
+
+  Scenario: Resume Dependabot enrollment when a hold is removed
+    Given the Dependabot pull request for branch "dependencies" is "waiting for checks"
+    And branch "dependencies" has the "hold" label
+    And the worker has repeatedly respected the hold on branch "dependencies"
+    When the hold label is removed from branch "dependencies"
+    Then branch "dependencies" should have squash auto-merge enabled
+    And the branch check should succeed
+
+  Scenario: Preserve a current hold across a worker restart
+    Given the Dependabot pull request for branch "dependencies" is "ready to merge"
+    And branch "dependencies" has the "hold" label
+    And the worker has repeatedly respected the hold on branch "dependencies"
+    When the worker restarts with the hold still present
+    Then branch "dependencies" should receive no worker mutations
+    And no pull request mutations should be requested

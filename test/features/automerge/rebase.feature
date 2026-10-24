@@ -98,3 +98,22 @@ Feature: Auto-merge branch rebasing
       | head branch |
       | head commit |
       | base branch |
+
+  Scenario: Leave a held stale branch and its existing auto-merge alone
+    Given GitHub has a stale auto-merge branch "feature"
+    And branch "feature" has the "hold" label
+    When the worker checks auto-merge branches
+    Then branch "feature" should remain unchanged
+    And no pull request mutations should be requested
+    And branch "feature" should retain its existing auto-merge
+    And the branch check should succeed
+
+  Scenario: Observe a hold added before the final rebase request
+    Given GitHub has a stale auto-merge branch "feature"
+    And the hold label is added before automation
+    When the worker checks auto-merge branches
+    Then branch "feature" should remain unchanged
+    And no pull request mutations should be requested
+    And branch "feature" should retain the "hold" label
+    And branch "feature" should retain its existing auto-merge
+    And the branch check should succeed

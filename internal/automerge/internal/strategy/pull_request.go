@@ -2,9 +2,9 @@ package strategy
 
 import "github.com/alexfalkowski/abgleich/internal/github"
 
-// Eligible applies the shared requirement that closed and draft PRs remain untouched.
+// Eligible leaves closed, draft, and exactly hold-labeled PRs untouched.
 func Eligible(pull *github.PullRequest) bool {
-	return pull.GetState() == "open" && !pull.GetDraft()
+	return pull.GetState() == "open" && !pull.GetDraft() && !github.HasLabel(pull.GetLabels(), "hold")
 }
 
 // readyToMerge requires GitHub to confirm mergeability and a clean merge state.
