@@ -1,7 +1,7 @@
 @github @manual @commands
 Feature: Maintainer-requested summaries
   Maintainers can request one advisory explanation of a pull request.
-  Requests respect repository consent and never change pull request automation.
+  Requests require current write access and never change pull request automation.
 
   Background:
     Given AI summaries are configured for this repository
@@ -62,11 +62,18 @@ Feature: Maintainer-requested summaries
     Then the request should be temporarily declined
     And ordinary automation should continue while those requests wait
 
-  Scenario: Respect a repository that has not enabled summaries
+  Scenario Outline: Request a summary regardless of repository topics
     Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
-    And the repository has not opted in to AI summaries
+    And the repository topics are "<topics>"
     When a maintainer with "write" access comments "/ab summarise"
-    Then no source should be shared with the AI service
+    Then the request should be accepted
+    And the summary should identify the request and the pull request revision
+
+    Examples:
+      | topics               |
+      | none                 |
+      | docker, golang, ruby |
+      | abgleich-ai          |
 
   Scenario: Require write access to request a summary
     Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
@@ -141,7 +148,18 @@ Feature: Maintainer-requested summaries
       | change               |
       | loss of write access |
       | an edited request    |
-      | repository opt-out   |
+
+  Scenario Outline: Continue a summary when repository topics are removed
+    Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
+    And the repository topics are "abgleich-ai"
+    And repository topics are removed <stage>
+    When a maintainer with "write" access comments "/ab summarise"
+    Then the summary should identify the request and the pull request revision
+
+    Examples:
+      | stage                        |
+      | before any source is shared  |
+      | while the answer is prepared |
 
   Scenario: Reissue a request that was interrupted by a restart
     Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
@@ -188,7 +206,6 @@ Feature: Maintainer-requested summaries
 
     Examples:
       | change                    |
-      | repository opt-out        |
       | loss of write access      |
       | a new pull request commit |
 
