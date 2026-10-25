@@ -5,6 +5,7 @@ import (
 	"github.com/alexfalkowski/go-service/v2/errors"
 	"github.com/alexfalkowski/go-service/v2/net/http"
 	"github.com/alexfalkowski/go-service/v2/net/http/media"
+	"github.com/alexfalkowski/go-service/v2/strings"
 	"github.com/alexfalkowski/go-service/v2/time"
 )
 
@@ -68,7 +69,7 @@ func (s *service) ListPullRequestAutomationEvents(ctx context.Context, pull *Pul
 
 	var events []*IssueEvent
 	for {
-		request, err := s.client.installation.NewRequest(ctx, http.MethodPost, "/graphql", body)
+		request, err := s.client.installation.NewRequest(ctx, http.MethodPost, "graphql", body)
 		if err != nil {
 			return nil, err
 		}
@@ -92,8 +93,8 @@ func (s *service) ListPullRequestAutomationEvents(ctx context.Context, pull *Pul
 		}
 
 		cursor := page.PageInfo.EndCursor
-		if cursor == nil || *cursor == "" || (body.Variables.After != nil && *cursor == *body.Variables.After) {
-			return nil, errors.New("github automation events returned no advancing cursor")
+		if cursor == nil || strings.IsEmpty(*cursor) || (body.Variables.After != nil && *cursor == *body.Variables.After) {
+			return nil, errors.New("github: automation events returned no advancing cursor")
 		}
 
 		body.Variables.After = cursor

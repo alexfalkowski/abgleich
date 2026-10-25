@@ -41,7 +41,7 @@ func (r *Reconciler) Reconcile(ctx context.Context) error {
 		}
 
 		if err := r.reconcileRepository(ctx, repository); err != nil {
-			failures = errors.Join(failures, fmt.Errorf("repository %s: %w", repository.GetFullName(), err))
+			failures = errors.Join(failures, fmt.Errorf("automerge: repository %s: %w", repository.GetFullName(), err))
 
 			if github.IsRateLimited(err) || ctx.Err() != nil {
 				return failures
@@ -78,7 +78,7 @@ func (r *Reconciler) reconcileRepository(ctx context.Context, repository *github
 		}
 
 		if err := r.reconcilePullRequest(ctx, repository, pull.GetNumber()); err != nil {
-			failures = errors.Join(failures, fmt.Errorf("pull request #%d: %w", pull.GetNumber(), err))
+			failures = errors.Join(failures, fmt.Errorf("automerge: pull request #%d: %w", pull.GetNumber(), err))
 
 			if github.IsRateLimited(err) || ctx.Err() != nil {
 				return failures

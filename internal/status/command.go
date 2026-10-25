@@ -53,7 +53,7 @@ func (c *Command) Handle(ctx context.Context, event *github.IssueCommentEvent) (
 	// fixed, so remote titles, branch names, and errors cannot expand the reply.
 	sha := pull.GetHead().GetSHA()
 	if _, err := hex.DecodeString(sha); err != nil || len(sha) != 40 {
-		return false, errors.New("pull request has invalid head SHA")
+		return false, errors.New("status: pull request has invalid head SHA")
 	}
 
 	assessment := c.automerge.Assess(ctx, repo, pull)

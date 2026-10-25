@@ -3,6 +3,21 @@
 module Abgleich
   # Shared assertions evaluated in the Cucumber scenario's RSpec context.
   module Assertions
+    # Observe a later completed summary check before asserting that no work occurred.
+    def expect_summary_check
+      next_check = Abgleich.job_logs('summarise').length + 1
+      wait_for { Abgleich.job_logs('summarise').length }.to be >= next_check, 'expected a completed summary check after the request'
+    end
+
+    # Advisory requests must leave labels, reviews, and branches untouched.
+    def expect_no_automation_mutations
+      activity = { mutation_requests: Abgleich::GitHubService.request_counts.fetch(:mutation_requests),
+                   label_requests: Abgleich.github.label_requests, accepted_actions: Abgleich.github.progress.fetch(:actions) }
+      expect(activity).to eq(mutation_requests: 0, label_requests: 0, accepted_actions: 0), 'expected automation to remain untouched'
+      expect_no_accepted_rebases
+      expect_no_accepted_merge_actions
+    end
+
     # Successful checks can warn about overruns, but must not carry an error.
     def expect_successful_check
       wait_for do

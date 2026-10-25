@@ -52,7 +52,7 @@ func (d Decision) IsRebase() bool {
 
 func decideMerge(repository *github.Repository, pull *github.PullRequest) (Decision, error) {
 	if !repository.GetAllowSquashMerge() {
-		return Decision{Reason: ReasonSquashMergeDisabled}, errors.New("repository does not allow squash merging")
+		return Decision{Reason: ReasonSquashMergeDisabled}, errors.New("strategy: repository does not allow squash merging")
 	}
 
 	if readyToMerge(pull) {

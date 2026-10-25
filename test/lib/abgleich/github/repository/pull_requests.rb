@@ -80,16 +80,21 @@ module Abgleich
         { created_at:, updated_at: options[:updated_at] || created_at }
       end
 
+      def pull_branches(repository, branch, sha, options)
+        { head: { ref: branch, sha:, repo: repository_data(options[:fork] ? 'someone/infraops' : repository) },
+          base: { ref: 'master', sha: 'b' * 40, repo: repository_data(repository) } }
+      end
+
       def pull_data(repository, branch, number, sha, options)
         { number:, node_id: "PR_#{@generation}_#{repository}_#{number}",
+          changed_files: 3, title: 'Improve the worker', body: 'Keep processing predictable.',
           state: options.fetch(:state, 'open'), draft: options.fetch(:draft, false), merged: false, actions: [],
           user: { login: options.fetch(:author, 'author') }, mergeable: options.fetch(:mergeable, true),
           mergeable_state: options.fetch(:mergeable_state, 'blocked'),
           labels: options.fetch(:labels, []).map { |name| { name: } },
           automation_events: options.fetch(:labels, []).map { |name| automation_event('LabeledEvent', 1, name) },
           auto_merge: options.fetch(:auto_merge, true) ? { merge_method: 'squash' } : nil,
-          head: { ref: branch, sha:, repo: { full_name: options[:fork] ? 'someone/infraops' : repository } },
-          base: { ref: 'master', sha: 'b' * 40, repo: { full_name: repository } } }.merge(pull_timestamps(number, options))
+          **pull_branches(repository, branch, sha, options) }.merge(pull_timestamps(number, options))
       end
     end
   end

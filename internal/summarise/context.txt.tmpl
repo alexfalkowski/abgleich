@@ -1,0 +1,18 @@
+Pull request: {{.Title}}
+Description: {{.Description}}
+Head: {{.HeadSHA}}
+Base: {{.BaseSHA}}
+{{range .Files}}
+File: {{.Filename}} ({{.Status}})
+{{if .PreviousFilename -}}
+Previously: {{.PreviousFilename}}
+{{end -}}
+{{if .Patch -}}
+{{.Patch}}
+{{else -}}
+Patch omitted: unavailable or exceeds the patch budget.
+{{end -}}
+{{end -}}
+{{if .OmittedFileCount}}
+{{.OmittedFileCount}} changed files omitted by the file limit.
+{{end -}}

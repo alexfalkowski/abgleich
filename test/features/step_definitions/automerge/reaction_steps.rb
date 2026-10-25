@@ -42,7 +42,7 @@ Then('the command comment should show {string} feedback') do |outcome|
   expect(reactions).to match_array(expected), "expected #{outcome} feedback on comment #{comment_id}, got #{reactions}"
 end
 
-Then('the reaction failure should be logged') do
-  expected_warning = { 'msg' => 'github comment reaction failed', 'level' => 'warn', 'error' => a_string_matching(/.+/) }
-  expect(Abgleich.logs).to include(a_hash_including(expected_warning)), 'expected a warning explaining the reaction failure'
+Then('the reaction failure should be logged at error level') do
+  expected_error = { 'msg' => 'github comment reaction failed', 'level' => 'error', 'error' => a_string_matching(/.+/) }
+  expect(Abgleich.logs).to include(a_hash_including(expected_error)), 'expected an error explaining the reaction failure'
 end

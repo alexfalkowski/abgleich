@@ -3,12 +3,12 @@ name: abgleich
 url: http://localhost:11000
 log: reports/nonnative.log
 servers:
-  - name: github
-    class: Abgleich::GitHubServer
+  - name: api
+    class: Abgleich::APIServer
     timeout: 5
     host: 127.0.0.1
     ports: [11001]
-    log: reports/github.log
+    log: reports/api.log
 processes:
   - name: server
     go:

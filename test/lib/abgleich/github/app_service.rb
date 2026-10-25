@@ -41,7 +41,7 @@ module Abgleich
       halt 200, '{}' if Abgleich.github.failure == 'incomplete discovery'
 
       repositories, more = Abgleich.github.repositories(page)
-      headers 'Link' => "<http://localhost:11001/installation/repositories?page=#{page + 1}>; rel=\"next\"" if more
+      headers 'Link' => "<http://localhost:11001/github/installation/repositories?page=#{page + 1}>; rel=\"next\"" if more
       { repositories: }.to_json
     end
 
@@ -87,11 +87,44 @@ module Abgleich
       repository = "#{params.fetch('owner')}/#{params.fetch('repository')}"
       reply = Abgleich.github.publish_reply(repository, params.fetch('number').to_i, JSON.parse(request.body.read).fetch('body'))
       halt 503 if failure == 'lost reply response'
-      reply[:issue_url] = 'http://localhost:11001/repos/someone/other/issues/999' if failure == 'mismatched reply'
+      reply[:issue_url] = 'http://localhost:11001/github/repos/someone/other/issues/999' if failure == 'mismatched reply'
       reply[:body] = 'different body' if failure == 'wrong reply body'
       reply.delete(:id) if failure == 'missing reply ID'
       status 201
       reply.to_json
+    end
+
+    get '/repos/:owner/:repository/issues/:number/comments' do
+      page = params.fetch('page', '1').to_i
+      per_page = params.fetch('per_page', '30').to_i
+      halt 503 if Abgleich.github.failure == "summary comments page:#{page}"
+
+      repository = "#{params.fetch('owner')}/#{params.fetch('repository')}"
+      number = params.fetch('number')
+      comments = Abgleich.github.issue_comments(repository, number.to_i)
+      if page * per_page < comments.length
+        url = "http://localhost:11001/github/repos/#{repository}/issues/#{number}/comments"
+        headers 'Link' => "<#{url}?page=#{page + 1}&per_page=#{per_page}>; rel=\"next\""
+      end
+      comments = comments.slice((page - 1) * per_page, per_page).to_a.map(&:dup)
+      if Abgleich.github.failure == 'summary comment wrong PR'
+        comments.last[:issue_url] = 'http://localhost:11001/github/repos/someone/other/issues/999'
+      end
+      comments.to_json
+    end
+
+    get '/repos/:owner/:repository/pulls/:number/files' do
+      page = params.fetch('page', '1').to_i
+      halt 503 if Abgleich.github.failure == "summary files page:#{page}"
+
+      repository = "#{params.fetch('owner')}/#{params.fetch('repository')}"
+      files = Abgleich.github.summary_files
+      Abgleich.github.apply_collection_change
+      number = params.fetch('number')
+      if page * 2 < files.length
+        headers 'Link' => "<http://localhost:11001/github/repos/#{repository}/pulls/#{number}/files?page=#{page + 1}>; rel=\"next\""
+      end
+      files.slice((page - 1) * 2, 2).to_a.to_json
     end
 
     post '/repos/:owner/:repository/issues/:number/labels' do

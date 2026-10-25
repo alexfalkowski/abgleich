@@ -19,6 +19,7 @@ linters:
     - noinlineerr
     - paralleltest
     - tagalign
+    - varnamelen
     - wrapcheck
     - wsl
     - wsl_v5

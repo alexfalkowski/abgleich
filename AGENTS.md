@@ -16,7 +16,7 @@ not clone repositories or execute Git. Each run reconciles fresh remote state.
 | Package | Owns |
 | --- | --- |
 | `internal/cmd` | CLI command registration and composition of package modules. |
-| `internal/commands` | PR comment parsing, named handler dispatch, installation validation, overlap prevention, and reaction feedback. |
+| `internal/commands` | PR comment parsing, named handler dispatch, installation validation, overlap prevention, background queues, and reaction feedback. |
 | `internal/github` | Service, API client, SDK aliases, owner-wide discovery, repository identity, remote access, and response validation. |
 | `internal/automerge` | Repository opt-in, PR eligibility, merge and rebase decisions, automerge comment authorization and action, and registration of its own job and command. |
 | `internal/status` | Status comment authorization, snapshot rechecks, reply rendering and publication, and registration of its own command. |
@@ -24,6 +24,7 @@ not clone repositories or execute Git. Each run reconciles fresh remote state.
 | `internal/config` | Composition and injection of package-owned configuration. |
 | `internal/health` | Health observers, independent of job outcomes. |
 | `internal/transport/http` | Webhook HTTP registration, request deadlines, and responses. |
+| `internal/transport/http/client` | Shared outbound HTTP client construction and connection-pool lifecycle, independent of feature packages. |
 
 - Constructors belong in the packages owning their types; `cmd` composes their
   modules. Keep dependencies directed from `automerge` to `github`, `scheduler`,
