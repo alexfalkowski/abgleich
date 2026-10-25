@@ -660,116 +660,111 @@ GitHub before acting.
 
 | Package | Responsibility |
 | --- | --- |
-| [`automerge`](internal/automerge/reconciler.go) | Repository opt-in, strategy selection and ordering, automerge command authorization and action, and job and command registration. |
-| [`cleanup`](internal/cleanup/doc.go) | Optional merged and inactive branch cleanup, exclusions, safety rechecks, and independent job registration. |
-| [`automerge/internal/strategy`](internal/automerge/internal/strategy/doc.go) | Dependabot, label, and rebase policies with fresh pre-mutation checks. |
-| [`status`](internal/status/doc.go) | Authorized automation assessments, snapshot rechecks, and status reply publication. |
-| [`summarise`](internal/summarise/doc.go) | Authorized queued summaries, bounded PR diffs, and summary job registration. |
-| [`ai`](internal/ai/doc.go) | Optional credential resolution and text-only Responses API adapter. |
-| [`commands`](internal/commands/doc.go) | Comment parsing, named handler dispatch, installation validation, overlap protection, background queues, and reaction feedback. |
-| [`github`](internal/github/service.go) | Owner-wide repository discovery, identity checks, authenticated API access, pagination, and response validation. |
-| [`scheduler`](internal/scheduler/scheduler.go) | Independent schedules, timeouts, overlap protection, outcome logs, and job lifecycle. |
-| [`transport/http`](internal/transport/http/doc.go) | Webhook route registration, request deadlines, and HTTP responses. |
-| [`transport/http/client`](internal/transport/http/client/doc.go) | Outbound client construction, TLS, circuit breaking, redirect protection, and connection-pool cleanup. |
-| [`cmd`](internal/cmd/module.go) | Composition of package modules. |
+| [`automerge`](internal/automerge/doc.go) | Merge reconciliation and the automerge command. |
+| [`automerge/internal/strategy`](internal/automerge/internal/strategy/doc.go) | Dependabot, label, and rebase policies. |
+| [`cleanup`](internal/cleanup/doc.go) | Optional merged and inactive branch cleanup. |
+| [`status`](internal/status/doc.go) | Read-only automation assessments and replies. |
+| [`summarise`](internal/summarise/doc.go) | Authorized queued summaries and bounded diff context. |
+| [`ai`](internal/ai/doc.go) | Provider credentials and text generation. |
+| [`commands`](internal/commands/doc.go) | Dispatch, installation validation, queues, and reactions. |
+| [`github`](internal/github/doc.go) | Discovery, identity checks, API access, and response validation. |
+| [`scheduler`](internal/scheduler/doc.go) | Independent jobs, deadlines, overlap protection, and outcome logs. |
+| [`transport/http`](internal/transport/http/doc.go) | Webhook verification, deadlines, and HTTP responses. |
+| [`transport/http/client`](internal/transport/http/client/doc.go) | Separate outbound clients and connection-pool lifecycle. |
+| [`cmd`](internal/cmd/module.go) | Module composition. |
 
-Dependencies follow the responsibilities:
+### 🔄 Auto-merge sweep
+
+Each run starts from fresh remote state. The diagram shows an eligible action;
+policy checks can also produce a no-op or error.
 
 ```mermaid
-flowchart LR
-    transport[transport/http] --> commands
-    transport --> github
-    commands --> github
-    automerge --> commands
-    automerge --> github
-    automerge --> scheduler
-    cleanup --> github
-    cleanup --> scheduler
-    status --> automerge
-    status --> commands
-    status --> github
-    summarise --> commands
-    summarise --> github
-    summarise --> ai
-    summarise --> scheduler
-    github --> client[transport/http/client]
-    ai --> client
+sequenceDiagram
+    participant S as scheduler
+    participant R as automerge.Reconciler
+    participant P as Selected strategy
+    participant G as github.Service
+    S->>R: Reconcile
+    R->>G: Discover all repository pages
+    loop Each repository
+        R->>G: Read full repository settings
+        opt Auto-merge enabled
+            R->>G: Read all open PR pages
+            loop Each eligible PR
+                R->>G: Refresh PR state
+                R->>P: Reconcile first matching policy
+                P->>G: Read evidence and recheck eligibility
+                P->>G: Request guarded auto-merge, merge, or rebase
+                P-->>R: Complete outcome
+            end
+        end
+    end
+    R-->>S: Aggregated outcome
 ```
 
-`automerge.Reconciler.Reconcile` asks `github.Service` for all repositories, then uses
-that service for repository settings, PR reads, identity checks, comparisons,
-auto-merge enablement, and guarded rebase and merge requests. `github.Repository`
-and pull request types alias SDK snapshots;
-they contain no service behavior. The service uses an injected `github.Client`,
-which holds the installation SDK client and a private JWT client for installation
-identity checks. The GitHub module constructs it once through `github.NewClient`.
-The reconcilers, strategies, command handler, and dispatcher receive the same `github.Service`.
-`transport/http` verifies deliveries through `github.Webhook`, then calls
-`commands.Dispatcher.Handle` for command recognition, installation validation,
-overlap protection, and feedback. The dispatcher selects a handler by exact
-command name; `automerge.Command.Handle` owns current-comment validation,
-permissions, and the label request. The
-transport owns HTTP responses and delivery deadlines; go-service enforces the
-configured body limit. `cmd.Module` composes the transport with the domain modules.
-GitHub and AI use `transport/http/client.Factory` to construct separate outbound
-clients with their own settings and connection pools. The factory resolves TLS,
-configures circuit breaking, restricts redirects to the same origin, and closes
-the underlying pools after consumers stop. `github.NewConnection` adds request
-logging and safe-method retries; AI leaves transport retries disabled.
-go-github imports stay inside `internal/github`; OpenAI SDK imports stay inside
-`internal/ai`.
+- Strategies run in **Dependabot → label → rebase** order. The first match owns
+  the PR for that sweep, including no-op and error outcomes; each PR gets at most
+  one mutation attempt. See [Server](#-server) for guards and failure handling.
+- `github` owns complete API snapshots and history; `automerge` applies policy
+  to those facts. `status` reuses read-only assessments from `automerge`.
 
-Feature modules register their comment handlers through `commands.Dispatcher.Register`
-before startup. The automerge, status, and summarise modules register `automerge`,
-`status`, and `summarise`, respectively. New commands live in the feature packages
-that own their behavior. Duplicate names prevent startup.
-The dispatcher stays independent of feature packages. Commands select an explicit
-action, while reconciliation strategies select the policy applicable to a PR.
+### 💬 Comment commands
 
-The strategy module provides the policies in this order: Dependabot, label,
-rebase. The reconciler receives the ordered slice through DI and selects the first match.
-A selected strategy owns the PR for that sweep, including no-op and error
-outcomes. The strategy interface, implementations, and shared PR
-eligibility helpers live in `internal/automerge/internal/strategy`.
-Each strategy owns its applicability and fresh pre-mutation checks.
-Label authorization uses paginated GraphQL history; GitHub field aliases
-decode events into SDK issue-event snapshots. The GitHub package owns snapshot
-completeness checks, exact label lookup, and extraction of the latest event
-timestamps. Automerge applies its authorization and revocation rules to those facts.
+The diagram shows accepted commands and independent summary processing.
+All GitHub API calls pass through `github.Service`.
 
-Logging is composed around operations. `github.NewService` wraps the API service
-with a logging decorator to report accepted actions after response validation.
-`Scheduler.Register` wraps each handler to report its outcome and overruns
-within the job's timeout.
+```mermaid
+sequenceDiagram
+    participant G as GitHub
+    participant H as transport/http
+    participant D as commands.Dispatcher
+    participant F as Feature handler
+    participant S as scheduler
+    participant A as ai
+    G->>H: Signed comment webhook
+    H->>H: Verify delivery via github.Webhook
+    H->>D: Dispatch exact /ab command
+    D->>G: Validate installation and add receipt reaction
+    D->>F: Handle command
+    F->>G: Re-read comment and PR<br/>Check permissions
+    alt /ab automerge or /ab status
+        F->>G: Add automerge label or publish status reply
+    else /ab summarise
+        F->>F: Queue summary in memory
+    end
+    F-->>D: Command outcome
+    par Webhook completion
+        D->>G: Add outcome reaction
+        D-->>H: Command outcome
+        H-->>G: HTTP response
+    and Independent summary job
+        opt Summary queued
+            S->>F: Process queued request
+            F->>G: Fetch bounded diff<br/>Recheck authorization, revisions, and existing summaries
+            F->>A: Generate summary
+            A-->>F: Summary text
+            F->>G: Recheck state and existing summaries<br/>Publish reply if still eligible
+        end
+    end
+```
 
-Failed operations log at error level. Successful operations log at info level;
-successful jobs that exceed their interval log at warn level. Package-owned errors
-start with `package:` so wrapped failures identify their source.
+- Feature packages own command authorization and actions. `commands` and
+  `scheduler` stay independent of features. Summary inference runs outside the
+  webhook command slot; see [AI summaries](#-ai-pull-request-summaries) for safeguards.
+- SDK imports stay inside `github` and `ai`. Both use `transport/http/client`
+  for separate settings and connection pools; see [HTTP transport](#-http-transport).
 
 ### 🗓️ Job registration
 
-Each package registers construction in its own module. The
-[auto-merge module](internal/automerge/module.go) constructs the reconciler and
-registers `Reconcile` as the `automerge` job. When configured, the
-[summary module](internal/summarise/module.go) registers its queue processor as
-the independent `summarise` job. The configured
-[cleanup module](internal/cleanup/module.go) registers branch reconciliation as
-the independent `cleanup` job. Other feature packages can register their own
-named handlers and schedules through `Scheduler.Register`. Registration finishes
-before startup, and duplicate names prevent application startup.
-Feature configurations implement `scheduler.Schedule` through timing getters;
-each package owns its defaults, and modules pass configuration directly to registration.
-Scheduler has no feature-package dependencies.
-
-The [scheduler module](internal/scheduler/module.go) connects `Scheduler.Start`
-and `Scheduler.Stop` to the service lifecycle. Each
-[job](internal/scheduler/job.go) has its own ticker, run timeout, cancellation,
-and outcome logs. Jobs run independently and use a nonblocking lock to admit
-one run per job at a time. Shutdown cancels all jobs before waiting for active
-work. Handlers must observe cancellation and return their complete outcome.
-Health checks are independent of the scheduler.
-
-GitHub API access uses [go-github v93](https://github.com/google/go-github/releases/tag/v93.0.0).
+- Feature modules register named jobs through `Scheduler.Register` and commands
+  through `commands.Dispatcher.Register` before startup. Duplicate names prevent
+  startup. Jobs are `automerge` and, when configured, `cleanup` and `summarise`.
+- Each job runs immediately, then independently with its own interval, timeout,
+  and overlap protection. Missed starts are skipped. See
+  [Telemetry](#-telemetry) for outcome logging and monitoring.
+- Shutdown cancels all jobs before waiting for handlers, then closes outbound
+  connection pools. Handlers must observe cancellation and return their complete
+  outcome. Health checks remain independent of job outcomes.
 
 ## 🛠️ Development
 
