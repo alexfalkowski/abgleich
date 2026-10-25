@@ -8,7 +8,6 @@ import (
 	"github.com/alexfalkowski/abgleich/internal/github"
 	"github.com/alexfalkowski/go-service/v2/context"
 	"github.com/alexfalkowski/go-service/v2/errors"
-	"github.com/alexfalkowski/go-service/v2/slices"
 	"github.com/alexfalkowski/go-service/v2/strings"
 )
 
@@ -120,8 +119,7 @@ func (c *Command) authorize(ctx context.Context, task *summaryTask) (*summaryTas
 }
 
 func (c *Command) eligible(repo *github.Repository, pull *github.PullRequest) bool {
-	return slices.Contains(repo.Topics, "abgleich-ai") &&
-		pull.GetState() == "open" &&
+	return pull.GetState() == "open" &&
 		!pull.GetDraft() &&
 		c.github.IsBaseRepository(repo, pull) &&
 		github.ValidatePullRequestMetadata(pull) == nil

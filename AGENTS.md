@@ -10,7 +10,7 @@ Abgleich is a background worker that enables auto-merge or merges ready Dependab
 and labeled pull requests and keeps eligible auto-merge branches current.
 Repositories opt in to that automation through their auto-merge setting.
 Comment commands also provide automation status and optional AI PR summaries;
-summaries use a separate repository topic opt-in. GitHub performs all repository
+summaries are enabled through worker configuration. GitHub performs all repository
 mutations; the worker does not clone repositories or execute Git. Each auto-merge
 run reconciles fresh remote state; pending summary requests are held in memory.
 
@@ -107,11 +107,12 @@ run reconciles fresh remote state; pending summary requests are held in memory.
 
 ## AI summaries
 
-- Keep summaries optional and advisory. Require the exact `abgleich-ai` topic,
-  an open non-draft PR targeting the repository, an unedited human `/ab summarise`
-  comment, and current write or admin permission. AI opt-in is independent of
-  auto-merge settings and labels. Recheck authorization and both branch revisions
-  before source submission and reply publication; discard stale explanations.
+- Keep summaries optional and advisory. Require configured AI summaries, an open
+  non-draft PR targeting the repository, an unedited human `/ab summarise` comment,
+  and current write or admin permission. The authorized comment opts in to AI
+  source sharing, independently of auto-merge settings, labels, and repository
+  topics. Recheck authorization and both branch revisions before source submission
+  and reply publication; discard stale explanations.
 - Keep diff context bounded. Treat source text as untrusted data; generation
   receives no tools or GitHub credentials and never executes code or requests
   merge automation. Use explicit provider credentials and disable response

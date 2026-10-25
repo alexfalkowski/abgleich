@@ -2,15 +2,15 @@
 
 Given('AI summaries are configured for this repository') do
   Abgleich.prepare_github_webhook
-  Abgleich.github.add_repository(Abgleich::GitHubRepository::DEFAULT_REPOSITORY, topics: ['abgleich-ai'])
+  Abgleich.github.add_repository(Abgleich::GitHubRepository::DEFAULT_REPOSITORY)
   config = YAML.safe_load_file('.config/server.yaml')
   config['ai'] = { 'provider' => 'openai', 'openai' => { 'api_key' => 'nonnative-summary-key', 'url' => 'http://localhost:11001/openai/v1/' } }
   config['summarise'] = { 'model' => 'test-summary', 'interval' => '100ms', 'timeout' => '3s' }
   File.write('.config/server.yaml', YAML.dump(config))
 end
 
-Given('the repository has not opted in to AI summaries') do
-  Abgleich.github.add_repository(Abgleich::GitHubRepository::DEFAULT_REPOSITORY)
+Given('the repository topics are {string}') do |topics|
+  Abgleich.github.add_repository(Abgleich::GitHubRepository::DEFAULT_REPOSITORY, topics: topics == 'none' ? [] : topics.split(', '))
 end
 
 Given('the pull request has {int} earlier comments') do |count|
@@ -263,21 +263,27 @@ Given('the revision changes through {string} while the summary is prepared') do 
 end
 
 Given('summary permission is withdrawn through {string} while the answer is prepared') do |change|
-  modes = { 'loss of write access' => 'permission revoked', 'an edited request' => 'request edited',
-            'repository opt-out' => 'topic removed' }
+  modes = { 'loss of write access' => 'permission revoked', 'an edited request' => 'request edited' }
   Abgleich.openai.on_request = -> { Abgleich.github.change_summary_state(modes.fetch(change)) }
 end
 
 Given('the request changes through {string} before any source is shared') do |change|
-  modes = { 'repository opt-out' => 'topic removed', 'loss of write access' => 'permission revoked',
-            'a new pull request commit' => 'head changed' }
+  modes = { 'loss of write access' => 'permission revoked', 'a new pull request commit' => 'head changed' }
   Abgleich.github.collection_change = modes.fetch(change)
+end
+
+Given('repository topics are removed before any source is shared') do
+  Abgleich.github.collection_change = 'topic removed'
+end
+
+Given('repository topics are removed while the answer is prepared') do
+  Abgleich.openai.on_request = -> { Abgleich.github.change_summary_state('topic removed') }
 end
 
 Given('the repository allows summaries but has automatic merging disabled') do
   Abgleich.github.add_repository(
     Abgleich::GitHubRepository::DEFAULT_REPOSITORY,
-    topics: ['abgleich-ai'], auto_merge: false, squash_merge: false
+    auto_merge: false, squash_merge: false
   )
 end
 

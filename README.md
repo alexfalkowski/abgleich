@@ -20,7 +20,7 @@ auto-merge enabled and both branches in the same discovered repository are rebas
 Public and private repositories accessible to the App installation are discovered on
 each auto-merge run. Archived, disabled, and foreign repositories are excluded from
 discovery. The auto-merge job skips repositories without **Allow auto-merge**
-enabled. AI summaries use the separate `abgleich-ai` topic opt-in and remain
+enabled. AI summaries are enabled through worker configuration and remain
 available when auto-merge is disabled.
 
 For Dependabot PRs, the worker also enables squash auto-merge while requirements
@@ -247,8 +247,8 @@ the HTTP listener.
 
 The optional `ai` and `summarise` blocks configure `/ab summarise`. Omit both to
 run without AI summaries. To enable the command, also configure
-[comment webhooks](#-github-app-setup) and add the `abgleich-ai` repository topic;
-see [AI pull request summaries](#-ai-pull-request-summaries) for source sharing,
+[comment webhooks](#-github-app-setup); see
+[AI pull request summaries](#-ai-pull-request-summaries) for source sharing,
 limits, and recovery.
 
 Save it as `config.yaml` and adjust `github.owner`:
@@ -421,8 +421,9 @@ is allowed. The PR must be open and non-draft, and the unedited human comment's
 author must currently have write or admin access.
 
 Summaries are disabled by default. Configure the optional `ai` and `summarise`
-blocks shown in [Configuration](#-configuration), then add the exact topic
-**`abgleich-ai`** to each repository you want to enable.
+blocks shown in [Configuration](#-configuration). Once enabled, maintainers can
+request summaries in repositories accessible to the App installation without
+adding a repository topic.
 
 The model is required, with no default. Omit `summarise` to disable the command's
 work and its scheduled job. The independent job defaults to a `30s` interval and
@@ -444,11 +445,11 @@ Exactly-once inference is not guaranteed if generation finishes without a
 published comment. Run one active service instance; a full queue returns HTTP 503.
 
 > [!IMPORTANT]
-> The repository topic authorizes sending selected PR metadata and changed-file
-> patches to OpenAI, including private repositories and fork contributions.
-> Approve the provider's data handling and billing before opting in. AI opt-in is
-> independent of auto-merge settings and labels. Summaries are advisory and never
-> label, approve, merge, rebase, or execute code.
+> An authorized `/ab summarise` comment authorizes sending selected PR metadata
+> and changed-file patches to OpenAI, including private repositories and fork
+> contributions. Approve the provider's data handling and billing before enabling
+> summaries. Summary requests are independent of auto-merge settings and labels.
+> Summaries are advisory and never label, approve, merge, rebase, or execute code.
 
 Context includes at most 20 changed files, 8 KiB per patch and 16 KiB of patches in
 total. PR titles, descriptions, and filenames are passed through without
@@ -463,7 +464,7 @@ citations are not generated or validated. Inspect the diff before relying on an
 explanation. Source text is untrusted input; the model receives no tools or GitHub
 credentials.
 
-The command, permission, repository AI topic, and both branch revisions are checked
+The command, permission, PR eligibility, and both branch revisions are checked
 before source submission and publication. Revocation prevents the next observed
 submission or reply. Revision changes discard the explanation and ask for a new
 request. Already transmitted source cannot be recalled, and a change after the
