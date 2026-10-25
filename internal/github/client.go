@@ -24,14 +24,13 @@ type Client struct {
 func NewClient(cfg *Config, fs *os.FS, conn *http.Client) (*Client, error) {
 	key, err := fs.ReadSource(cfg.App.PrivateKey)
 	if err != nil {
-		return nil, errors.Prefix("github app private key", err)
+		return nil, errors.Prefix("github: app private key", err)
 	}
 
 	// Copy HTTP settings so token renewal, App requests, and installation requests
 	// can use different transports while sharing the underlying connection pool.
 	tokenConnection := *conn
 	tokenConnection.Transport = &userAgentTransport{RoundTripper: conn.Transport}
-	tokenConnection.CheckRedirect = http.SameOriginRedirect
 
 	applicationTransport, err := ghinstallation.NewAppsTransport(tokenConnection.Transport, cfg.App.ID, key)
 	if err != nil {

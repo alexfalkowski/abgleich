@@ -14,7 +14,7 @@ func (s *service) AddCommentReaction(ctx context.Context, repo *Repository, comm
 	}
 
 	if reaction.GetID() <= 0 || reaction.GetContent() != content {
-		return errors.New("github comment reaction returned an incomplete or mismatched response")
+		return errors.New("github: comment reaction returned an incomplete or mismatched response")
 	}
 
 	return nil

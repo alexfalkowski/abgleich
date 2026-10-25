@@ -67,7 +67,7 @@ func (s *Label) Reconcile(ctx context.Context, repository *github.Repository, ex
 	}
 
 	if !s.github.IsSamePullRequest(current, expected) {
-		return errors.New("pull request changed before labeled automation; retry on the next run")
+		return errors.New("strategy: pull request changed before labeled automation; retry on the next run")
 	}
 
 	decision, err := decideMerge(repository, current)

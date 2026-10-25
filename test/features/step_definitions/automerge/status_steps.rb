@@ -15,7 +15,7 @@ Given('its status request is {string}') do |condition|
   when 'from another author'
     Abgleich.github.change_comment(@comment_event[:comment]['id'], :user, { id: 88, login: 'someone', type: 'User' })
   when 'for another PR'
-    url = 'http://localhost:11001/repos/alexfalkowski/infraops/issues/999'
+    url = 'http://localhost:11001/github/repos/alexfalkowski/infraops/issues/999'
     Abgleich.github.change_comment(@comment_event[:comment]['id'], :issue_url, url)
   end
 end
@@ -80,11 +80,7 @@ Then('the status reply should include {string}') do |text|
 end
 
 Then('the status request should cause no automation mutations') do
-  expect(Abgleich::GitHubService.request_counts.fetch(:mutation_requests)).to eq(0), 'expected status to leave automation untouched'
-  expect(Abgleich.github.label_requests).to eq(0), 'expected status never to request an automation label'
-  expect(Abgleich.github.progress.fetch(:actions)).to eq(0), 'expected no accepted merge actions from status'
-  expect_no_accepted_rebases
-  expect_no_accepted_merge_actions
+  expect_no_automation_mutations
 end
 
 Then('no status reply should be published') do

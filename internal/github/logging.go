@@ -24,7 +24,7 @@ func (s *loggingService) AddComment(ctx context.Context, repo *Repository, numbe
 
 func (s *loggingService) AddCommentReaction(ctx context.Context, repo *Repository, comment *IssueComment, content string) error {
 	if err := s.Service.AddCommentReaction(ctx, repo, comment, content); err != nil {
-		s.logger.Warn("github comment reaction failed",
+		s.logger.Error("github comment reaction failed",
 			"repository", repo.GetFullName(),
 			"comment", comment.GetID(),
 			"reaction", content,

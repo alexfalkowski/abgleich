@@ -43,7 +43,7 @@ func (s *Dependabot) Reconcile(ctx context.Context, repository *github.Repositor
 	}
 
 	if !s.github.IsSamePullRequest(current, expected) {
-		return errors.New("pull request changed before merge; retry on the next run")
+		return errors.New("strategy: pull request changed before merge; retry on the next run")
 	}
 
 	decision, err := s.Assess(ctx, repository, current)

@@ -9,7 +9,7 @@ import (
 )
 
 // ErrRateLimited identifies a rate-limit error in a GraphQL HTTP-success payload.
-var ErrRateLimited = errors.New("github rate limit reached")
+var ErrRateLimited = errors.New("github: rate limit reached")
 
 // IsRateLimited recognizes throttling so reconciliation stops the current sweep
 // instead of making more requests for other repositories against the same limit.

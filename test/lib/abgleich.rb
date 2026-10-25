@@ -12,7 +12,9 @@ require 'abgleich/credentials'
 require 'abgleich/github/repository'
 require 'abgleich/github/service'
 require 'abgleich/github/app_service'
-require 'abgleich/github/server'
+require 'abgleich/openai/responses'
+require 'abgleich/openai/service'
+require 'abgleich/api/server'
 
 module Abgleich
   class << self
@@ -32,6 +34,10 @@ module Abgleich
       @github ||= GitHubRepository.new
     end
 
+    def openai
+      @openai ||= OpenAIResponses.new
+    end
+
     # Ignore an incomplete final line while the service is writing a log record.
     def logs
       path = Nonnative.configuration.process_by_name('server').log
@@ -40,8 +46,8 @@ module Abgleich
       end
     end
 
-    def job_logs
-      logs.select { |record| record['job'] == 'automerge' }
+    def job_logs(name = 'automerge')
+      logs.select { |record| record['job'] == name }
     end
 
     def rebase_logs

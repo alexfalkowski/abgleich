@@ -40,7 +40,7 @@ func (s *service) GetComment(ctx context.Context, repo *Repository, number int, 
 	samePullRequest := strings.ToLower(comment.GetIssueURL()) == strings.ToLower(issueURL)
 
 	if !sameComment || !samePullRequest {
-		return nil, errors.New("github comment does not match the requested pull request and author")
+		return nil, errors.New("github: comment does not match the requested pull request and author")
 	}
 
 	return comment, nil
@@ -55,7 +55,7 @@ func (s *service) HasWritePermission(ctx context.Context, repo *Repository, auth
 	}
 
 	if permission.GetUser().GetID() != author.GetID() {
-		return false, errors.New("github permissions returned a different author")
+		return false, errors.New("github: permissions returned a different author")
 	}
 
 	return permission.GetPermission() == "write" || permission.GetPermission() == "admin", nil
@@ -72,5 +72,5 @@ func (s *service) AddLabel(ctx context.Context, repo *Repository, number int, la
 		return nil
 	}
 
-	return errors.New("github label response does not contain the requested label")
+	return errors.New("github: label response does not contain the requested label")
 }

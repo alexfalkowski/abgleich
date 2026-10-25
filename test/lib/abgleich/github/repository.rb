@@ -9,6 +9,7 @@ require 'abgleich/github/repository/rebasing'
 require 'abgleich/github/repository/dependabot'
 require 'abgleich/github/repository/automation'
 require 'abgleich/github/repository/commands'
+require 'abgleich/github/repository/summaries'
 
 module Abgleich
   # Shared state for the fake GitHub REST and GraphQL API.
@@ -21,6 +22,7 @@ module Abgleich
     include Dependabot
     include Automation
     include Commands
+    include Summaries
 
     attr_reader :raced_sha
 
@@ -35,6 +37,7 @@ module Abgleich
         @state = { failure: nil, scans: 0, pagination: false, pulls: {}, behind: {}, original: {}, updates: [], details: Hash.new(0),
                    repositories: {}, repository_failures: {}, repository_pagination: false, discovery_complete: false,
                    login: 'alexfalkowski', listed: {}, automation_pagination: false,
+                   file_mode: nil,
                    token_requests: 0, token_lifetime: 3600, comments: {}, replies: [], reply_requests: 0, label_requests: 0 }
         @state[:repositories][DEFAULT_REPOSITORY] = repository_data(DEFAULT_REPOSITORY)
         @raced_sha = nil

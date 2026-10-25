@@ -44,6 +44,7 @@ module Abgleich
         owner, name = full_name.split('/')
         { name:, full_name:, owner: { login: owner }, archived: options.fetch(:archived, false),
           disabled: options.fetch(:disabled, false), private: options.fetch(:private, false),
+          topics: options.fetch(:topics, []),
           allow_auto_merge: options.fetch(:auto_merge, true), allow_squash_merge: options.fetch(:squash_merge, true) }
       end
     end

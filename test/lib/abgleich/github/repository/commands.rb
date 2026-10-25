@@ -51,7 +51,8 @@ module Abgleich
 
       def comment_permission
         @mutex.synchronize do
-          { permission: @state[:comments].values.last.fetch(:permission), user: { id: 77, login: 'maintainer' } }
+          entry = @state[:comments].values.rfind { |comment| comment[:permission] }
+          { permission: entry.fetch(:permission), user: { id: 77, login: 'maintainer' } }
         end
       end
 
@@ -85,14 +86,6 @@ module Abgleich
         @mutex.synchronize { JSON.parse(@state[:replies].to_json, symbolize_names: true) }
       end
 
-      def publish_reply(repository, number, body)
-        @mutex.synchronize do
-          reply = { id: 10_000 + @state[:replies].length, body:,
-                    issue_url: "http://localhost:11001/repos/#{repository}/issues/#{number}" }
-          @state[:replies].push(reply).last
-        end
-      end
-
       def request_labels(repository, number, labels)
         @mutex.synchronize do
           @state[:label_requests] += 1
@@ -121,7 +114,8 @@ module Abgleich
       def command_comment(pull, body, created_at)
         repository = pull.dig(:base, :repo, :full_name)
         { id: @state[:comments].length + 1, body:, created_at:, updated_at: created_at,
-          issue_url: "http://localhost:11001/repos/#{repository}/issues/#{pull[:number]}",
+          issue_url: "http://localhost:11001/github/repos/#{repository}/issues/#{pull[:number]}",
+          html_url: "https://github.com/#{repository}/pull/#{pull[:number]}#issuecomment-#{@state[:comments].length + 1}",
           user: { id: 77, login: 'maintainer', type: 'User' } }
       end
     end

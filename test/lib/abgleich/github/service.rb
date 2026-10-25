@@ -102,7 +102,7 @@ module Abgleich
         sleep 1.1 if failure == 'slow list'
         wait_for_token_renewal(failure)
         sleep 3 if failure == 'timeout'
-        headers 'Link' => "<http://localhost:11001/repos/#{repository}/pulls?page=#{page + 1}>; rel=\"next\"" if more
+        headers 'Link' => "<http://localhost:11001/github/repos/#{repository}/pulls?page=#{page + 1}>; rel=\"next\"" if more
         pulls.to_json
       end
     end
@@ -135,7 +135,7 @@ module Abgleich
       elsif failure&.start_with?('change:')
         Abgleich.github.fail_with(failure.sub('change:', 'changed:'))
       end
-      { behind_by: Abgleich.github.behind(params.fetch('range').split('...').last) }.to_json
+      { behind_by: Abgleich.github.behind(params.fetch('range').split('...').last), merge_base_commit: { sha: 'c' * 40 } }.to_json
     end
 
     post '/graphql' do

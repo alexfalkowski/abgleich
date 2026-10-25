@@ -24,7 +24,7 @@ func ValidatePullRequestMetadata(pull *PullRequest) error {
 		base.GetRef(),
 		base.GetRepo().GetFullName(),
 	) {
-		return errors.New("pull request is missing branch metadata")
+		return errors.New("github: pull request is missing branch metadata")
 	}
 
 	return nil

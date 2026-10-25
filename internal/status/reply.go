@@ -6,6 +6,7 @@ import (
 
 	"github.com/alexfalkowski/abgleich/internal/automerge"
 	"github.com/alexfalkowski/abgleich/internal/github"
+	"github.com/alexfalkowski/go-service/v2/strings"
 	"github.com/alexfalkowski/go-service/v2/time"
 )
 
@@ -37,7 +38,7 @@ func reply(assessment automerge.Assessment, pull *github.PullRequest, requestID 
 	switch {
 	case assessment.Decision == "Assessment unavailable":
 		emoji = "❓"
-	case assessment.Action != "":
+	case !strings.IsEmpty(assessment.Action):
 		emoji = "▶️"
 	default:
 		emoji = "⏸️"

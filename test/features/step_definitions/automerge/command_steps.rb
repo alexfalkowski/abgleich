@@ -70,7 +70,7 @@ Given('its original command comment now has {string}') do |change|
     'no edit timestamp' => [:updated_at, nil],
     'no author login' => [:user, { id: 77, login: '', type: 'User' }],
     'a bot author' => [:user, { id: 77, login: 'maintainer', type: 'Bot' }],
-    'another pull request' => [:issue_url, 'http://localhost:11001/repos/alexfalkowski/infraops/issues/999'],
+    'another pull request' => [:issue_url, 'http://localhost:11001/github/repos/alexfalkowski/infraops/issues/999'],
     'another author' => [:user, { id: 88, login: 'someone', type: 'User' }]
   }.fetch(change)
   Abgleich.github.change_comment(@comment_event.fetch(:comment).fetch('id'), field, value)

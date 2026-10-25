@@ -64,7 +64,7 @@ func (s *Rebase) rebaseIfUnchanged(ctx context.Context, repository *github.Repos
 	}
 
 	if !s.github.IsSamePullRequest(current, expected) {
-		return errors.New("pull request changed before rebase; retry on the next run")
+		return errors.New("strategy: pull request changed before rebase; retry on the next run")
 	}
 
 	return s.github.Rebase(ctx, current)

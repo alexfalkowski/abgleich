@@ -360,8 +360,9 @@ HTTP transport enforces `transport.http.max_receive_size`; set `1048576B` for a
 HTTP 204, rejects invalid signatures with 401 and unauthorized commands with 403,
 and returns non-success for API failures, conflicts, or processing timeouts.
 
-Processing stays inside the request; no background queue or delivery cache is
-used. Each process runs one command at a time, with concurrent commands receiving 503.
+Automerge and status processing stays inside the request. Summary commands queue
+in-memory work for their own scheduled job. Each process accepts one command at a
+time, with concurrent webhook commands receiving 503; inference does not hold that slot.
 GitHub does not automatically redeliver failed webhooks. Inspect delivery results
 in the App settings and redeliver failures after recovery. Ambiguous label
 responses are not retried automatically; redelivery re-reads current state.
@@ -380,6 +381,99 @@ the new version is deployed; remove that unused entry after a successful rollout
 > Restart the worker after changing these sources. Installation access tokens
 > renew automatically. GitHub authentication failures occur during requests and
 > do not make worker health fail.
+
+### 📝 AI pull request summaries
+
+Post a new PR comment containing exactly `/ab summarise`; surrounding whitespace
+is allowed. The PR must be open and non-draft, and the unedited human comment's
+author must currently have write or admin access.
+
+Summaries are disabled by default. Configure the provider and task below, then add
+the exact topic **`abgleich-ai`** to each repository you want to enable:
+
+```yaml
+ai:
+  client:
+    timeout: 1m
+  provider: openai
+  openai:
+    api_key: file:/etc/secrets/abgleich/openai-api-key
+summarise:
+  model: gpt-6.1-sol
+  interval: 30s
+  timeout: 2m
+```
+
+The model is required, with no default. Omit `summarise` to disable the command's
+work and its scheduled job. The independent job defaults to a `30s` interval and
+`2m` timeout; configured durations must be positive. It processes at most four
+queued requests serially. Inference uses at most one minute and half the remaining
+job budget. Status and automerge commands remain usable while inference runs.
+
+The App reacts 👀 on receipt and 👍 when the request is queued or a summary already
+exists. Acceptance precedes model completion. The later App reply identifies the
+analyzed head SHA and original request. **An existing App summary prevents another
+model call or summary comment, including after restart or a head change.** To
+request a fresh summary, delete the existing App summary and post `/ab summarise`
+again. Failure replies do not prevent retrying.
+
+Pending work stays in memory. After a worker restart, reissue the command. The
+worker checks current App comments before generation and publication, so an
+existing summary also prevents duplication after an ambiguous GitHub response.
+Exactly-once inference is not guaranteed if generation finishes without a
+published comment. Run one active service instance; a full queue returns HTTP 503.
+
+> [!IMPORTANT]
+> The repository topic authorizes sending selected PR metadata and changed-file
+> patches to OpenAI, including private repositories and fork contributions.
+> Approve the provider's data handling and billing before opting in. AI opt-in is
+> independent of auto-merge settings and labels. Summaries are advisory and never
+> label, approve, merge, rebase, or execute code.
+
+Context includes at most 20 changed files, 8 KiB per patch and 16 KiB of patches in
+total. PR titles, descriptions, and filenames are passed through without
+truncation. Missing or oversized patches and omitted files are disclosed to the
+model. Complete files and repository
+trees are not retrieved; code and tests are not executed. The model returns plain
+text with a 2,048-token output budget. The prompt asks for fewer than 150 words:
+a brief behaviour summary and up to three changed-file pointers explaining where
+to start reading. Specific context omissions get a short closing note. This word
+target is prompted, rather than enforced by truncation. Per-line
+citations are not generated or validated. Inspect the diff before relying on an
+explanation. Source text is untrusted input; the model receives no tools or GitHub
+credentials.
+
+The command, permission, repository AI topic, and both branch revisions are checked
+before source submission and publication. Revocation prevents the next observed
+submission or reply. Revision changes discard the explanation and ask for a new
+request. Already transmitted source cannot be recalled, and a change after the
+final read can still race publication. Provider refusals, failures, incomplete or
+empty responses, and timeouts produce failure feedback when still authorized;
+health and auto-merge remain independent.
+
+Keys use startup-resolved go-service sources such as `file:` or `env:`. Configured
+missing or empty keys prevent startup; restart after replacement. The adapter uses
+the official [OpenAI Go SDK](https://developers.openai.com/api/docs/libraries),
+explicit credentials, `store: false`, and no automatic request retries.
+AI HTTP settings live under `ai.client`: request timeout, TLS, and circuit
+breaking use the same shared settings as `github.client`. The request timeout
+defaults to `1m` when omitted or zero; negative values prevent startup. TLS
+credentials and trusted roots are resolved at startup, and invalid sources
+prevent startup. Circuit breaking is disabled unless configured. Inference POSTs
+never retry, even when `ai.client.retry` is configured. The HTTP timeout cannot
+extend the independent one-minute inference limit or the remaining job budget.
+Idle connections close during shutdown after scheduled work stops.
+
+`ai.openai.url` optionally overrides `https://api.openai.com/v1/`; use a trusted
+endpoint because it receives the key and source. Existing GitHub App permissions
+cover the diff reads and comment publication.
+
+Monitor `job: summarise` outcomes and `ai generation` logs for task, model,
+duration, and token usage. Generation logs use info for success and error for
+failure; token usage is included on success. Provider logging is a decorator;
+source, responses, and credentials are not logged. The local Cucumber harness uses fake HTTP
+responses and disposable credentials. Evaluate the selected model on approved PRs
+before widening opt-in; bounded diff context cannot establish whole-PR accuracy.
 
 ## 🩺 Health
 
@@ -451,10 +545,13 @@ image is sufficient.
 | --- | --- |
 | [`automerge`](internal/automerge/reconciler.go) | Repository opt-in, strategy selection and ordering, automerge command authorization and action, and job and command registration. |
 | [`automerge/internal/strategy`](internal/automerge/internal/strategy/doc.go) | Dependabot, label, and rebase policies with fresh pre-mutation checks. |
-| [`commands`](internal/commands/doc.go) | Comment parsing, named handler dispatch, installation validation, overlap protection, and reaction feedback. |
+| [`summarise`](internal/summarise/doc.go) | Authorized queued summaries, bounded PR diffs, and summary job registration. |
+| [`ai`](internal/ai/doc.go) | Optional credential resolution and text-only Responses API adapter. |
+| [`commands`](internal/commands/doc.go) | Comment parsing, named handler dispatch, installation validation, overlap protection, background queues, and reaction feedback. |
 | [`github`](internal/github/service.go) | Owner-wide repository discovery, identity checks, authenticated API access, pagination, and response validation. |
 | [`scheduler`](internal/scheduler/scheduler.go) | Independent schedules, timeouts, overlap protection, outcome logs, and job lifecycle. |
 | [`transport/http`](internal/transport/http/doc.go) | Webhook route registration, request deadlines, and HTTP responses. |
+| [`transport/http/client`](internal/transport/http/client/doc.go) | Outbound client construction, TLS, circuit breaking, redirect protection, and connection-pool cleanup. |
 | [`cmd`](internal/cmd/module.go) | Composition of package modules. |
 
 Dependencies follow the responsibilities:
@@ -484,8 +581,11 @@ command name; `automerge.Command.Handle` owns current-comment validation,
 permissions, and the label request. The
 transport owns HTTP responses and delivery deadlines; go-service enforces the
 configured body limit. `cmd.Module` composes the transport with the domain modules.
-Shared HTTP options and connection cleanup are provided through
-`github.NewConnection`.
+GitHub and AI use `transport/http/client.Factory` to construct separate outbound
+clients with their own settings and connection pools. The factory resolves TLS,
+configures circuit breaking, restricts redirects to the same origin, and closes
+the underlying pools after consumers stop. `github.NewConnection` adds request
+logging and safe-method retries; AI leaves transport retries disabled.
 SDK imports stay inside `internal/github`.
 
 Feature modules register their comment handlers through `commands.Dispatcher.Register`
@@ -509,6 +609,10 @@ Logging is composed around operations. `github.NewService` wraps the API service
 with a logging decorator to report accepted actions after response validation.
 `Scheduler.Register` wraps each handler to report its outcome and overruns
 within the job's timeout.
+
+Failed operations log at error level. Successful operations log at info level;
+successful jobs that exceed their interval log at warn level. Package-owned errors
+start with `package:` so wrapped failures identify their source.
 
 ### 🗓️ Job registration
 
@@ -557,7 +661,8 @@ Run a CI feature group locally with `make features-merges`,
 the worker group unless tagged for one of the other groups. Run groups one at
 a time locally because the harness shares ports and configuration files.
 
-Nonnative starts the worker and a local fake GitHub REST and GraphQL API:
+Nonnative starts the worker and independent fake GitHub REST/GraphQL and OpenAI
+Responses APIs on one local HTTP listener:
 
 - [Rebasing](test/features/automerge/rebase.feature) covers eligibility,
   pagination, conflicts, and concurrent changes.

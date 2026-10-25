@@ -11,7 +11,7 @@ import (
 func (s *service) ValidateInstallation(ctx context.Context) error {
 	installation, _, err := s.client.application.Apps.GetInstallation(ctx, s.config.App.InstallationID)
 	if err != nil {
-		return errors.Prefix("github installation", err)
+		return errors.Prefix("github: installation", err)
 	}
 
 	sameInstallation := installation.GetID() == s.config.App.InstallationID
@@ -20,7 +20,7 @@ func (s *service) ValidateInstallation(ctx context.Context) error {
 	suspended := installation != nil && installation.SuspendedAt != nil
 
 	if !sameInstallation || !sameApp || !sameOwner || suspended {
-		return errors.New("github installation does not match the configured app and owner or is suspended")
+		return errors.New("github: installation does not match the configured app and owner or is suspended")
 	}
 
 	return nil

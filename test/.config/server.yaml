@@ -10,7 +10,7 @@ github:
     id: 42
     installation_id: 99
     private_key: file:secrets/github-app-private-key.pem
-  url: http://localhost:11001/
+  url: http://localhost:11001/github/
 scheduler:
   interval: 1s
   timeout: 2s

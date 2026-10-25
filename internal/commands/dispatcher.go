@@ -1,9 +1,10 @@
 package commands
 
 import (
+	"fmt"
+
 	"github.com/alexfalkowski/abgleich/internal/github"
 	"github.com/alexfalkowski/go-service/v2/context"
-	"github.com/alexfalkowski/go-service/v2/errors"
 	"github.com/alexfalkowski/go-service/v2/time"
 	"github.com/alexfalkowski/go-sync"
 )
@@ -35,7 +36,7 @@ type Dispatcher struct {
 // and leave the existing handler intact.
 func (d *Dispatcher) Register(name string, handler Handler) error {
 	if _, ok := d.handlers[name]; ok {
-		return errors.Prefix(name, ErrCommandRegistered)
+		return fmt.Errorf("%w: %s", ErrCommandRegistered, name)
 	}
 
 	d.handlers[name] = handler

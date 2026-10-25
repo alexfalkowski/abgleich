@@ -2,6 +2,7 @@ package github
 
 import (
 	"github.com/alexfalkowski/go-service/v2/errors"
+	"github.com/alexfalkowski/go-service/v2/strings"
 	"github.com/google/go-github/v93/github"
 )
 
@@ -28,6 +29,9 @@ type User = github.User
 
 // CommitsComparison aliases [github.CommitsComparison] so consumers use the project-owned package.
 type CommitsComparison = github.CommitsComparison
+
+// CommitFile aliases [github.CommitFile] for pull request file snapshots.
+type CommitFile = github.CommitFile
 
 // UpdatePullRequestBranchInput supplies GitHub's branch-update arguments.
 // ExpectedHeadOID rejects concurrent head changes; UpdateMethod selects REBASE
@@ -65,11 +69,11 @@ type UpdatePullRequestBranchResponse struct {
 // identify expectedID. A matching payload confirms acceptance, not completion.
 func (r *UpdatePullRequestBranchResponse) Validate(expectedID string) error {
 	if err := r.Errors.Validate(); err != nil {
-		return errors.Prefix("github rebase", err)
+		return errors.Prefix("github: rebase", err)
 	}
 
 	if r.Data.Update.PullRequest.ID != expectedID {
-		return errors.New("github rebase returned no matching pull request")
+		return errors.New("github: rebase returned no matching pull request")
 	}
 
 	return nil
@@ -106,11 +110,11 @@ type EnablePullRequestAutoMergeResponse struct {
 // Validate rejects GraphQL errors and responses identifying a different PR.
 func (r *EnablePullRequestAutoMergeResponse) Validate(expectedID string) error {
 	if err := r.Errors.Validate(); err != nil {
-		return errors.Prefix("github auto-merge", err)
+		return errors.Prefix("github: auto-merge", err)
 	}
 
 	if r.Data.Enable.PullRequest.ID != expectedID {
-		return errors.New("github auto-merge returned no matching pull request")
+		return errors.New("github: auto-merge returned no matching pull request")
 	}
 
 	return nil
@@ -148,16 +152,16 @@ type PullRequestAutomationEventsResponse struct {
 // incomplete pages, and events that cannot establish valid automation history.
 func (r *PullRequestAutomationEventsResponse) Validate(expectedID string) error {
 	if err := r.Errors.Validate(); err != nil {
-		return errors.Prefix("github automation events", err)
+		return errors.Prefix("github: automation events", err)
 	}
 
 	node := r.Data.Node
 	if node.ID != expectedID {
-		return errors.New("github automation events returned no matching pull request")
+		return errors.New("github: automation events returned no matching pull request")
 	}
 
 	if node.TimelineItems.Nodes == nil || node.TimelineItems.PageInfo.HasNextPage == nil {
-		return errors.New("github automation events returned an incomplete page")
+		return errors.New("github: automation events returned an incomplete page")
 	}
 
 	return validateAutomationEvents(node.TimelineItems.Nodes)
@@ -174,7 +178,7 @@ type Errors []struct {
 func (e Errors) Validate() error {
 	var failures error
 	for _, failure := range e {
-		failures = errors.Join(failures, errors.New(failure.Message))
+		failures = errors.Join(failures, errors.New("github: "+failure.Message))
 
 		if failure.Type == "RATE_LIMITED" || rateLimitMessage(failure.Message) {
 			failures = errors.Join(failures, ErrRateLimited)
@@ -189,17 +193,17 @@ func (e Errors) Validate() error {
 func validateAutomationEvents(events []*IssueEvent) error {
 	for _, event := range events {
 		if event.GetCreatedAt().IsZero() {
-			return errors.New("github automation event is missing its timestamp")
+			return errors.New("github: automation event is missing its timestamp")
 		}
 
 		switch event.GetEvent() {
 		case "LabeledEvent", "UnlabeledEvent":
-			if event.GetLabel().GetName() == "" {
-				return errors.New("github automation event is missing its label")
+			if strings.IsEmpty(event.GetLabel().GetName()) {
+				return errors.New("github: automation event is missing its label")
 			}
 		case "AutoMergeDisabledEvent":
 		default:
-			return errors.New("github automation event has an unexpected type")
+			return errors.New("github: automation event has an unexpected type")
 		}
 	}
 

@@ -60,6 +60,15 @@ type Service interface {
 	// failure may have published the comment; callers must not retry automatically.
 	AddComment(ctx context.Context, repo *Repository, number int, body string) error
 
+	// ListComments collects complete comment history and validates each comment's PR identity.
+	ListComments(ctx context.Context, repo *Repository, number int) ([]*IssueComment, error)
+
+	// IsAppComment requires a bot author and the configured GitHub App identity.
+	IsAppComment(comment *IssueComment) bool
+
+	// ListPullRequestFiles rejects incomplete pagination and mismatched file counts.
+	ListPullRequestFiles(ctx context.Context, repo *Repository, pull *PullRequest) ([]*CommitFile, error)
+
 	// ListRepositories validates the authenticated owner and collects all pages
 	// before returning active owned repositories accessible to the installation.
 	ListRepositories(ctx context.Context) ([]*Repository, error)
@@ -130,11 +139,11 @@ func (s *service) ListRepositories(ctx context.Context) ([]*Repository, error) {
 	for {
 		page, response, err := s.client.installation.Apps.ListRepos(ctx, opts)
 		if err != nil {
-			return nil, errors.Prefix("github list repositories", err)
+			return nil, errors.Prefix("github: list repositories", err)
 		}
 
 		if page.GetRepositories() == nil {
-			return nil, errors.New("github installation repositories returned an incomplete page")
+			return nil, errors.New("github: installation repositories returned an incomplete page")
 		}
 
 		for _, repo := range page.GetRepositories() {
@@ -144,7 +153,7 @@ func (s *service) ListRepositories(ctx context.Context) ([]*Repository, error) {
 
 			name := repo.GetOwner().GetLogin() + "/" + repo.GetName()
 			if strings.IsEmpty(repo.GetName()) || strings.ToLower(repo.GetFullName()) != strings.ToLower(name) {
-				return nil, errors.New("github repository has incomplete or inconsistent identity")
+				return nil, errors.New("github: repository has incomplete or inconsistent identity")
 			}
 
 			repositories = append(repositories, repo)
@@ -164,14 +173,14 @@ func (s *service) ListRepositories(ctx context.Context) ([]*Repository, error) {
 func (s *service) GetRepository(ctx context.Context, repo *Repository) (*Repository, error) {
 	current, _, err := s.client.installation.Repositories.Get(ctx, repo.GetOwner().GetLogin(), repo.GetName())
 	if err != nil {
-		return nil, errors.Prefix("github get repository", err)
+		return nil, errors.Prefix("github: get repository", err)
 	}
 
 	sameName := strings.ToLower(current.GetName()) == strings.ToLower(repo.GetName())
 	sameOwner := strings.ToLower(current.GetOwner().GetLogin()) == strings.ToLower(repo.GetOwner().GetLogin())
 	sameFullName := strings.ToLower(current.GetFullName()) == strings.ToLower(repo.GetFullName())
 	if !sameName || !sameOwner || !sameFullName {
-		return nil, errors.New("github repository settings returned no matching repository")
+		return nil, errors.New("github: repository settings returned no matching repository")
 	}
 
 	return current, nil
@@ -188,7 +197,7 @@ func (s *service) ListOpenPullRequests(ctx context.Context, repo *Repository) ([
 	for {
 		page, response, err := s.client.installation.PullRequests.List(ctx, repo.GetOwner().GetLogin(), repo.GetName(), opts)
 		if err != nil {
-			return nil, errors.Prefix("github list pull requests", err)
+			return nil, errors.Prefix("github: list pull requests", err)
 		}
 
 		// New pull requests can shift page boundaries while discovery is running.
@@ -215,7 +224,7 @@ func (s *service) ListOpenPullRequests(ctx context.Context, repo *Repository) ([
 func (s *service) GetPullRequest(ctx context.Context, repo *Repository, number int) (*PullRequest, error) {
 	pull, _, err := s.client.installation.PullRequests.Get(ctx, repo.GetOwner().GetLogin(), repo.GetName(), number)
 	if err != nil {
-		return nil, errors.Prefix("github get pull request", err)
+		return nil, errors.Prefix("github: get pull request", err)
 	}
 
 	return pull, nil
@@ -227,11 +236,11 @@ func (s *service) Compare(ctx context.Context, repo *Repository, base, head stri
 	comparison, _, err := s.client.installation.Repositories.CompareCommits(ctx, repo.GetOwner().GetLogin(), repo.GetName(),
 		base, head, &github.ListOptions{PerPage: 1})
 	if err != nil {
-		return nil, errors.Prefix("github compare commits", err)
+		return nil, errors.Prefix("github: compare commits", err)
 	}
 
 	if comparison == nil || comparison.BehindBy == nil {
-		return nil, errors.New("github comparison is missing behind_by")
+		return nil, errors.New("github: comparison is missing behind_by")
 	}
 
 	return comparison, nil
@@ -247,7 +256,7 @@ func (s *service) Rebase(ctx context.Context, pull *PullRequest) error {
 		PullRequestID: nodeID, ExpectedHeadOID: pull.GetHead().GetSHA(), UpdateMethod: "REBASE",
 	}
 
-	request, err := s.client.installation.NewRequest(ctx, http.MethodPost, "/graphql", body)
+	request, err := s.client.installation.NewRequest(ctx, http.MethodPost, "graphql", body)
 	if err != nil {
 		return err
 	}
@@ -270,7 +279,7 @@ func (s *service) EnableAutoMerge(ctx context.Context, pull *PullRequest) error 
 		PullRequestID: pull.GetNodeID(), ExpectedHeadOID: pull.GetHead().GetSHA(), MergeMethod: "SQUASH",
 	}
 
-	request, err := s.client.installation.NewRequest(ctx, http.MethodPost, "/graphql", body)
+	request, err := s.client.installation.NewRequest(ctx, http.MethodPost, "graphql", body)
 	if err != nil {
 		return err
 	}
@@ -291,11 +300,11 @@ func (s *service) Merge(ctx context.Context, repo *Repository, pull *PullRequest
 	result, _, err := s.client.installation.PullRequests.Merge(ctx, repo.GetOwner().GetLogin(), repo.GetName(), pull.GetNumber(),
 		strings.Empty, &github.PullRequestOptions{SHA: pull.GetHead().GetSHA(), MergeMethod: "squash"})
 	if err != nil {
-		return errors.Prefix("github merge", err)
+		return errors.Prefix("github: merge", err)
 	}
 
 	if result == nil || !result.GetMerged() {
-		return errors.New("github merge returned no confirmed merge")
+		return errors.New("github: merge returned no confirmed merge")
 	}
 
 	return nil

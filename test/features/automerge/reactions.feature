@@ -53,7 +53,7 @@ Feature: Feedback on auto-merge command comments
     Then the comment delivery should return HTTP 204
     And the command comment should show "receipt" feedback
     And exactly 1 label request should reach GitHub
-    And the reaction failure should be logged
+    And the reaction failure should be logged at error level
 
   Scenario: Confirm auto-merge that is already enabled
     Given a pull request from "the repository" for branch "contribution" is "waiting with auto-merge enabled"
@@ -135,7 +135,7 @@ Feature: Feedback on auto-merge command comments
     Then the comment delivery should return HTTP 204
     And the command comment should show "no" feedback
     And exactly 1 label request should reach GitHub
-    And the reaction failure should be logged
+    And the reaction failure should be logged at error level
     And branch "contribution" should have squash auto-merge enabled
 
     Examples:
