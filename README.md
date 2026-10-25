@@ -9,14 +9,19 @@ Abgleich is a background worker that enables auto-merge or merges ready
 Dependabot and labeled pull requests, and keeps auto-merge branches current
 across a GitHub account's opted-in repositories.
 
+Maintainers can also request automation status and optional AI pull request
+summaries through PR comments when webhooks are configured.
+
 ## 🎯 Background
 
 An open, non-draft pull request is stale when its branch is missing commits from
 its base branch. Age does not affect eligibility. Only pull requests with
 auto-merge enabled and both branches in the same discovered repository are rebased.
 Public and private repositories accessible to the App installation are discovered on
-each run. Archived, disabled, foreign, and repositories without **Allow auto-merge**
-enabled are skipped entirely. That repository setting is the opt-in for the worker.
+each auto-merge run. Archived, disabled, and foreign repositories are excluded from
+discovery. The auto-merge job skips repositories without **Allow auto-merge**
+enabled. AI summaries use the separate `abgleich-ai` topic opt-in and remain
+available when auto-merge is disabled.
 
 For Dependabot PRs, the worker also enables squash auto-merge while requirements
 are pending, or requests a squash merge when GitHub reports the PR ready. It
@@ -172,6 +177,11 @@ go-service source such as `file:/etc/secrets/abgleich/github-app-private-key.pem
 and is read once at startup. App registration and permissions are described
 under **GitHub App setup**.
 
+If you keep the optional `ai` and `summarise` blocks, set `ai.openai.api_key` to
+your key source and choose `summarise.model`. Otherwise, remove both blocks before
+starting. See [AI pull request summaries](#-ai-pull-request-summaries) for webhook
+setup and repository opt-in.
+
 Start the worker:
 
 ```sh
@@ -235,6 +245,12 @@ The `github` and `health` blocks are required. Both `health.duration` and
 also includes shared go-service settings for identifiers, logging, metrics, and
 the HTTP listener.
 
+The optional `ai` and `summarise` blocks configure `/ab summarise`. Omit both to
+run without AI summaries. To enable the command, also configure
+[comment webhooks](#-github-app-setup) and add the `abgleich-ai` repository topic;
+see [AI pull request summaries](#-ai-pull-request-summaries) for source sharing,
+limits, and recovery.
+
 Save it as `config.yaml` and adjust `github.owner`:
 
 ```yaml
@@ -253,6 +269,17 @@ github:
 scheduler:
   interval: 15m
   timeout: 5m
+# Optional AI summaries: omit both ai and summarise to disable.
+ai:
+  client:
+    timeout: 1m
+  provider: openai
+  openai:
+    api_key: file:/etc/secrets/abgleich/openai-api-key
+summarise:
+  model: gpt-6.1-sol
+  interval: 30s
+  timeout: 2m
 health:
   duration: 1s
   timeout: 1s
@@ -272,8 +299,9 @@ transport:
 ```
 
 Set `github.owner` and `github.app` for all GitHub access. Add
-`github.webhook` for comment commands. The schedule and HTTP client settings
-are optional:
+`github.webhook` for comment commands. When enabling AI summaries, set
+`ai.openai.api_key` to your key source and choose `summarise.model` explicitly.
+The schedule and HTTP client settings are optional:
 
 | Setting | Default | Purpose |
 | --- | --- | --- |
@@ -282,10 +310,14 @@ are optional:
 | `github.client.timeout` | `1m` | Deadline for an individual HTTP request. |
 | `github.url` | `https://api.github.com/` | REST API origin; GraphQL uses `/graphql` on the same origin. |
 | `github.webhook.timeout` | `5s` | Complete synchronous delivery budget; must be positive and below `10s`. |
+| `ai.client.timeout` | `1m` | Deadline for an AI HTTP request, bounded by the independent inference and job budgets. |
+| `summarise.model` | None | Required model when `summarise` is configured. |
+| `summarise.interval` | `30s` | Time between summary queue processing runs. |
+| `summarise.timeout` | `2m` | Deadline for a complete summary job run. |
 | `transport.http.max_receive_size` | `4MB` | Incoming request body limit for all HTTP routes; the example sets 1 MiB. |
 
-Omitted or zero scheduler durations and GitHub client timeouts use the defaults
-above. Negative schedule durations are invalid.
+Omitted or zero scheduler and summary job durations and GitHub and AI client
+timeouts use the defaults above. Negative schedule durations are invalid.
 
 ### 🔌 HTTP transport
 
@@ -320,9 +352,9 @@ per sweep and once per comment command, before repository access. It discovers
 only repositories granted to that installation, including private repositories.
 Install the App on all owned repositories to include new repositories
 automatically, or select repositories explicitly.
-Enable **Allow auto-merge** on each repository to opt in, and **Allow squash
-merging** for Dependabot and labeled automation. Required reviews and checks still
-apply; give the App no ruleset bypass.
+Enable **Allow auto-merge** on each repository to opt in to merge automation, and
+**Allow squash merging** for Dependabot and labeled automation. Required reviews
+and checks still apply; give the App no ruleset bypass.
 
 ### 🤖 GitHub App setup
 
@@ -388,21 +420,9 @@ Post a new PR comment containing exactly `/ab summarise`; surrounding whitespace
 is allowed. The PR must be open and non-draft, and the unedited human comment's
 author must currently have write or admin access.
 
-Summaries are disabled by default. Configure the provider and task below, then add
-the exact topic **`abgleich-ai`** to each repository you want to enable:
-
-```yaml
-ai:
-  client:
-    timeout: 1m
-  provider: openai
-  openai:
-    api_key: file:/etc/secrets/abgleich/openai-api-key
-summarise:
-  model: gpt-6.1-sol
-  interval: 30s
-  timeout: 2m
-```
+Summaries are disabled by default. Configure the optional `ai` and `summarise`
+blocks shown in [Configuration](#-configuration), then add the exact topic
+**`abgleich-ai`** to each repository you want to enable.
 
 The model is required, with no default. Omit `summarise` to disable the command's
 work and its scheduled job. The independent job defaults to a `30s` interval and
@@ -497,7 +517,8 @@ scheduled job's run timeout.
 ## 📊 Telemetry
 
 Each completed run produces one log entry with `job`, `duration`, `interval`, and
-`overrun`. The auto-merge job uses `job: automerge`.
+`overrun`. The auto-merge job uses `job: automerge`; the optional summary job uses
+`job: summarise`.
 
 | Outcome | Log level | Details |
 | --- | --- | --- |
@@ -512,7 +533,8 @@ include repository names and pull request numbers where available. GraphQL error
 are failures even when the HTTP response is 200. A failed branch contributes to
 the run's failure outcome while other eligible branches continue to be processed.
 
-- **Timeouts:** the default run timeout cancels active work after five minutes.
+- **Timeouts:** the auto-merge job defaults to five minutes per run; the summary
+  job defaults to two minutes. Each job cancels its active work at its deadline.
 - **Overruns:** work that exceeds its interval sets `overrun` to `true` when it
   finishes, preserving the handler's success or failure result.
 - **Overlap:** each tick attempts to start work. Attempts while the previous run
@@ -532,12 +554,17 @@ HTTP and runtime telemetry remains available through its configured exporters.
 
 ### 🧯 Recovery
 
-No local checkpoint or database is needed. Every run reconciles current GitHub
-state. After a crash, timeout, or ambiguous mutation response, a fresh run
+No local checkpoint or database is needed. Each auto-merge run reconciles current
+GitHub state. After a crash, timeout, or ambiguous mutation response, a fresh run
 determines whether the remote branch still needs updating. GitHub can complete
 an accepted update after the caller stops waiting; retries always compare current
 remote state before requesting another rebase. The standard service container
 image is sufficient.
+
+Pending summary requests are held in memory and lost on restart; post
+`/ab summarise` again to reissue them. Published App summaries remain on GitHub
+and prevent another generation, including after restart or new commits. See
+[AI pull request summaries](#-ai-pull-request-summaries) for retry guidance.
 
 ## 🧩 Design
 
@@ -545,6 +572,7 @@ image is sufficient.
 | --- | --- |
 | [`automerge`](internal/automerge/reconciler.go) | Repository opt-in, strategy selection and ordering, automerge command authorization and action, and job and command registration. |
 | [`automerge/internal/strategy`](internal/automerge/internal/strategy/doc.go) | Dependabot, label, and rebase policies with fresh pre-mutation checks. |
+| [`status`](internal/status/doc.go) | Authorized automation assessments, snapshot rechecks, and status reply publication. |
 | [`summarise`](internal/summarise/doc.go) | Authorized queued summaries, bounded PR diffs, and summary job registration. |
 | [`ai`](internal/ai/doc.go) | Optional credential resolution and text-only Responses API adapter. |
 | [`commands`](internal/commands/doc.go) | Comment parsing, named handler dispatch, installation validation, overlap protection, background queues, and reaction feedback. |
@@ -564,6 +592,15 @@ flowchart LR
     automerge --> commands
     automerge --> github
     automerge --> scheduler
+    status --> automerge
+    status --> commands
+    status --> github
+    summarise --> commands
+    summarise --> github
+    summarise --> ai
+    summarise --> scheduler
+    github --> client[transport/http/client]
+    ai --> client
 ```
 
 `automerge.Reconciler.Reconcile` asks `github.Service` for all repositories, then uses
@@ -586,11 +623,13 @@ clients with their own settings and connection pools. The factory resolves TLS,
 configures circuit breaking, restricts redirects to the same origin, and closes
 the underlying pools after consumers stop. `github.NewConnection` adds request
 logging and safe-method retries; AI leaves transport retries disabled.
-SDK imports stay inside `internal/github`.
+go-github imports stay inside `internal/github`; OpenAI SDK imports stay inside
+`internal/ai`.
 
 Feature modules register their comment handlers through `commands.Dispatcher.Register`
-before startup. The automerge module registers `automerge`; new commands live in
-the feature packages that own their behavior. Duplicate names prevent startup.
+before startup. The automerge, status, and summarise modules register `automerge`,
+`status`, and `summarise`, respectively. New commands live in the feature packages
+that own their behavior. Duplicate names prevent startup.
 The dispatcher stays independent of feature packages. Commands select an explicit
 action, while reconciliation strategies select the policy applicable to a PR.
 
@@ -618,9 +657,11 @@ start with `package:` so wrapped failures identify their source.
 
 Each package registers construction in its own module. The
 [auto-merge module](internal/automerge/module.go) constructs the reconciler and
-registers `Reconcile` as the `automerge` job. Other feature packages can register
-their own named handlers and schedules through `Scheduler.Register`. Registration
-finishes before startup, and duplicate names prevent application startup.
+registers `Reconcile` as the `automerge` job. When configured, the
+[summary module](internal/summarise/module.go) registers its queue processor as
+the independent `summarise` job. Other feature packages can register their own
+named handlers and schedules through `Scheduler.Register`. Registration finishes
+before startup, and duplicate names prevent application startup.
 Scheduler has no feature-package dependencies.
 
 The [scheduler module](internal/scheduler/module.go) connects `Scheduler.Start`

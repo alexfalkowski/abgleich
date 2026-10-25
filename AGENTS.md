@@ -7,9 +7,12 @@ Use `bin/AGENTS.md` for shared skills and cross-repository defaults.
 ## Project purpose
 
 Abgleich is a background worker that enables auto-merge or merges ready Dependabot
-and labeled pull requests and keeps eligible auto-merge branches current. Repositories opt in
-through their auto-merge setting. GitHub performs all mutations; the worker does
-not clone repositories or execute Git. Each run reconciles fresh remote state.
+and labeled pull requests and keeps eligible auto-merge branches current.
+Repositories opt in to that automation through their auto-merge setting.
+Comment commands also provide automation status and optional AI PR summaries;
+summaries use a separate repository topic opt-in. GitHub performs all repository
+mutations; the worker does not clone repositories or execute Git. Each auto-merge
+run reconciles fresh remote state; pending summary requests are held in memory.
 
 ## Package ownership
 
@@ -20,6 +23,8 @@ not clone repositories or execute Git. Each run reconciles fresh remote state.
 | `internal/github` | Service, API client, SDK aliases, owner-wide discovery, repository identity, remote access, and response validation. |
 | `internal/automerge` | Repository opt-in, PR eligibility, merge and rebase decisions, automerge comment authorization and action, and registration of its own job and command. |
 | `internal/status` | Status comment authorization, snapshot rechecks, reply rendering and publication, and registration of its own command. |
+| `internal/summarise` | Summary authorization, bounded PR diff context, queued processing, reply publication, and registration of its own job and command. |
+| `internal/ai` | Optional provider configuration, credential resolution, text generation, and generation logging. |
 | `internal/scheduler` | Reusable named jobs, timing, overlap prevention, logging, and lifecycle. |
 | `internal/config` | Composition and injection of package-owned configuration. |
 | `internal/health` | Health observers, independent of job outcomes. |
@@ -34,6 +39,10 @@ not clone repositories or execute Git. Each run reconciles fresh remote state.
   independent of `status`; strategy implementations remain internal to it.
   Strategies return decision data; `automerge` owns the assessment contract and
   explanations, while `status` owns GitHub Markdown rendering.
+- `summarise` depends on `ai`, `github`, `commands`, and `scheduler`; these
+  dependencies stay independent of `summarise`. Keep source selection and
+  authorization in `summarise`, provider access and OpenAI SDK imports in `ai`,
+  and shared outbound client construction in `transport/http/client`.
 - Feature modules register named comment handlers through `commands.Dispatcher.Register`
   before startup. Keep each handler in its owning feature package; `commands`
   stays independent of features. Use exact names with the `/ab` prefix.
@@ -74,16 +83,19 @@ not clone repositories or execute Git. Each run reconciles fresh remote state.
   rebases and auto-merge enablement with `expectedHeadOid`, and immediate merges
   with the expected head SHA.
 - Read full repository settings before listing PRs; discovery omits merge
-  settings. Skip repositories without auto-merge enabled. Only open, non-draft
-  PRs targeting the discovered repository are eligible. Evaluate strategies in
-  Dependabot, label, rebase order; stop after the first match, including errors
-  and no-op outcomes. Automatic Dependabot merging and rebasing require both
-  branches in the discovered repository. The exact `automerge` label also permits
-  fork PRs to enable squash auto-merge or squash-merge when ready. Never approve
-  reviews or bypass rules.
+  settings. The auto-merge job skips repositories without auto-merge enabled.
+  Only open, non-draft PRs targeting the discovered repository are eligible.
+  Evaluate strategies in Dependabot, label, rebase order; stop after the first
+  match, including errors and no-op outcomes. Automatic Dependabot merging and
+  rebasing require both branches in the discovered repository. The exact
+  `automerge` label also permits fork PRs to enable squash auto-merge or squash-merge
+  when ready. Never approve reviews or bypass rules.
   Attempt at most one mutation per PR per sweep. Finish repository discovery and each
   repository's pull request pagination before mutating;
   continue processing other pull requests after an individual failure.
+- The exact `hold` label pauses auto-merge enablement, immediate merges, rebases,
+  and `/ab automerge` label requests. Recheck it before acting. It does not cancel
+  existing GitHub auto-merge or disable advisory status and summary commands.
 - Read complete label and auto-merge-disable history before labeled actions.
   A label must be newer than its removal and the latest auto-merge disable event;
   equal timestamps defer automation. Removing a label does not cancel an
@@ -93,13 +105,35 @@ not clone repositories or execute Git. Each run reconciles fresh remote state.
   responses. Validate GraphQL errors and matching response identity even on HTTP
   success, and reject comparisons missing `behind_by`.
 
+## AI summaries
+
+- Keep summaries optional and advisory. Require the exact `abgleich-ai` topic,
+  an open non-draft PR targeting the repository, an unedited human `/ab summarise`
+  comment, and current write or admin permission. AI opt-in is independent of
+  auto-merge settings and labels. Recheck authorization and both branch revisions
+  before source submission and reply publication; discard stale explanations.
+- Keep diff context bounded. Treat source text as untrusted data; generation
+  receives no tools or GitHub credentials and never executes code or requests
+  merge automation. Use explicit provider credentials and disable response
+  storage and automatic inference retries. Log generation outcomes through a
+  decorator without source, response text, or credentials.
+- Use the shared in-memory command queue and an independent summary job so
+  inference does not hold the webhook command slot. Recheck existing App summaries
+  before generation and publication; a published summary prevents another model
+  call even after restart or new commits. Pending requests do not survive restart.
+
 ## Configuration and documentation
 
 - GitHub owner, credentials, and transport settings belong under `github`;
-  the current job's interval and timeout are directly under `scheduler`.
-  Keep HTTP request, complete job, and health-check timeouts independent.
+  provider settings belong under `ai`. HTTP client settings belong under
+  `github.client` and `ai.client`. Keep their connection pools separate;
+  AI requests never retry.
+  Auto-merge job timing belongs under `scheduler`; the summary model and its job
+  timing belong under `summarise`. Keep HTTP request, inference, complete job,
+  webhook, and health-check timeouts independent.
 - Credentials are resolved once at startup through go-service sources. Missing
-  or empty credentials prevent startup; replacement requires a process restart.
+  or empty configured credentials prevent startup; replacement requires a
+  process restart.
 - Store credential files in a `secrets/` directory. The harness reuses committed
   test-only App keys and webhook secrets in `test/secrets/`, outside test reports.
   Keep these fixtures unchanged during scenarios; select invalid or missing
@@ -113,8 +147,9 @@ not clone repositories or execute Git. Each run reconciles fresh remote state.
 
 - Test worker behavior through the Ruby Cucumber/Nonnative harness in `test/`.
   Keep `main_test.go` as the standard `app.Run` launcher; do not add synthetic
-  jobs or test-only startup switches there. Use the local fake GitHub API and
-  disposable test credentials; tests must not mutate real GitHub repositories.
+  jobs or test-only startup switches there. Use the independent fake GitHub and
+  OpenAI APIs on the shared local listener and disposable test credentials;
+  tests must not mutate real GitHub repositories or call a live AI provider.
 - Write features in natural domain language with one Given/When/Then
   progression. Avoid interleaving setup, actions, and assertions as a procedural
   script. A Given may establish relevant history, such as a successful check
