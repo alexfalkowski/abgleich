@@ -39,3 +39,12 @@ Feature: Enable optional pull request summaries
     Then branch "feature" should be rebased
     And the branch check should succeed
     And the AI service should remain unused
+
+  Scenario: Request a summary without custom scheduling
+    Given AI summaries are configured for this repository
+    And a pull request from "the repository" for branch "contribution" is "waiting for checks"
+    And the operator uses the default summary schedule
+    When a maintainer with "write" access comments "/ab summarise"
+    Then the request should be accepted
+    And the maintainer should receive a summary within 40 seconds
+    And the summary should identify the request and the pull request revision

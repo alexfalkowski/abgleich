@@ -22,6 +22,7 @@ run reconciles fresh remote state; pending summary requests are held in memory.
 | `internal/commands` | PR comment parsing, named handler dispatch, installation validation, overlap prevention, background queues, and reaction feedback. |
 | `internal/github` | Service, API client, SDK aliases, owner-wide discovery, repository identity, remote access, and response validation. |
 | `internal/automerge` | Repository opt-in, PR eligibility, merge and rebase decisions, automerge comment authorization and action, and registration of its own job and command. |
+| `internal/cleanup` | Optional merged and inactive branch cleanup policy, pre-deletion rechecks, exclusions, and registration of its own job. |
 | `internal/status` | Status comment authorization, snapshot rechecks, reply rendering and publication, and registration of its own command. |
 | `internal/summarise` | Summary authorization, bounded PR diff context, queued processing, reply publication, and registration of its own job and command. |
 | `internal/ai` | Optional provider configuration, credential resolution, text generation, and generation logging. |
@@ -55,6 +56,10 @@ run reconciles fresh remote state; pending summary requests are held in memory.
 - Keep the strategy interface, implementations, and shared PR eligibility helpers
   in `internal/automerge/internal/strategy`; its module provides their precedence
   order for injection into the reconciler.
+- `cleanup` depends on `github` and `scheduler`. Omitted cleanup configuration
+  disables its job; repositories also require auto-merge opt-in. Preserve default,
+  protected, excluded, and open-PR branches. Guard deletions atomically with
+  `updateRefs.beforeOid`; inactivity uses the latest commit's committer date.
 
 ## Background jobs
 
@@ -143,6 +148,11 @@ run reconciles fresh remote state; pending summary requests are held in memory.
   `README.md`. Update it when those contracts change, retaining scannable emoji
   headings and concise examples. Keep this file focused on project decisions;
   shared language and workflow rules stay in `bin/AGENTS.md` and its skills.
+- Read the complete README before and after editing it. Its Configuration section
+  owns worker settings, YAML examples, defaults, validation, and credential setup;
+  feature sections own behaviour and safeguards, and Operations owns monitoring
+  and recovery. Link to the owning section instead of duplicating its guidance,
+  and check the whole document for conflicting examples or repeated defaults.
 
 ## Cucumber tests
 

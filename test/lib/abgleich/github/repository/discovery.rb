@@ -42,7 +42,8 @@ module Abgleich
 
       def repository_data(full_name, **options)
         owner, name = full_name.split('/')
-        { name:, full_name:, owner: { login: owner }, archived: options.fetch(:archived, false),
+        { name:, full_name:, node_id: "R_#{full_name}", default_branch: 'master', owner: { login: owner },
+          archived: options.fetch(:archived, false),
           disabled: options.fetch(:disabled, false), private: options.fetch(:private, false),
           topics: options.fetch(:topics, []),
           allow_auto_merge: options.fetch(:auto_merge, true), allow_squash_merge: options.fetch(:squash_merge, true) }

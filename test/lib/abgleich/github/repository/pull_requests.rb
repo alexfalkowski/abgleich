@@ -24,10 +24,10 @@ module Abgleich
         end
       end
 
-      def list(page, repository = DEFAULT_REPOSITORY, sort: 'created', direction: 'desc')
+      def list(page, repository = DEFAULT_REPOSITORY, **options)
         @mutex.synchronize do
           @state[:scans] += 1 if page == 1
-          pulls = listed_pulls(repository, sort, direction)
+          pulls = filtered_pulls(repository, options)
           more = @state[:pagination] && page < pulls.length
           @state[:listed][repository] = !more
           [@state[:pagination] ? pulls.slice(page - 1, 1).to_a : pulls, more]
@@ -62,6 +62,15 @@ module Abgleich
       end
 
       private
+
+      def filtered_pulls(repository, options)
+        pulls = listed_pulls(repository, options.fetch(:sort, 'created'), options.fetch(:direction, 'desc'))
+        state, head = options.values_at(:state, :head)
+        state ||= 'open'
+        pulls.select! { |pull| pull[:state] == state } unless state == 'all'
+        pulls.select! { |pull| "#{pull.dig(:head, :repo, :owner, :login)}:#{pull.dig(:head, :ref)}" == head } if head
+        pulls
+      end
 
       def listed_pulls(repository, sort, direction)
         pulls = @state[:pulls].select { |(name, _number), _pull| name == repository }.values

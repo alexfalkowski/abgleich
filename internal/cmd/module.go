@@ -3,6 +3,7 @@ package cmd
 import (
 	"github.com/alexfalkowski/abgleich/internal/ai"
 	"github.com/alexfalkowski/abgleich/internal/automerge"
+	"github.com/alexfalkowski/abgleich/internal/cleanup"
 	"github.com/alexfalkowski/abgleich/internal/commands"
 	"github.com/alexfalkowski/abgleich/internal/config"
 	"github.com/alexfalkowski/abgleich/internal/github"
@@ -24,6 +25,7 @@ var Module = di.Module(
 	github.Module,
 	commands.Module,
 	automerge.Module,
+	cleanup.Module,
 	status.Module,
 	ai.Module,
 	summarise.Module,

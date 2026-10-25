@@ -73,7 +73,7 @@ Then('no merge actions should be accepted') do
 end
 
 Then('auto-merge should remain disabled for branch {string}') do |branch|
-  wait_for { Abgleich.job_logs.length }.to be >= 2, 'expected at least two completed checks after auto-merge was disabled'
+  wait_for { Abgleich.job_logs('automerge').length }.to be >= 2, 'expected at least two completed checks after auto-merge was disabled'
   expect(Abgleich.github.pull_state(branch).fetch(:auto_merge)).to be_nil, "expected auto-merge to stay disabled for #{branch}"
   expect(Abgleich.github.pull_state(branch).fetch(:merged)).to be(false), "expected #{branch} to remain open"
 end

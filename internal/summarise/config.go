@@ -13,21 +13,26 @@ const (
 // Config selects the summary model and independent job schedule.
 // Omit the block to disable summaries. Zero durations use 30s and 2m.
 type Config struct {
-	Model    string        `yaml:"model,omitempty" json:"model,omitempty" toml:"model,omitempty" validate:"required"`
-	Interval time.Duration `yaml:"interval,omitempty" json:"interval,omitempty" toml:"interval,omitempty" validate:"omitempty,gt=0"`
-	Timeout  time.Duration `yaml:"timeout,omitempty" json:"timeout,omitempty" toml:"timeout,omitempty" validate:"omitempty,gt=0"`
+	Model            string `yaml:"model,omitempty" json:"model,omitempty" toml:"model,omitempty" validate:"required"`
+	scheduler.Config `yaml:",inline" json:",inline" toml:",inline"`
 }
 
-func (c *Config) schedule() *scheduler.Config {
-	interval := c.Interval
-	if interval == 0 {
-		interval = defaultInterval
+// GetInterval returns the summary interval, defaulting to thirty seconds when zero.
+// Config must be non-nil.
+func (c *Config) GetInterval() time.Duration {
+	if c.Interval == 0 {
+		return defaultInterval
 	}
 
-	timeout := c.Timeout
-	if timeout == 0 {
-		timeout = defaultTimeout
+	return c.Interval
+}
+
+// GetTimeout returns the complete summary job's timeout, defaulting to two
+// minutes when zero. Config must be non-nil.
+func (c *Config) GetTimeout() time.Duration {
+	if c.Timeout == 0 {
+		return defaultTimeout
 	}
 
-	return &scheduler.Config{Interval: interval, Timeout: timeout}
+	return c.Timeout
 }

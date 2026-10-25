@@ -24,7 +24,7 @@ Given('the worker could not rebase branch {string} because {string}') do |branch
   Abgleich.github.add_pull(branch)
   Abgleich.github.fail_with(failure_mode)
   Nonnative.start
-  expect_failed_check
+  expect_failed_check('automerge')
   expect(Abgleich.github.unchanged?).to be(true), 'expected GitHub failure to leave branch commits unchanged'
   expect_no_accepted_rebases
   expect_healthy_worker
@@ -34,7 +34,7 @@ Given('GitHub rebased branch {string} without confirming it to the worker') do |
   Abgleich.github.add_pull(branch)
   Abgleich.github.fail_with('lost mutation response')
   Nonnative.start
-  expect_failed_check
+  expect_failed_check('automerge')
   wait_for { Abgleich.github.rebased?(branch) }.to be(true)
   expect_no_accepted_rebases
 end

@@ -19,16 +19,16 @@ module Abgleich
     end
 
     # Successful checks can warn about overruns, but must not carry an error.
-    def expect_successful_check
+    def expect_successful_check(job)
       wait_for do
-        check = Abgleich.job_logs.last
+        check = Abgleich.job_logs(job).last
         check && %w[info warn].include?(check['level']) && !check.key?('error')
-      end.to be(true), 'expected the latest branch check to finish successfully without an error'
+      end.to be(true), "expected the latest #{job} check to finish successfully without an error"
     end
 
     # Wait for the latest completed check, so an earlier failure cannot satisfy recovery setup.
-    def expect_failed_check
-      wait_for { Abgleich.job_logs.last }.to include('level' => 'error', 'error' => a_string_matching(/.+/))
+    def expect_failed_check(job)
+      wait_for { Abgleich.job_logs(job).last }.to include('level' => 'error', 'error' => a_string_matching(/.+/))
     end
 
     # Skipped, rejected, and unconfirmed updates must not be reported as accepted.

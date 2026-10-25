@@ -11,6 +11,7 @@ across a GitHub account's opted-in repositories.
 
 Maintainers can also request automation status and optional AI pull request
 summaries through PR comments when webhooks are configured.
+Optional branch cleanup removes merged leftovers and inactive branches.
 
 ## 🎯 Background
 
@@ -77,6 +78,33 @@ The hold suppresses Abgleich requests only. It does not disable GitHub auto-merg
 or undo an accepted request. Disable auto-merge in GitHub separately when it is
 already enabled and must stop. The worker rechecks hold membership before acting,
 but a label applied after the final read can still race a mutation.
+
+### 🧹 Branch cleanup
+
+When [enabled](#-cleanup-settings), cleanup removes leftover merged-PR branches
+and inactive branches. Repositories must have **Allow auto-merge** enabled to opt
+in; archived, disabled, and foreign repositories are excluded by discovery.
+
+Cleanup runs immediately at startup, then on its independent schedule. It
+preserves the default branch, protected branches, excluded names, and branches
+used as the head or base of an open PR in the repository, including drafts.
+A merged PR permits immediate cleanup only while its head SHA still matches the
+branch. Newer commits are evaluated by the inactivity policy instead.
+
+> [!CAUTION]
+> Inactive cleanup can delete unmerged work, including branches without a PR or
+> with a closed, unmerged PR. Inactivity uses the latest commit's committer date,
+> not the last push time: recently pushing an old commit does not reset its age.
+> Protect or exclude long-lived branches before enabling cleanup.
+
+The worker finishes repository and branch discovery before deleting, rechecks
+repository opt-in, branch protection, and open PRs, and uses GraphQL `updateRefs`
+with `beforeOid` to reject a push racing deletion. It does not bypass rules or
+retry mutation requests. Settings changes or a new PR after the final read can
+still race deletion. Fork heads outside the discovered repository are untouched.
+Failed branches do not block other branches, and cleanup failures do not affect
+worker health. See [cleanup recovery](#-cleanup-recovery) for unintended deletions
+and ambiguous responses.
 
 ### 💬 Comment requests
 
@@ -147,6 +175,59 @@ deadline and is never retried automatically. A failed or timed-out response can
 already have published a reply, and webhook redelivery can produce another
 comment with the same request link. No exactly-once publication is promised.
 
+### 📝 AI pull request summaries
+
+With [summaries and webhooks configured](#-summary-settings), post a new PR
+comment containing exactly `/ab summarise`; surrounding whitespace is allowed.
+The PR must be open and non-draft, and the unedited human comment's author must
+currently have write or admin access. Maintainers can request summaries in
+repositories accessible to the App installation without adding a repository topic.
+
+The independent summary job processes at most four queued requests serially.
+Inference uses at most one minute and half the remaining job budget. Status and
+automerge commands remain usable while inference runs; a full queue returns
+HTTP 503.
+
+The App reacts 👀 on receipt and 👍 when the request is queued or a summary already
+exists. Acceptance precedes model completion. The later App reply identifies the
+analyzed head SHA and original request. **An existing App summary prevents another
+model call or summary comment, including after restart or a head change.**
+Pending work stays in memory. See [summary recovery](#-summary-recovery) for
+restarts, fresh summaries, and retries after failures.
+
+> [!IMPORTANT]
+> An authorized `/ab summarise` comment authorizes sending selected PR metadata
+> and changed-file patches to OpenAI, including private repositories and fork
+> contributions. Approve the provider's data handling and billing before enabling
+> summaries. Summary requests are independent of auto-merge settings and labels.
+> Summaries are advisory and never label, approve, merge, rebase, or execute code.
+
+Context includes at most 20 changed files, 8 KiB per patch and 16 KiB of patches in
+total. PR titles, descriptions, and filenames are passed through without
+truncation. Missing or oversized patches and omitted files are disclosed to the
+model. Complete files and repository trees are not retrieved; code and tests are
+not executed. The model returns plain text with a 2,048-token output budget.
+The prompt asks for fewer than 150 words: a brief behaviour summary and up to
+three changed-file pointers explaining where to start reading. Specific context
+omissions get a short closing note. This word target is prompted, rather than
+enforced by truncation. Per-line citations are not generated or validated.
+Inspect the diff before relying on an explanation. Source text is untrusted
+input; the model receives no tools or GitHub credentials.
+
+The command, permission, PR eligibility, and both branch revisions are checked
+before source submission and publication. Revocation prevents the next observed
+submission or reply. Revision changes discard the explanation and ask for a new
+request. Already transmitted source cannot be recalled, and a change after the
+final read can still race publication. Provider refusals, failures, incomplete or
+empty responses, and timeouts produce failure feedback when still authorized;
+health and auto-merge remain independent.
+
+The adapter uses the official
+[OpenAI Go SDK](https://developers.openai.com/api/docs/libraries), explicit
+credentials, `store: false`, and no automatic inference retries. Evaluate the
+selected model on approved PRs before widening opt-in; bounded diff context
+cannot establish whole-PR accuracy.
+
 ## 🚀 Quickstart
 
 Run these steps from the repository root.
@@ -171,16 +252,11 @@ make build
 
 ### ▶️ Configure and start
 
-Save the example in **Configuration** below as `config.yaml`. Set the owner,
-App ID, installation ID, and path to the App's RSA private key. The key uses a
-go-service source such as `file:/etc/secrets/abgleich/github-app-private-key.pem`
-and is read once at startup. App registration and permissions are described
-under **GitHub App setup**.
-
-If you keep the optional `ai` and `summarise` blocks, set `ai.openai.api_key` to
-your key source and choose `summarise.model`. Otherwise, remove both blocks before
-starting. See [AI pull request summaries](#-ai-pull-request-summaries) for webhook
-setup and repository opt-in.
+Save the [base configuration](#-base-configuration) as `config.yaml` and fill in
+your GitHub owner, App IDs, and private-key source. Follow
+[GitHub App setup](#-github-app-setup) to register and install the App.
+The [Configuration](#-configuration) section also contains the optional blocks
+for comment webhooks, branch cleanup, and AI summaries.
 
 Start the worker:
 
@@ -201,8 +277,9 @@ whether a branch check succeeds.
 
 ## 🚀 Server
 
-The worker runs immediately on startup and, by default, every fifteen minutes
-thereafter. It discovers all owned repositories before processing them serially.
+The auto-merge job runs immediately on startup and follows its
+[configured schedule](#-auto-merge-schedule). It discovers all owned repositories
+before processing them serially.
 For each repository, it lists open pull requests through go-github and processes
 them oldest first by creation time. It compares each eligible branch with its base
 and asks GitHub to rebase stale branches using the GraphQL
@@ -238,48 +315,55 @@ also finishes before any branches in that repository are updated.
 The process needs network access to the GitHub REST and GraphQL APIs. It does
 not clone repositories, execute Git, or need a writable checkout directory.
 
+### 🚦 API usage
+
+The shared go-github client processes repositories and pull requests serially.
+The configured auto-merge interval limits polling volume; there is no additional
+rate-limit library or configuration. If GitHub reports throttling, the current
+sweep stops instead of continuing through other repositories. go-github retains
+its built-in rate-limit checks, and a later scheduled run reads current state
+again. Polling and comment commands share the installation's API budget.
+
+### 💬 Webhook delivery
+
+The comment handler requires SHA-256 signatures and enforces the configured
+request body limit. It acknowledges ignored and completed deliveries with
+HTTP 204, rejects invalid signatures with 401 and unauthorized commands with 403,
+and returns non-success for API failures, conflicts, or processing timeouts.
+
+Automerge and status processing stays inside the request. Summary commands queue
+in-memory work for their own scheduled job. Each process accepts one command at a
+time, with concurrent webhook commands receiving 503; inference does not hold that
+slot. Installation requests share a cancellable request slot so a webhook deadline
+also bounds waiting for another request or token renewal. Polling continues when
+webhook delivery is unavailable. App API failures can prevent both polling and
+comment operations; they do not affect process health. See
+[webhook recovery](#-webhook-recovery) for failed or ambiguous deliveries.
+
 ## ⚙️ Configuration
 
-The `github` and `health` blocks are required. Both `health.duration` and
-`health.timeout` must be positive durations; they have no defaults. This example
-also includes shared go-service settings for identifiers, logging, metrics, and
-the HTTP listener.
+All worker settings, configuration examples, defaults, and credential setup live
+in this section. Start with the base configuration, then merge any optional
+blocks into the same file. Feature sections describe behaviour and safeguards;
+[Operations](#-operations) covers monitoring and recovery.
 
-The optional `ai` and `summarise` blocks configure `/ab summarise`. Omit both to
-run without AI summaries. To enable the command, also configure
-[comment webhooks](#-github-app-setup); see
-[AI pull request summaries](#-ai-pull-request-summaries) for source sharing,
-limits, and recovery.
+### 📄 Base configuration
 
-Save it as `config.yaml` and adjust `github.owner`:
+Save this as `config.yaml`. Replace `github.owner`, the App and installation IDs,
+and the private-key source with your own values. The `github` and `health` blocks
+are required. `health.duration` controls sampling frequency and `health.timeout`
+bounds the connectivity check independently of job deadlines; both must be
+positive durations and have no defaults. The example also includes shared
+go-service settings for identifiers, logging, metrics, and the HTTP listener.
 
 ```yaml
 environment: production
 github:
-  client:
-    timeout: 1m
-    retry:
-      attempts: 2
-      backoff: 100ms
   owner: alexfalkowski
   app:
     id: 5427450
     installation_id: 174152088
     private_key: file:/etc/secrets/abgleich/github-app-private-key.pem
-scheduler:
-  interval: 15m
-  timeout: 5m
-# Optional AI summaries: omit both ai and summarise to disable.
-ai:
-  client:
-    timeout: 1m
-  provider: openai
-  openai:
-    api_key: file:/etc/secrets/abgleich/openai-api-key
-summarise:
-  model: gpt-6.1-sol
-  interval: 30s
-  timeout: 2m
 health:
   duration: 1s
   timeout: 1s
@@ -298,76 +382,42 @@ transport:
     max_receive_size: 1048576B
 ```
 
-Set `github.owner` and `github.app` for all GitHub access. Add
-`github.webhook` for comment commands. When enabling AI summaries, set
-`ai.openai.api_key` to your key source and choose `summarise.model` explicitly.
-The schedule and HTTP client settings are optional:
+This configuration runs merge automation without a webhook endpoint, branch
+cleanup, or AI summaries. See the
+[defaults and validation table](#-defaults-and-validation) for optional settings.
 
-| Setting | Default | Purpose |
-| --- | --- | --- |
-| `scheduler.interval` | `15m` | Time between owner-wide sweeps. |
-| `scheduler.timeout` | `5m` | Deadline for a complete owner-wide sweep. |
-| `github.client.timeout` | `1m` | Deadline for an individual HTTP request. |
-| `github.url` | `https://api.github.com/` | REST API origin; GraphQL uses `/graphql` on the same origin. |
-| `github.webhook.timeout` | `5s` | Complete synchronous delivery budget; must be positive and below `10s`. |
-| `ai.client.timeout` | `1m` | Deadline for an AI HTTP request, bounded by the independent inference and job budgets. |
-| `summarise.model` | None | Required model when `summarise` is configured. |
-| `summarise.interval` | `30s` | Time between summary queue processing runs. |
-| `summarise.timeout` | `2m` | Deadline for a complete summary job run. |
-| `transport.http.max_receive_size` | `4MB` | Incoming request body limit for all HTTP routes; the example sets 1 MiB. |
+### 🤖 GitHub App setup
 
-Omitted or zero scheduler and summary job durations and GitHub and AI client
-timeouts use the defaults above. Negative schedule durations are invalid.
+The worker and comment handler share one App installation. `github.owner` must
+match the installation's account. Register the App with **Contents: read and
+write**, **Pull requests: read and write**, and **Issues: read and write**.
+Metadata read access is automatic. These permissions cover server-side rebases,
+squash merges, branch deletion, diff reads, comments, label writes, and reactions.
+Issues write access is required for comment reactions. When upgrading an existing
+App, update its permissions and approve the installation's permission change.
 
-### 🔌 HTTP transport
-
-GitHub HTTP transport settings live under `github.client`: timeout, retries,
-circuit breaking, and TLS. Retries and circuit breaking remain disabled unless configured.
-Configured retries apply only to safe HTTP methods. Rebase, auto-merge, and merge
-mutations are never retried by the HTTP transport; a later scheduled run reads
-current GitHub state before deciding whether another action is needed.
-
-### 🚦 API usage
-
-The shared go-github client processes repositories and pull requests serially.
-The fifteen-minute interval limits polling volume; there is no additional rate-limit
-library or configuration. If GitHub reports throttling, the current sweep stops
-instead of continuing through other repositories. go-github retains its built-in
-rate-limit checks, and a later scheduled run reads current state again.
-
-Polling and comment commands share the installation's API budget. Monitor repeated
-rate-limit failures and increase `scheduler.interval` if needed.
-
-### 🔐 Credentials
-
-The worker and comment handler share one App installation. Configure
-`github.app.id`, `github.app.installation_id`, and `github.app.private_key`;
-`github.owner` must match the installation's account. A personal access token
-is not used. `ghinstallation` signs App requests and caches and renews the
-installation access token. REST and GraphQL use the same installation credentials;
-App clients reject redirects to another API origin.
+Install the App on all owned repositories to include new repositories
+automatically, or select repositories explicitly. Enable **Allow auto-merge** on
+each repository to opt in to merge automation and cleanup, and **Allow squash
+merging** for Dependabot and labeled automation. Required reviews and checks
+still apply; give the App no ruleset bypass.
 
 The worker validates the installation's App ID, owner, and suspension state once
 per sweep and once per comment command, before repository access. It discovers
 only repositories granted to that installation, including private repositories.
-Install the App on all owned repositories to include new repositories
-automatically, or select repositories explicitly.
-Enable **Allow auto-merge** on each repository to opt in to merge automation, and
-**Allow squash merging** for Dependabot and labeled automation. Required reviews
-and checks still apply; give the App no ruleset bypass.
+A personal access token is not used. `ghinstallation` signs App requests and
+caches and renews the installation access token. REST and GraphQL use the same
+installation credentials; App clients reject redirects to another API origin.
 
-### 🤖 GitHub App setup
+When migrating from token authentication, replace `github.token` in runtime
+configuration with the `github.app` block in the base example. The deployed secret
+can retain its old token entry during rollout; remove that unused entry after a
+successful rollout.
 
-Register the App with **Contents: read and write**, **Pull requests: read and
-write**, and **Issues: read and write**. Metadata read access is automatic. The worker
-uses server-side rebases and squash merges; the comment handler adds the existing
-`automerge` label and reactions. Issues write access is required for comment
-reactions. When upgrading an existing App, update its permissions and approve
-the installation's permission change. Use your own App and installation IDs in
-the configuration.
+### 💬 Comment webhooks
 
-Omit `github.webhook` to run the worker without exposing a webhook endpoint.
-To receive comments, add this block to the existing `github` configuration:
+Add this block to the existing `github` mapping to enable comment commands.
+Omit `github.webhook` to run without a webhook endpoint.
 
 ```yaml
 github:
@@ -376,127 +426,137 @@ github:
     timeout: 8s
 ```
 
-The webhook secret uses go-service sources such as `file:` or `env:`. Keep HTTP
-request, webhook, job, and health timeouts independent; the server HTTP timeout
-must accommodate the webhook budget. The explicit `8s` budget gives permission
-checks, labeling, and final feedback room to complete within the example's `9s`
-HTTP timeout and GitHub's ten-second delivery deadline.
-
-To enable comment commands, configure the App's **Issue comment** subscription,
-a random webhook secret matching `github.webhook.secret`, and an HTTPS webhook
-URL ending in `/webhooks/github`. The proposed deployment URL is
+Configure the App's **Issue comment** subscription, a random webhook secret
+matching `github.webhook.secret`, and an HTTPS webhook URL ending in
+`/webhooks/github`. The proposed deployment URL is
 `https://abgleich.lean-thoughts.com/webhooks/github`; DNS and ingress must be
-provisioned before activation. The handler requires SHA-256 signatures. The shared
-HTTP transport enforces `transport.http.max_receive_size`; set `1048576B` for a
-1 MiB limit as shown above. It acknowledges ignored and completed deliveries with
-HTTP 204, rejects invalid signatures with 401 and unauthorized commands with 403,
-and returns non-success for API failures, conflicts, or processing timeouts.
+provisioned before activation.
 
-Automerge and status processing stays inside the request. Summary commands queue
-in-memory work for their own scheduled job. Each process accepts one command at a
-time, with concurrent webhook commands receiving 503; inference does not hold that slot.
-GitHub does not automatically redeliver failed webhooks. Inspect delivery results
-in the App settings and redeliver failures after recovery. Ambiguous label
-responses are not retried automatically; redelivery re-reads current state.
-Polling continues when webhook delivery is unavailable. App API failures can
-prevent both polling and comment operations; they do not affect process health.
-Installation requests share a cancellable request slot so a webhook deadline
-also bounds waiting for another request or token renewal.
+Keep the HTTP request, webhook, job, and health timeouts independent. The server
+HTTP timeout must accommodate the webhook budget: this example's `8s` budget
+leaves room for permission checks, labeling, and feedback within the base
+configuration's `9s` HTTP timeout and GitHub's ten-second delivery deadline.
+The shared `transport.http.max_receive_size` limit applies to webhook deliveries.
+See [webhook delivery](#-webhook-delivery) for responses and concurrency behaviour.
 
-For rollout, replace `github.token` in runtime configuration with the `github.app`
-block above. The existing deployed secret can retain its old token entry while
-the new version is deployed; remove that unused entry after a successful rollout.
+### 🧹 Cleanup settings
+
+Add this block to enable branch cleanup; omit it and restart to disable its job.
+Read the [branch cleanup safeguards](#-branch-cleanup) before enabling deletion.
+
+```yaml
+cleanup:
+  inactive_after: 720h
+  interval: 24h
+  timeout: 5m
+  exclude:
+    - develop
+```
+
+`exclude` contains exact, case-sensitive branch names to preserve in addition to
+protected, default, and open-PR branches. `inactive_after` is the latest-commit age
+required for inactive cleanup.
+
+### 📝 Summary settings
+
+Add the `ai` and `summarise` blocks below and configure
+[comment webhooks](#-comment-webhooks) to enable `/ab summarise`. Set the key source
+and choose the model explicitly. Read the
+[summary source-sharing notice](#-ai-pull-request-summaries) before enabling it.
+
+```yaml
+ai:
+  provider: openai
+  openai:
+    api_key: file:/etc/secrets/abgleich/openai-api-key
+summarise:
+  model: gpt-6.1-sol
+  interval: 30s
+  timeout: 2m
+```
+
+Omit both blocks to run without AI. Omitting `summarise` disables the command's
+work and its scheduled job even if provider configuration remains. Use a trusted
+`ai.openai.url` override because that endpoint receives the key and source.
+Existing GitHub App permissions cover diff reads and comment publication.
+
+### 🔌 HTTP transport
+
+GitHub transport settings live under `github.client`; AI transport settings live
+under `ai.client`. Each has its own connection pool, request timeout, TLS, and
+circuit-breaking settings. TLS credentials and trusted roots are resolved at
+startup; invalid sources prevent startup. Circuit breaking is disabled unless
+configured. Idle connections close during shutdown after scheduled work stops.
+
+GitHub retries are disabled unless configured. To enable safe-method retries,
+merge this block into `github`:
+
+```yaml
+github:
+  client:
+    retry:
+      attempts: 2
+      backoff: 100ms
+```
+
+Rebase, auto-merge, merge, and deletion mutations are never retried by the HTTP
+transport; a later scheduled run reads current state before deciding whether
+another action is needed. AI requests never retry, even when `ai.client.retry`
+is configured. Its HTTP timeout cannot extend the independent inference limit
+or the remaining summary job budget.
+
+### 🗓️ Auto-merge schedule
+
+The optional `scheduler` block controls owner-wide auto-merge sweeps. Cleanup and
+summaries have independent schedules under their own configuration blocks.
+
+```yaml
+scheduler:
+  interval: 15m
+  timeout: 5m
+```
+
+### ⏱️ Defaults and validation
+
+| Setting | Default | Purpose |
+| --- | --- | --- |
+| `scheduler.interval` | `15m` | Time between owner-wide auto-merge sweeps. |
+| `scheduler.timeout` | `5m` | Deadline for a complete auto-merge sweep. |
+| `cleanup.inactive_after` | `720h` (30 days) | Latest-commit age required for inactive cleanup. |
+| `cleanup.interval` | `24h` | Time between cleanup runs. |
+| `cleanup.timeout` | `5m` | Deadline for a complete cleanup run. |
+| `cleanup.exclude` | `[]` | Exact, case-sensitive branch names to preserve. |
+| `summarise.model` | None | Required model when `summarise` is configured. |
+| `summarise.interval` | `30s` | Time between summary queue processing runs. |
+| `summarise.timeout` | `2m` | Deadline for a complete summary job run. |
+| `github.client.timeout` | `1m` | Deadline for an individual GitHub HTTP request. |
+| `github.url` | `https://api.github.com/` | REST API base URL, shared with GraphQL. |
+| `github.webhook.timeout` | `5s` | Complete synchronous delivery budget; must be positive and below `10s`. |
+| `ai.client.timeout` | `1m` | Deadline for an AI HTTP request, bounded by the inference and job budgets. |
+| `ai.openai.url` | `https://api.openai.com/v1/` | Trusted provider API base URL. |
+| `transport.http.max_receive_size` | `4MB` | Incoming request body limit for all HTTP routes. |
+
+Omitted or zero auto-merge, cleanup, and summary job durations, inactivity
+thresholds, webhook budgets, and GitHub and AI client timeouts use the defaults
+above. Negative schedule durations, inactivity thresholds, and HTTP client
+timeouts are invalid. Excluded branch names must be nonempty.
+
+### 🔐 Credentials
+
+App private keys, webhook secrets, and AI keys use go-service sources such as
+`file:/etc/secrets/abgleich/github-app-private-key.pem` or `env:OPENAI_API_KEY`.
+Credentials and TLS sources are resolved once at startup. Keep credential files
+in a `secrets/` directory.
 
 > [!IMPORTANT]
-> App private keys and webhook secrets are read once at startup.
-> Missing or empty configured sources and invalid RSA PEM files prevent startup.
-> Restart the worker after changing these sources. Installation access tokens
-> renew automatically. GitHub authentication failures occur during requests and
-> do not make worker health fail.
+> Missing or empty configured credential sources and invalid RSA PEM or TLS
+> sources prevent startup. Restart the worker after replacing these sources.
+> Installation access tokens renew automatically. Authentication failures during
+> requests do not make worker health fail.
 
-### 📝 AI pull request summaries
+## 🛠️ Operations
 
-Post a new PR comment containing exactly `/ab summarise`; surrounding whitespace
-is allowed. The PR must be open and non-draft, and the unedited human comment's
-author must currently have write or admin access.
-
-Summaries are disabled by default. Configure the optional `ai` and `summarise`
-blocks shown in [Configuration](#-configuration). Once enabled, maintainers can
-request summaries in repositories accessible to the App installation without
-adding a repository topic.
-
-The model is required, with no default. Omit `summarise` to disable the command's
-work and its scheduled job. The independent job defaults to a `30s` interval and
-`2m` timeout; configured durations must be positive. It processes at most four
-queued requests serially. Inference uses at most one minute and half the remaining
-job budget. Status and automerge commands remain usable while inference runs.
-
-The App reacts 👀 on receipt and 👍 when the request is queued or a summary already
-exists. Acceptance precedes model completion. The later App reply identifies the
-analyzed head SHA and original request. **An existing App summary prevents another
-model call or summary comment, including after restart or a head change.** To
-request a fresh summary, delete the existing App summary and post `/ab summarise`
-again. Failure replies do not prevent retrying.
-
-Pending work stays in memory. After a worker restart, reissue the command. The
-worker checks current App comments before generation and publication, so an
-existing summary also prevents duplication after an ambiguous GitHub response.
-Exactly-once inference is not guaranteed if generation finishes without a
-published comment. Run one active service instance; a full queue returns HTTP 503.
-
-> [!IMPORTANT]
-> An authorized `/ab summarise` comment authorizes sending selected PR metadata
-> and changed-file patches to OpenAI, including private repositories and fork
-> contributions. Approve the provider's data handling and billing before enabling
-> summaries. Summary requests are independent of auto-merge settings and labels.
-> Summaries are advisory and never label, approve, merge, rebase, or execute code.
-
-Context includes at most 20 changed files, 8 KiB per patch and 16 KiB of patches in
-total. PR titles, descriptions, and filenames are passed through without
-truncation. Missing or oversized patches and omitted files are disclosed to the
-model. Complete files and repository
-trees are not retrieved; code and tests are not executed. The model returns plain
-text with a 2,048-token output budget. The prompt asks for fewer than 150 words:
-a brief behaviour summary and up to three changed-file pointers explaining where
-to start reading. Specific context omissions get a short closing note. This word
-target is prompted, rather than enforced by truncation. Per-line
-citations are not generated or validated. Inspect the diff before relying on an
-explanation. Source text is untrusted input; the model receives no tools or GitHub
-credentials.
-
-The command, permission, PR eligibility, and both branch revisions are checked
-before source submission and publication. Revocation prevents the next observed
-submission or reply. Revision changes discard the explanation and ask for a new
-request. Already transmitted source cannot be recalled, and a change after the
-final read can still race publication. Provider refusals, failures, incomplete or
-empty responses, and timeouts produce failure feedback when still authorized;
-health and auto-merge remain independent.
-
-Keys use startup-resolved go-service sources such as `file:` or `env:`. Configured
-missing or empty keys prevent startup; restart after replacement. The adapter uses
-the official [OpenAI Go SDK](https://developers.openai.com/api/docs/libraries),
-explicit credentials, `store: false`, and no automatic request retries.
-AI HTTP settings live under `ai.client`: request timeout, TLS, and circuit
-breaking use the same shared settings as `github.client`. The request timeout
-defaults to `1m` when omitted or zero; negative values prevent startup. TLS
-credentials and trusted roots are resolved at startup, and invalid sources
-prevent startup. Circuit breaking is disabled unless configured. Inference POSTs
-never retry, even when `ai.client.retry` is configured. The HTTP timeout cannot
-extend the independent one-minute inference limit or the remaining job budget.
-Idle connections close during shutdown after scheduled work stops.
-
-`ai.openai.url` optionally overrides `https://api.openai.com/v1/`; use a trusted
-endpoint because it receives the key and source. Existing GitHub App permissions
-cover the diff reads and comment publication.
-
-Monitor `job: summarise` outcomes and `ai generation` logs for task, model,
-duration, and token usage. Generation logs use info for success and error for
-failure; token usage is included on success. Provider logging is a decorator;
-source, responses, and credentials are not logged. The local Cucumber harness uses fake HTTP
-responses and disposable credentials. Evaluate the selected model on approved PRs
-before widening opt-in; bounded diff context cannot establish whole-PR accuracy.
-
-## 🩺 Health
+### 🩺 Health
 
 The service exposes HTTP observability endpoints:
 
@@ -511,15 +571,10 @@ Job failures, conflicts, and timeouts do not affect these health checks. Infraop
 probes the private readiness and liveness endpoints directly, including for
 workers without a Service or Ingress.
 
-`health.duration` controls how frequently health state is sampled.
-`health.timeout` bounds the shared connectivity check; it is independent of the
-scheduled job's run timeout.
-
-## 📊 Telemetry
+### 📊 Telemetry
 
 Each completed run produces one log entry with `job`, `duration`, `interval`, and
-`overrun`. The auto-merge job uses `job: automerge`; the optional summary job uses
-`job: summarise`.
+`overrun`. Jobs identify themselves as `automerge`, `cleanup`, or `summarise`.
 
 | Outcome | Log level | Details |
 | --- | --- | --- |
@@ -534,8 +589,7 @@ include repository names and pull request numbers where available. GraphQL error
 are failures even when the HTTP response is 200. A failed branch contributes to
 the run's failure outcome while other eligible branches continue to be processed.
 
-- **Timeouts:** the auto-merge job defaults to five minutes per run; the summary
-  job defaults to two minutes. Each job cancels its active work at its deadline.
+- **Timeouts:** each job cancels its active work at its configured deadline.
 - **Overruns:** work that exceeds its interval sets `overrun` to `true` when it
   finishes, preserving the handler's success or failure result.
 - **Overlap:** each tick attempts to start work. Attempts while the previous run
@@ -543,35 +597,71 @@ the run's failure outcome while other eligible branches continue to be processed
 
 Scheduled job monitoring uses structured logs. Configure collection and alerts
 for repeated failures, exceeded intervals, and missing completed runs in your log
-backend. The scheduler does not publish custom job metrics. Standard go-service
-HTTP and runtime telemetry remains available through its configured exporters.
+backend. Repeated rate-limit failures may require increasing the
+[auto-merge interval](#-auto-merge-schedule). The scheduler does not publish custom
+job metrics. Standard go-service HTTP and runtime telemetry remains available
+through its configured exporters.
 
-## 📦 Deployment
+Successful branch deletions log `deleted branch` with repository, branch, and
+SHA. Retain accepted-action logs for recovery; an ambiguous response can leave a
+successful remote action without a corresponding acceptance log.
+
+Monitor `job: summarise` outcomes and `ai generation` logs for task, model,
+duration, and token usage. Generation logs use info for success and error for
+failure; token usage is included on success. Source, responses, and credentials
+are not logged.
+
+### 📦 Deployment
 
 - **Instances:** run as a long-lived service with one active instance. Scheduling
   limits apply within a process; the expected head OID guards updates from other instances and CI.
 - **Restarts:** use liveness for restart decisions so a GitHub outage does not cause restart loops.
 - **Shutdown:** active work is cancelled, and the worker waits for it to stop.
 
+The standard service container image is sufficient.
+
 ### 🧯 Recovery
+
+#### 🔄 Auto-merge recovery
 
 No local checkpoint or database is needed. Each auto-merge run reconciles current
 GitHub state. After a crash, timeout, or ambiguous mutation response, a fresh run
 determines whether the remote branch still needs updating. GitHub can complete
 an accepted update after the caller stops waiting; retries always compare current
-remote state before requesting another rebase. The standard service container
-image is sufficient.
+remote state before requesting another rebase.
+
+#### 💬 Webhook recovery
+
+GitHub does not automatically redeliver failed webhooks. Inspect delivery results
+in the App settings and redeliver failures after recovery. Ambiguous label
+responses are not retried automatically; redelivery re-reads current state.
+
+#### 📝 Summary recovery
 
 Pending summary requests are held in memory and lost on restart; post
 `/ab summarise` again to reissue them. Published App summaries remain on GitHub
-and prevent another generation, including after restart or new commits. See
-[AI pull request summaries](#-ai-pull-request-summaries) for retry guidance.
+and prevent another generation, including after restart or new commits. To
+request a fresh summary, delete the existing App summary and post `/ab summarise`
+again. Failure replies do not prevent retrying.
+
+The worker checks current App comments before generation and publication, so an
+existing summary also prevents duplication after an ambiguous GitHub response.
+Exactly-once inference is not guaranteed if generation finishes without a
+published comment.
+
+#### 🧹 Cleanup recovery
+
+If deletion was unintended, recreate the branch from the SHA in the deletion log
+while GitHub retains the commit. A merged PR may also offer **Restore branch**.
+A lost response can mean deletion succeeded without an acceptance log; inspect
+GitHub before acting.
 
 ## 🧩 Design
 
 | Package | Responsibility |
 | --- | --- |
 | [`automerge`](internal/automerge/reconciler.go) | Repository opt-in, strategy selection and ordering, automerge command authorization and action, and job and command registration. |
+| [`cleanup`](internal/cleanup/doc.go) | Optional merged and inactive branch cleanup, exclusions, safety rechecks, and independent job registration. |
 | [`automerge/internal/strategy`](internal/automerge/internal/strategy/doc.go) | Dependabot, label, and rebase policies with fresh pre-mutation checks. |
 | [`status`](internal/status/doc.go) | Authorized automation assessments, snapshot rechecks, and status reply publication. |
 | [`summarise`](internal/summarise/doc.go) | Authorized queued summaries, bounded PR diffs, and summary job registration. |
@@ -593,6 +683,8 @@ flowchart LR
     automerge --> commands
     automerge --> github
     automerge --> scheduler
+    cleanup --> github
+    cleanup --> scheduler
     status --> automerge
     status --> commands
     status --> github
@@ -611,7 +703,7 @@ and pull request types alias SDK snapshots;
 they contain no service behavior. The service uses an injected `github.Client`,
 which holds the installation SDK client and a private JWT client for installation
 identity checks. The GitHub module constructs it once through `github.NewClient`.
-The reconciler, strategies, command handler, and dispatcher receive the same `github.Service`.
+The reconcilers, strategies, command handler, and dispatcher receive the same `github.Service`.
 `transport/http` verifies deliveries through `github.Webhook`, then calls
 `commands.Dispatcher.Handle` for command recognition, installation validation,
 overlap protection, and feedback. The dispatcher selects a handler by exact
@@ -660,9 +752,13 @@ Each package registers construction in its own module. The
 [auto-merge module](internal/automerge/module.go) constructs the reconciler and
 registers `Reconcile` as the `automerge` job. When configured, the
 [summary module](internal/summarise/module.go) registers its queue processor as
-the independent `summarise` job. Other feature packages can register their own
+the independent `summarise` job. The configured
+[cleanup module](internal/cleanup/module.go) registers branch reconciliation as
+the independent `cleanup` job. Other feature packages can register their own
 named handlers and schedules through `Scheduler.Register`. Registration finishes
 before startup, and duplicate names prevent application startup.
+Feature configurations implement `scheduler.Schedule` through timing getters;
+each package owns its defaults, and modules pass configuration directly to registration.
 Scheduler has no feature-package dependencies.
 
 The [scheduler module](internal/scheduler/module.go) connects `Scheduler.Start`

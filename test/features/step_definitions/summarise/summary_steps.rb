@@ -364,8 +364,8 @@ Given('four maintainers are waiting for their summaries') do
 end
 
 Then('ordinary automation should continue while those requests wait') do
-  next_checks = Abgleich.job_logs.length + 2
-  wait_for { Abgleich.job_logs.length }.to be >= next_checks, 'expected ordinary automation to continue while summaries wait'
-  expect_successful_check
+  next_checks = Abgleich.job_logs('automerge').length + 2
+  wait_for { Abgleich.job_logs('automerge').length }.to be >= next_checks, 'expected ordinary automation to continue while summaries wait'
+  expect_successful_check('automerge')
   expect(Abgleich.openai.requests).to be_empty, 'expected the accepted requests to remain waiting'
 end

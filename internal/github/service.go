@@ -39,6 +39,22 @@ func NewService(cfg *Config, client *Client, log *logger.Logger) Service {
 // Service owns repository discovery, identity checks, REST reads, and guarded
 // mutations. Callers own pull request eligibility, rebase, and merge policy.
 type Service interface {
+	// ListBranches collects complete, validated branch pagination before cleanup.
+	ListBranches(ctx context.Context, repo *Repository) ([]*Branch, error)
+
+	// GetBranch rechecks branch identity, protection, and head without redirects.
+	GetBranch(ctx context.Context, repo *Repository, name string) (*Branch, error)
+
+	// GetCommit reads an immutable commit and requires a matching SHA and date.
+	GetCommit(ctx context.Context, repo *Repository, sha string) (*RepositoryCommit, error)
+
+	// ListBranchPullRequests collects complete head-branch history, including open PRs.
+	ListBranchPullRequests(ctx context.Context, repo *Repository, branch string) ([]*PullRequest, error)
+
+	// DeleteBranch deletes a branch only while its expected SHA still matches.
+	// GraphQL failures and unconfirmed responses fail without mutation retries.
+	DeleteBranch(ctx context.Context, repo *Repository, branch *Branch) error
+
 	// ValidateInstallation checks the configured App, owner, and suspension state
 	// without caching. Comment commands must call it before accessing repositories.
 	ValidateInstallation(ctx context.Context) error
@@ -198,6 +214,9 @@ func (s *service) ListOpenPullRequests(ctx context.Context, repo *Repository) ([
 		page, response, err := s.client.installation.PullRequests.List(ctx, repo.GetOwner().GetLogin(), repo.GetName(), opts)
 		if err != nil {
 			return nil, errors.Prefix("github: list pull requests", err)
+		}
+		if page == nil {
+			return nil, errors.New("github: pull requests returned an incomplete page")
 		}
 
 		// New pull requests can shift page boundaries while discovery is running.

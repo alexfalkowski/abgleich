@@ -8,7 +8,12 @@ import (
 
 // NewJob constructs a job whose handler observes cancellation and returns its
 // complete run outcome. Register through Scheduler.Register to add outcome logging.
-func NewJob(name string, cfg *Config, handler sync.Handler) *Job {
+// A nil schedule uses Config's shared interval and timeout defaults.
+func NewJob(name string, cfg Schedule, handler sync.Handler) *Job {
+	if cfg == nil {
+		cfg = &Config{}
+	}
+
 	return &Job{name: name, config: cfg, handler: handler}
 }
 
@@ -16,7 +21,7 @@ func NewJob(name string, cfg *Config, handler sync.Handler) *Job {
 // Construct it with NewJob and connect Start and Stop to the service lifecycle.
 type Job struct {
 	handler sync.Handler
-	config  *Config
+	config  Schedule
 	cancel  context.CancelFunc
 	stopped chan struct{}
 	name    string

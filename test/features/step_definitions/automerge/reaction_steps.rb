@@ -17,7 +17,7 @@ Given('GitHub takes longer than one second to acknowledge the command outcome') 
 end
 
 When('a maintainer requests auto-merge while GitHub is still applying the label') do
-  @comment_event = Abgleich.github.add_comment('contribution')
+  @comment_event = Abgleich.github.add_comment('contribution', body: '/ab automerge')
   Nonnative.start
   delivery = Thread.new { Abgleich.deliver_comment(@comment_event) }
   comment_id = @comment_event.fetch(:comment).fetch('id')

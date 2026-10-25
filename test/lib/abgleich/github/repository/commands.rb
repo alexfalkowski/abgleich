@@ -33,7 +33,7 @@ module Abgleich
         @mutex.synchronize { @state[:label_requests] }
       end
 
-      def add_comment(branch, permission: 'write', body: '/ab automerge', created_at: '2026-01-01T00:00:05Z')
+      def add_comment(branch, body:, permission: 'write', created_at: '2026-01-01T00:00:05Z')
         @mutex.synchronize do
           pull = @state[:pulls].values.find { |item| item.dig(:head, :ref) == branch }
           repository = pull.dig(:base, :repo, :full_name)
