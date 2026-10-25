@@ -9,6 +9,55 @@ import (
 // Repository aliases [github.Repository] to keep SDK imports in this package.
 type Repository = github.Repository
 
+// Branch aliases [github.Branch] for branch cleanup snapshots.
+type Branch = github.Branch
+
+// RepositoryCommit aliases [github.RepositoryCommit] for commit age checks.
+type RepositoryCommit = github.RepositoryCommit
+
+// RefUpdate carries the expected and replacement OIDs for an atomic ref update.
+type RefUpdate struct {
+	Name      string `json:"name"`
+	BeforeOID string `json:"beforeOid"`
+	AfterOID  string `json:"afterOid"`
+}
+
+// UpdateRefsRequest deletes one branch with an atomic expected-commit guard.
+// The zero AfterOID deletes the reference; ClientMutationID must be echoed.
+type UpdateRefsRequest struct {
+	Query     string `json:"query"`
+	Variables struct {
+		Input struct {
+			RepositoryID     string      `json:"repositoryId"`
+			ClientMutationID string      `json:"clientMutationId"`
+			RefUpdates       []RefUpdate `json:"refUpdates"`
+		} `json:"input"`
+	} `json:"variables"`
+}
+
+// UpdateRefsResponse requires a matching mutation ID and no GraphQL errors.
+type UpdateRefsResponse struct {
+	Data struct {
+		Update *struct {
+			ClientMutationID string `json:"clientMutationId"`
+		} `json:"updateRefs"`
+	} `json:"data"`
+	Errors Errors `json:"errors"`
+}
+
+// Validate rejects absent, unconfirmed, or failed reference updates.
+func (r *UpdateRefsResponse) Validate(expectedID string) error {
+	if err := r.Errors.Validate(); err != nil {
+		return errors.Prefix("github: delete branch", err)
+	}
+
+	if r.Data.Update == nil || r.Data.Update.ClientMutationID != expectedID {
+		return errors.New("github: delete branch returned no matching mutation")
+	}
+
+	return nil
+}
+
 // PullRequest aliases [github.PullRequest] so consumers use the project-owned package.
 type PullRequest = github.PullRequest
 

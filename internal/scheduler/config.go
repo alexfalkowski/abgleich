@@ -7,6 +7,14 @@ const (
 	defaultTimeout  = 5 * time.Minute
 )
 
+// Schedule supplies a job's effective, positive interval and timeout.
+// Feature configurations own their defaults through these getters; Config
+// supplies the scheduler's shared defaults.
+type Schedule interface {
+	GetInterval() time.Duration
+	GetTimeout() time.Duration
+}
+
 // Config controls a job's schedule. Zero values use a fifteen-minute interval
 // and a five-minute timeout.
 // Timeout cancels a run; a handler must observe its context before another run

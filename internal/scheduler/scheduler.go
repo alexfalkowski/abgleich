@@ -28,14 +28,15 @@ type Scheduler struct {
 // before Start. The handler must observe cancellation and return its full outcome.
 // Outcomes and overruns are logged after each run.
 // A nil configuration uses the default interval and timeout.
-func (s *Scheduler) Register(name string, cfg *Config, handler sync.Handler) error {
+func (s *Scheduler) Register(name string, cfg Schedule, handler sync.Handler) error {
 	for _, job := range s.jobs {
 		if job.name == name {
 			return fmt.Errorf("%w: %s", ErrJobRegistered, name)
 		}
 	}
 
-	loggedHandler := func(ctx context.Context) error {
+	job := NewJob(name, cfg, handler)
+	job.handler = func(ctx context.Context) error {
 		started := time.Now()
 		err := handler(ctx)
 		if err == nil {
@@ -43,7 +44,7 @@ func (s *Scheduler) Register(name string, cfg *Config, handler sync.Handler) err
 		}
 
 		duration := time.Since(started)
-		interval := cfg.GetInterval()
+		interval := job.config.GetInterval()
 		overrun := duration > interval
 
 		message := logger.NewMessage("job finished", err)
@@ -58,7 +59,7 @@ func (s *Scheduler) Register(name string, cfg *Config, handler sync.Handler) err
 
 		return err
 	}
-	s.jobs = append(s.jobs, NewJob(name, cfg, loggedHandler))
+	s.jobs = append(s.jobs, job)
 	return nil
 }
 

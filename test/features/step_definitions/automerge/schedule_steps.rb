@@ -9,7 +9,7 @@ Given('a check for branch {string} timed out while {string}') do |branch, operat
   Abgleich.github.add_pull(branch)
   Abgleich.github.fail_with(failure_mode)
   Nonnative.start
-  wait_for { Abgleich.job_logs.last }.to include(
+  wait_for { Abgleich.job_logs('automerge').last }.to include(
     'level' => 'error', 'error' => a_string_including('context deadline exceeded'),
     'overrun' => true, 'interval' => '1s', 'duration' => a_kind_of(String)
   )
@@ -18,12 +18,12 @@ end
 
 Given('GitHub failures have interrupted successful branch checks') do
   Nonnative.start
-  expect_successful_check
+  expect_successful_check('automerge')
 
   Abgleich.github.fail_with('list')
-  expect_failed_check
+  expect_failed_check('automerge')
   wait_for do
-    Abgleich.job_logs.count { |check| check['level'] == 'error' }
+    Abgleich.job_logs('automerge').count { |check| check['level'] == 'error' }
   end.to be >= 2, 'expected at least two scheduled branch checks to fail before GitHub recovers'
   expect_healthy_worker
 end
@@ -42,13 +42,13 @@ When('the worker restarts') do
 end
 
 Then('the interrupted check should be cancelled') do
-  expect(Abgleich.job_logs).to include(
+  expect(Abgleich.job_logs('automerge')).to include(
     a_hash_including('level' => 'error', 'error' => a_string_including('context canceled'))
   )
 end
 
 Then('the worker should warn about the slow check') do
-  wait_for { Abgleich.job_logs.last }.to include(
+  wait_for { Abgleich.job_logs('automerge').last }.to include(
     'msg' => 'job finished', 'level' => 'warn', 'overrun' => true, 'interval' => '1s', 'duration' => a_kind_of(String)
   )
 end

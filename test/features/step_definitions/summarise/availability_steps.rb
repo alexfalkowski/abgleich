@@ -12,6 +12,21 @@ Given('the operator configures {string} for the AI service') do |setting|
   File.write('.config/server.yaml', YAML.dump(config))
 end
 
+Given('the operator uses the default summary schedule') do
+  config = YAML.safe_load_file('.config/server.yaml')
+  config['summarise'].delete('interval')
+  config['summarise'].delete('timeout')
+  File.write('.config/server.yaml', YAML.dump(config))
+end
+
+Then('the maintainer should receive a summary within {int} seconds') do |seconds|
+  with_wait(timeout: seconds) do
+    wait_for do
+      Abgleich.github.replies.any? { |reply| reply[:body].start_with?("### 🤖 Abgleich summary\n") }
+    end.to be(true), "expected the maintainer to receive a summary within #{seconds} seconds"
+  end
+end
+
 Then('the maintainer should be asked to retry without another AI request') do
   wait_for { Abgleich.github.replies.length }.to eq(2), 'expected feedback for both summary requests'
   Abgleich.github.replies.each do |reply|

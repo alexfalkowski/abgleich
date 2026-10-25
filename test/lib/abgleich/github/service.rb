@@ -72,46 +72,20 @@ module Abgleich
     get '/repos/:owner/:repository' do
       repository = "#{params.fetch('owner')}/#{params.fetch('repository')}"
       halt 503 if Abgleich.github.failure(repository) == 'repository settings'
+      halt 403 if Abgleich.github.failure(repository) == 'repository access'
       result = Abgleich.github.repository(repository)
       result[:full_name] = 'someone/other' if Abgleich.github.failure(repository) == 'mismatched repository'
+      result.delete(:node_id) if Abgleich.github.cleanup_mode == 'missing repository identity'
       result.to_json
-    end
-
-    get '/repos/:owner/:repository/pulls' do
-      GitHubService.track_scan do
-        repository = "#{params.fetch('owner')}/#{params.fetch('repository')}"
-        page = params.fetch('page', '1').to_i
-        pulls, more = Abgleich.github.list(page, repository, sort: params['sort'] || 'created', direction: params['direction'] || 'desc')
-        failure = Abgleich.github.failure(repository)
-        if failure == 'temporary list'
-          Abgleich.github.fail_with(nil)
-          halt 503
-        end
-        halt 503 if failure == 'list'
-        halt 503 if failure == 'pull request page' && page > 1
-        if (limit = rate_limit_response(failure))
-          code, payload, rate_headers = limit
-          headers rate_headers
-          halt code, payload.to_json
-        end
-
-        halt 403, { message: 'You have exceeded a secondary rate limit' }.to_json if failure == 'secondary rate limit without metadata'
-
-        halt 403, { message: 'Resource not accessible by integration' }.to_json if failure == 'permission'
-        halt 200, '{' if failure == 'malformed response'
-        sleep 1.1 if failure == 'slow list'
-        wait_for_token_renewal(failure)
-        sleep 3 if failure == 'timeout'
-        headers 'Link' => "<http://localhost:11001/github/repos/#{repository}/pulls?page=#{page + 1}>; rel=\"next\"" if more
-        pulls.to_json
-      end
     end
 
     get '/repos/:owner/:repository/pulls/:number' do
       failure = Abgleich.github.failure
       halt 503 if failure == 'pull request'
+      halt 503 if Abgleich.github.cleanup_mode == 'merged PR unavailable'
       repository = "#{params.fetch('owner')}/#{params.fetch('repository')}"
       pull, rechecked = Abgleich.github.pull(params.fetch('number').to_i, repository)
+      pull[:merged] = false if Abgleich.github.cleanup_mode == 'unconfirmed merge'
       pull[:head][:repo] = nil if failure == 'missing head repository'
       change_status_state(repository, rechecked, failure)
       if rechecked && failure == 'hold before mutation'
@@ -140,6 +114,9 @@ module Abgleich
 
     post '/graphql' do
       payload = @graphql_payload
+      if payload.fetch('query').include?('mutation DeleteBranch')
+        halt branch_deletion_response(payload.fetch('variables').fetch('input')).to_json
+      end
       if payload.fetch('query').include?('query PullRequestAutomationEvents')
         halt automation_events_response(payload.fetch('variables')).to_json
       end
@@ -179,6 +156,13 @@ module Abgleich
     end
 
     private
+
+    def branch_deletion_response(input)
+      branch = input.fetch('refUpdates').first.fetch('name').delete_prefix('refs/heads/')
+      halt 503 if Abgleich.github.cleanup_mode == "delete HTTP:#{branch}"
+
+      Abgleich.github.delete_branch(input)
+    end
 
     def wait_for_token_renewal(failure)
       return unless failure&.start_with?('installation token renewal') && Abgleich.github.progress.fetch(:scans) == 1

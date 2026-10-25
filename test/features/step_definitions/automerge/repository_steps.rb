@@ -35,12 +35,12 @@ end
 
 Given('the worker has successfully checked the existing repositories') do
   Nonnative.start
-  expect_successful_check
+  expect_successful_check('automerge')
 end
 
 Given('a repository timeout has interrupted a sweep') do
   Nonnative.start
-  wait_for { Abgleich.job_logs.last }.to include('error' => a_string_including('context deadline exceeded'))
+  wait_for { Abgleich.job_logs('automerge').last }.to include('error' => a_string_including('context deadline exceeded'))
   expect_healthy_worker
 end
 
@@ -58,7 +58,7 @@ Then('branch {string} in repository {string} should be rebased') do |branch, rep
 end
 
 Then('the repositories should have these branch outcomes:') do |table|
-  wait_for { Abgleich.job_logs }.not_to be_empty
+  wait_for { Abgleich.job_logs('automerge') }.not_to be_empty
 
   table.hashes.each do |row|
     repository, branch, outcome = row.values_at('repository', 'branch', 'outcome')
@@ -74,17 +74,18 @@ Then('no repositories should have been checked') do
 end
 
 Then('the failure should identify repository {string}') do |repository|
-  wait_for { Abgleich.job_logs }.to include(a_hash_including('error' => a_string_including(repository)))
+  wait_for { Abgleich.job_logs('automerge') }.to include(a_hash_including('error' => a_string_including(repository)))
 end
 
 Then('the first check should stop at repository {string} before repository {string}') do |limited, later|
-  wait_for { Abgleich.job_logs.first }.to include('error' => a_string_including(limited))
-  expect(Abgleich.job_logs.first.fetch('error')).not_to include(later), 'expected throttling to stop the sweep before the later failure'
+  wait_for { Abgleich.job_logs('automerge').first }.to include('error' => a_string_including(limited))
+  error = Abgleich.job_logs('automerge').first.fetch('error')
+  expect(error).not_to include(later), 'expected throttling to stop the sweep before the later failure'
 end
 
 Then('the first check should stop before pull request {int} in repository {string}') do |number, repository|
-  wait_for { Abgleich.job_logs.first }.to include('error' => a_string_including(repository))
-  error = Abgleich.job_logs.first.fetch('error')
+  wait_for { Abgleich.job_logs('automerge').first }.to include('error' => a_string_including(repository))
+  error = Abgleich.job_logs('automerge').first.fetch('error')
   expect(error).not_to include("pull request ##{number}"), "expected throttling to skip #{repository} pull request ##{number}"
 end
 

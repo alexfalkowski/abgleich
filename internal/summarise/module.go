@@ -18,5 +18,5 @@ func registerSchedule(schedules *scheduler.Scheduler, command *Command) error {
 		return nil
 	}
 
-	return schedules.Register(summaryCommand, command.config.schedule(), command.queue.Process)
+	return schedules.Register(summaryCommand, command.config, command.queue.Process)
 }

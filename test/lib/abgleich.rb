@@ -11,7 +11,9 @@ require 'abgleich/assertions'
 require 'abgleich/credentials'
 require 'abgleich/github/repository'
 require 'abgleich/github/service'
+require 'abgleich/github/pull_request_service'
 require 'abgleich/github/app_service'
+require 'abgleich/github/branch_service'
 require 'abgleich/openai/responses'
 require 'abgleich/openai/service'
 require 'abgleich/api/server'
@@ -46,7 +48,7 @@ module Abgleich
       end
     end
 
-    def job_logs(name = 'automerge')
+    def job_logs(name)
       logs.select { |record| record['job'] == name }
     end
 

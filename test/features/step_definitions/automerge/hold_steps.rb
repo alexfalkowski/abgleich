@@ -10,8 +10,8 @@ end
 
 Given('the worker has repeatedly respected the hold on branch {string}') do |branch|
   Nonnative.start
-  wait_for { Abgleich.job_logs.length }.to be >= 2, "expected two completed checks while #{branch} is held"
-  expect_successful_check
+  wait_for { Abgleich.job_logs('automerge').length }.to be >= 2, "expected two completed checks while #{branch} is held"
+  expect_successful_check('automerge')
   expect(Abgleich::GitHubService.request_counts.fetch(:mutation_requests)).to eq(0), "expected no mutations while #{branch} is held"
 end
 
@@ -28,12 +28,12 @@ When('the worker restarts with the hold still present') do
 end
 
 Then('branch {string} should receive no worker mutations') do |branch|
-  expected_checks = Abgleich.job_logs.length + 2
-  wait_for { Abgleich.job_logs.length }.to be >= expected_checks, "expected two more completed checks for #{branch}"
+  expected_checks = Abgleich.job_logs('automerge').length + 2
+  wait_for { Abgleich.job_logs('automerge').length }.to be >= expected_checks, "expected two more completed checks for #{branch}"
   pull = Abgleich.github.pull_state(branch)
   expect(pull.fetch(:actions)).to be_empty, "expected no merge actions on branch #{branch}"
   expect(Abgleich.github.rebased?(branch)).to be(false), "expected no rebase of branch #{branch}"
-  expect_successful_check
+  expect_successful_check('automerge')
 end
 
 Then('branch {string} should retain its existing auto-merge') do |branch|

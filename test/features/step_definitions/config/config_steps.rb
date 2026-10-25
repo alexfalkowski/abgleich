@@ -35,8 +35,8 @@ end
 
 Given('the first check stopped at throttled installation-token renewal') do
   Nonnative.start
-  expect_failed_check
-  error = Abgleich.job_logs.first.fetch('error')
+  expect_failed_check('automerge')
+  error = Abgleich.job_logs('automerge').first.fetch('error')
   expect(error).to include('429', 'pull request #1:')
   expect(error).not_to include('pull request #2:', 'alexfalkowski/later')
   failed_renewals = Abgleich::GitHubService.request_counts.fetch(:installation_requests) - Abgleich.github.token_requests
@@ -50,7 +50,7 @@ Given('the worker cannot authenticate when checking branch {string}') do |branch
   Abgleich.github.add_pull(branch)
   Abgleich.prepare_github_key('unrecognized')
   Nonnative.start
-  expect_failed_check
+  expect_failed_check('automerge')
   expect(Abgleich.github.unchanged?).to be(true)
   expect_healthy_worker
 end
@@ -60,7 +60,7 @@ When('the worker restarts with valid App credentials') do
 end
 
 Then('GitHub should receive one installation check per sweep and {int} for comment commands') do |command_checks|
-  wait_for { Abgleich.job_logs.length }.to be >= 2, 'expected at least two completed sweeps to check installation freshness'
+  wait_for { Abgleich.job_logs('automerge').length }.to be >= 2, 'expected at least two completed sweeps to check installation freshness'
   wait_for do
     counts = Abgleich::GitHubService.request_counts
     counts.fetch(:installation_checks) - counts.fetch(:repository_discoveries)
@@ -68,8 +68,8 @@ Then('GitHub should receive one installation check per sweep and {int} for comme
 end
 
 Then('the first check should report ordinary renewal failures across pull requests and repositories') do
-  expect_failed_check
-  error = Abgleich.job_logs.first.fetch('error')
+  expect_failed_check('automerge')
+  error = Abgleich.job_logs('automerge').first.fetch('error')
   expect(error).to include('503', 'pull request #1:', 'pull request #2:', 'alexfalkowski/later')
   failed_renewals = Abgleich::GitHubService.request_counts.fetch(:installation_requests) - Abgleich.github.token_requests
   expect(failed_renewals).to eq(3), 'expected three renewal failures across pull requests and repositories'

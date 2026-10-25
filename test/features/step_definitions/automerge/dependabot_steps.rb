@@ -60,7 +60,7 @@ Given('the worker lost confirmation of a Dependabot action on branch {string} th
   Abgleich.github.add_pull(branch, author: 'dependabot[bot]', auto_merge: false, current: true, **options)
   Abgleich.github.fail_with('lost mutation response')
   Nonnative.start
-  expect_failed_check
+  expect_failed_check('automerge')
   expect(Abgleich.github.pull_state(branch).fetch(:actions).length).to eq(1), "expected GitHub to accept one action on #{branch}"
   expect_no_accepted_merge_actions
 end
@@ -74,8 +74,10 @@ Then('branch {string} should be squash-merged') do |branch|
 end
 
 Then('branch {string} should wait for checks before merging') do |branch|
-  expected_checks = Abgleich.job_logs.length + 2
-  wait_for { Abgleich.job_logs.length }.to be >= expected_checks, "expected two more checks while #{branch} waits for checks after rebasing"
+  expected_checks = Abgleich.job_logs('automerge').length + 2
+  wait_for do
+    Abgleich.job_logs('automerge').length
+  end.to be >= expected_checks, "expected two more checks while #{branch} waits for checks after rebasing"
   expect(Abgleich.github.pull_state(branch).fetch(:merged)).to be(false), "expected #{branch} to wait for checks after rebasing"
   expect(Abgleich.logs).not_to include(a_hash_including('msg' => 'merged pull request', 'branch' => branch))
   expect(Abgleich::GitHubService.request_counts.fetch(:mutation_requests)).to eq(2), 'expected only the first merge and second rebase'
@@ -94,7 +96,7 @@ Then('only one Dependabot action should occur for branch {string}') do |branch|
 end
 
 Then('no pull request mutations should be requested') do
-  wait_for { Abgleich.job_logs.length }.to be >= 2, 'expected at least two completed checks before asserting no mutations'
+  wait_for { Abgleich.job_logs('automerge').length }.to be >= 2, 'expected at least two completed checks before asserting no mutations'
   expect(Abgleich::GitHubService.request_counts.fetch(:mutation_requests)).to eq(0), 'expected no PR mutation requests'
   expect(Abgleich.github.progress.fetch(:actions)).to eq(0), 'expected no accepted Dependabot actions'
   expect_no_accepted_rebases
@@ -110,8 +112,8 @@ Then('only one mutation request should have been sent') do
 end
 
 Then('the first check should report only one failure for pull request {int}') do |number|
-  wait_for { Abgleich.job_logs.first }.to include('level' => 'error')
-  error = Abgleich.job_logs.first.fetch('error')
+  wait_for { Abgleich.job_logs('automerge').first }.to include('level' => 'error')
+  error = Abgleich.job_logs('automerge').first.fetch('error')
   expect(error.scan("pull request ##{number}:").length).to eq(1), "expected one failed attempt for pull request ##{number}: #{error}"
 end
 

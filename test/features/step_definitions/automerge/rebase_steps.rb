@@ -57,7 +57,7 @@ Given("an author's commit interrupted the rebase of branch {string}") do |branch
   Abgleich.github.add_pull(branch)
   Abgleich.github.fail_with('concurrent push')
   Nonnative.start
-  expect_failed_check
+  expect_failed_check('automerge')
   expect(Abgleich.github.rebased?(branch)).to be(false), "expected the concurrent author change to prevent rebasing #{branch}"
 end
 
@@ -105,20 +105,20 @@ Then('branch {string} should be rebased only once') do |branch|
 end
 
 Then('the branch check should succeed') do
-  expect_successful_check
+  expect_successful_check('automerge')
 end
 
 Then('the branch check should fail') do
-  expect_failed_check
+  expect_failed_check('automerge')
 end
 
 Then('the branch check should fail without affecting worker health') do
-  expect_failed_check
+  expect_failed_check('automerge')
   expect_healthy_worker
 end
 
 Then('the worker should defer rebasing branch {string}') do |branch|
-  wait_for { Abgleich.job_logs.first }.to include(
+  wait_for { Abgleich.job_logs('automerge').first }.to include(
     'level' => 'error', 'error' => a_string_including('pull request changed before rebase; retry on the next run')
   )
   expect(Abgleich.github.rebased?(branch)).to be(false), "branch #{branch} was rebased despite the changed pull request"
@@ -136,5 +136,5 @@ Then("the rebase should use the author's latest commit") do
 end
 
 Then('no branch checks should have failed') do
-  expect(Abgleich.job_logs).not_to include(a_hash_including('level' => 'error'))
+  expect(Abgleich.job_logs('automerge')).not_to include(a_hash_including('level' => 'error'))
 end

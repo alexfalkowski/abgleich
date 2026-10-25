@@ -10,6 +10,16 @@ type loggingService struct {
 	logger *logger.Logger
 }
 
+func (s *loggingService) DeleteBranch(ctx context.Context, repo *Repository, branch *Branch) error {
+	if err := s.Service.DeleteBranch(ctx, repo, branch); err != nil {
+		return err
+	}
+
+	s.logger.Info("deleted branch", "repository", repo.GetFullName(), "branch", branch.GetName(), "sha", branch.GetCommit().GetSHA())
+
+	return nil
+}
+
 func (s *loggingService) AddComment(ctx context.Context, repo *Repository, number int, body string) error {
 	if err := s.Service.AddComment(ctx, repo, number, body); err != nil {
 		return err
