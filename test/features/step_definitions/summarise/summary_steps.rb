@@ -46,7 +46,8 @@ end
 
 Given('the AI service supplies {string}') do |answer|
   modes = { 'a refusal' => 'refusal', 'an unfinished answer' => 'incomplete',
-            'no answer' => 'null response', 'an answer arriving late' => 'timeout' }
+            'no answer' => 'null response', 'an answer arriving late' => 'timeout',
+            'a longer change list' => 'extra changes', 'an empty change list' => 'empty changes' }
   Abgleich.openai.mode = modes.fetch(answer)
 end
 
@@ -127,6 +128,11 @@ Then('the summary should identify the request and the pull request revision') do
   expect(body).to include('The worker now processes requests predictably.', 'patches', 'not executed')
   expect(body).to include(Abgleich.github.pull_state('contribution').dig(:head, :sha))
   expect(body).to include("#issuecomment-#{@comment_event.fetch(:comment).fetch('id')}")
+  repository = Abgleich::GitHubRepository::DEFAULT_REPOSITORY
+  sha = Abgleich.github.pull_state('contribution').dig(:head, :sha)
+  expected_location = "- [test.go](https://github.com/#{repository}/blob/#{sha}/test.go)\\\n  "
+  expect(body).to include('**Where to look**', expected_location), 'expected a linked file above its reading instruction'
+  expect(body).to include('**What changes**', '- Requests wait in a background queue.'), 'expected scannable behaviour changes'
   expect(Abgleich.openai.requests.last.fetch('input')).to include('File: test.go'), 'expected all changed files to be considered'
 end
 
@@ -224,17 +230,84 @@ Then('no completed summary should be posted') do
 end
 
 Given('the contribution contains {string}') do |changes|
-  modes = { 'more than twenty changed files' => 'file budget', 'large combined changes' => 'patch budget',
-            'an oversized individual change' => 'oversized patch', 'a change without a text diff' => 'missing patch' }
+  modes = { 'more than twenty changed files' => 'many files', 'large combined changes' => 'many patches',
+            'an oversized individual change' => 'large patch', 'a change without a text diff' => 'missing patch',
+            'source changes and an image without a text diff' => 'mixed patches', 'a deleted source file' => 'removed file',
+            'a CI workflow change' => 'ci workflow' }
   Abgleich.github.file_mode = modes.fetch(changes)
 end
 
-Then('only permitted source should be shared with an explanation of {string}') do |omission|
+Then('all changed-file context should be shared with the AI service and include {string}') do |evidence|
   wait_for { Abgleich.openai.requests.length }.to eq(1)
   input = Abgleich.openai.requests.first.fetch('input')
-  reasons = { 'omitted files' => 'file limit', 'omitted patches' => 'patch budget', 'unavailable changes' => 'Patch omitted' }
-  expect(input).to include(reasons.fetch(omission)), 'expected omitted changes to be explained to the AI service'
-  expect(input).not_to include('file21.go', 'withheld-source'), 'expected excluded source to remain private'
+  expect(input).to include(evidence), 'expected every changed-file detail returned by GitHub to reach the AI service'
+end
+
+Given('the AI service explains missing patches after three reading pointers') do
+  Abgleich.openai.mode = 'limits note'
+end
+
+Then('the summary should link the available files before its context note') do
+  wait_for do
+    Abgleich.github.replies.last&.fetch(:body)&.include?('**Missing context:**')
+  end.to be(true), 'expected a summary with a context note'
+  body = Abgleich.github.replies.last.fetch(:body)
+  repository = Abgleich::GitHubRepository::DEFAULT_REPOSITORY
+  sha = Abgleich.github.pull_state('contribution').dig(:head, :sha)
+  %w[main.go worker.go test.go].each do |path|
+    location = "- [#{path}](https://github.com/#{repository}/blob/#{sha}/#{path})\\\n  "
+    expect(body).to include(location), "expected a reading link for #{path} despite the closing context note"
+    expect(body.index(location)).to be < body.index('**Missing context:**'), "expected the #{path} link before the context note"
+  end
+  expect(body).to include("**Missing context:** image.png has no patch. @\u200beveryone \\[details\\]\\(https://untrusted.invalid\\)")
+  expect(body).not_to include('@everyone', '[details](')
+  expect(Abgleich.openai.requests.last.fetch('input')).to include('File: image.png', 'Patch unavailable from GitHub.')
+end
+
+Given('the AI service explains the CI workflow change') do
+  Abgleich.openai.mode = 'ci workflow'
+end
+
+Then('the summary should put the outcome and changes before its reading guide') do
+  wait_for { Abgleich.github.replies.last&.fetch(:body)&.include?('CI now runs feature groups separately') }.to be(true)
+  body = Abgleich.github.replies.last.fetch(:body)
+  expect(body).to start_with("### 🤖 Abgleich summary\n\nCI now runs feature groups separately")
+  expect(body).to include("**What changes**\n\n- Six feature groups have matching local commands.",
+                          '- Coverage profiles stay isolated until aggregation.',
+                          '- Deployment waits for both packages and Docker images.')
+  expect(body.index('**What changes**')).to be < body.index('**Where to look**'), 'expected the changes before reading pointers'
+  paths = ['.circleci/config.yml', 'Makefile', 'scripts/coverage\\-workspace']
+  paths.each do |path|
+    expect(body).to include("- [#{path}]"), "expected a bulleted reading pointer for #{path}"
+  end
+  paths.each_cons(2) do |earlier, later|
+    expect(body.index(earlier)).to be < body.index(later), "expected #{earlier} before #{later} in reading order"
+  end
+  expect(body.index('**Where to look**')).to be < body.index('<details>'), 'expected routine details after the reading guide'
+  expect(body.index('**🔖 Commit:**')).to be > body.index('<details>'), 'expected the commit inside the collapsed details'
+  expect(body).to include("<summary>Summary details</summary>\n", '**🔖 Commit:**', 'not executed.', '</details>')
+  File.write('reports/summary-preview.md', body)
+end
+
+Given('the AI service points the reader to the deleted file') do
+  Abgleich.openai.mode = 'removed pointer'
+end
+
+Then('the unformatted answer should retain {string}') do |evidence|
+  wait_for { Abgleich.github.replies.last&.fetch(:body)&.include?('Requests stay queued.') }.to be(true)
+  body = Abgleich.github.replies.last.fetch(:body)
+  expect(body).to include("Changes:\n", evidence), 'expected the original change list to remain visible'
+  expect(body).not_to include('**What changes**'), 'expected an unexpected list to stay plain text'
+end
+
+Then('the summary should retain the deleted patch without linking the removed file') do
+  wait_for { Abgleich.github.replies.last&.fetch(:body)&.include?('The old entry point was removed.') }.to be(true)
+  body = Abgleich.github.replies.last.fetch(:body)
+  repository = Abgleich::GitHubRepository::DEFAULT_REPOSITORY
+  sha = Abgleich.github.pull_state('contribution').dig(:head, :sha)
+  expect(body).not_to include("https://github.com/#{repository}/blob/#{sha}/main.go"), 'expected no link to a missing head file'
+  input = Abgleich.openai.requests.last.fetch('input')
+  expect(input).to include("File: main.go (removed)\n@@ -1,2 +0,0 @@\n-package worker\n-old\n"), 'expected the removed file patch'
 end
 
 Given('a comment resembling an App summary was posted by {string}') do |author|

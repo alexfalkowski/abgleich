@@ -167,18 +167,50 @@ Feature: Maintainer-requested summaries
     When a maintainer with "write" access comments "/ab summarise"
     Then the summary should identify the request and the pull request revision
 
-  Scenario Outline: Limit the source shared with the AI service
+  Scenario Outline: Share all changed-file information returned by GitHub
     Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
     And the contribution contains "<changes>"
     When a maintainer with "write" access comments "/ab summarise"
-    Then only permitted source should be shared with an explanation of "<omission>"
+    Then all changed-file context should be shared with the AI service and include "<evidence>"
 
     Examples:
-      | changes                        | omission            |
-      | more than twenty changed files | omitted files       |
-      | large combined changes         | omitted patches     |
-      | an oversized individual change | omitted patches     |
-      | a change without a text diff   | unavailable changes |
+      | changes                        | evidence                       |
+      | more than twenty changed files | File: file21.go                 |
+      | large combined changes         | test.go-patch-end               |
+      | an oversized individual change | main.go-patch-end               |
+      | a change without a text diff   | Patch unavailable from GitHub.  |
+
+  Scenario: Read the outcome and changes before choosing a file
+    Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
+    And the contribution contains "a CI workflow change"
+    And the AI service explains the CI workflow change
+    When a maintainer with "write" access comments "/ab summarise"
+    Then the summary should put the outcome and changes before its reading guide
+
+  Scenario Outline: Preserve an answer whose change list cannot be formatted
+    Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
+    And the AI service supplies "<answer>"
+    When a maintainer with "write" access comments "/ab summarise"
+    Then the unformatted answer should retain "<evidence>"
+
+    Examples:
+      | answer               | evidence                        |
+      | a longer change list | Restart drops pending requests. |
+      | an empty change list | Changes:                        |
+
+  Scenario: Keep reading links when the answer explains a missing patch
+    Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
+    And the contribution contains "source changes and an image without a text diff"
+    And the AI service explains missing patches after three reading pointers
+    When a maintainer with "write" access comments "/ab summarise"
+    Then the summary should link the available files before its context note
+
+  Scenario: Avoid a reading link to a deleted file
+    Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
+    And the contribution contains "a deleted source file"
+    And the AI service points the reader to the deleted file
+    When a maintainer with "write" access comments "/ab summarise"
+    Then the summary should retain the deleted patch without linking the removed file
 
   Scenario Outline: Ignore comments that only look like an App summary
     Given a pull request from "the repository" for branch "contribution" is "waiting for checks"

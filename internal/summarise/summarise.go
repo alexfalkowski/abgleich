@@ -10,19 +10,18 @@ type summaryTask struct {
 	commandComment *github.IssueComment
 }
 
-// pullRequestDiff supplies PR metadata and selected patches to the context
-// template. OmittedFileCount records changed files outside that selection.
+// pullRequestDiff supplies PR metadata and every changed file to the context
+// template, including patch text when GitHub provides it.
 type pullRequestDiff struct {
-	Title            string
-	Description      string
-	HeadSHA          string
-	BaseSHA          string
-	Files            []changedFile
-	OmittedFileCount int
+	Title       string
+	Description string
+	HeadSHA     string
+	BaseSHA     string
+	Files       []changedFile
 }
 
-// changedFile retains file identity and status when its patch is unavailable or
-// excluded by a size budget. An empty Patch renders an explicit omission.
+// changedFile retains file identity and status when GitHub provides no patch.
+// An empty Patch renders that omission explicitly.
 type changedFile struct {
 	Filename         string
 	PreviousFilename string
@@ -31,9 +30,19 @@ type changedFile struct {
 }
 
 // summaryComment ties generated text to the analysed head and command comment.
-// The reply template escapes Text and links CommandCommentID to the request.
+// The reply template escapes generated text and links CommandCommentID to the request.
 type summaryComment struct {
 	HeadSHA          string
 	Text             string
+	Limits           string
+	Changes          []string
+	Locations        []summaryLocation
 	CommandCommentID int64
+}
+
+// summaryLocation links an available changed-file patch to its explanation.
+type summaryLocation struct {
+	Path        string
+	URL         string
+	Description string
 }

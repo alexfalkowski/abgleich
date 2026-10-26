@@ -196,23 +196,34 @@ Pending work stays in memory. See [summary recovery](#-summary-recovery) for
 restarts, fresh summaries, and retries after failures.
 
 > [!IMPORTANT]
-> An authorized `/ab summarise` comment authorizes sending selected PR metadata
-> and changed-file patches to OpenAI, including private repositories and fork
-> contributions. Approve the provider's data handling and billing before enabling
-> summaries. Summary requests are independent of auto-merge settings and labels.
+> An authorized `/ab summarise` comment authorizes sending PR metadata and
+> changed-file patches returned by GitHub to OpenAI, including private
+> repositories and fork contributions. Approve the provider's data handling and
+> billing before enabling summaries. Summary requests are independent of
+> auto-merge settings and labels.
 > Summaries are advisory and never label, approve, merge, rebase, or execute code.
 
-Context includes at most 20 changed files, 8 KiB per patch and 16 KiB of patches in
-total. PR titles, descriptions, and filenames are passed through without
-truncation. Missing or oversized patches and omitted files are disclosed to the
-model. Complete files and repository trees are not retrieved; code and tests are
-not executed. The model returns plain text with a 2,048-token output budget.
-The prompt asks for fewer than 150 words: a brief behaviour summary and up to
-three changed-file pointers explaining where to start reading. Specific context
-omissions get a short closing note. This word target is prompted, rather than
-enforced by truncation. Per-line citations are not generated or validated.
-Inspect the diff before relying on an explanation. Source text is untrusted
-input; the model receives no tools or GitHub credentials.
+Context includes every changed file and each patch returned by GitHub, without
+local file-count or patch-size limits. PR titles, descriptions, filenames, and
+available patches are passed through without truncation. GitHub may return file
+metadata without patch text; those files are disclosed to the model. Complete
+files and repository trees are not retrieved; code and tests are not executed.
+The model returns plain text with a 2,048-token output budget.
+The prompt asks for fewer than 120 words: a one-sentence outcome, up to three
+short **What changes** bullets, and up to three **Where to look** bullets, ordered
+by reading priority. Each linked filename sits above a short instruction
+explaining what to inspect and why. Valid pointers link to the analyzed head
+revision; deleted files and files without patches are excluded from link
+selection. Specific omissions appear as **Missing context**.
+Commit, request, and source-scope information stays available in a collapsed
+**Summary details** footer. The word target and writing quality depend on the
+model; malformed sections remain escaped plain text. Per-line citations are not
+generated or validated.
+Inspect the diff before relying on an explanation. Sending all available patches
+can increase provider usage for large pull requests. Very large pull requests can
+exceed the model's context window or summary job deadline and fail; the worker
+does not truncate them locally. Source text is untrusted input; the model
+receives no tools or GitHub credentials.
 
 The command, permission, PR eligibility, and both branch revisions are checked
 before source submission and publication. Revocation prevents the next observed
@@ -225,8 +236,9 @@ health and auto-merge remain independent.
 The adapter uses the official
 [OpenAI Go SDK](https://developers.openai.com/api/docs/libraries), explicit
 credentials, `store: false`, and no automatic inference retries. Evaluate the
-selected model on approved PRs before widening opt-in; bounded diff context
-cannot establish whole-PR accuracy.
+selected model on approved PRs before widening opt-in; GitHub may not provide
+patch text for every changed file, so summaries cannot establish whole-PR
+accuracy.
 
 ## 🚀 Quickstart
 
@@ -665,7 +677,7 @@ GitHub before acting.
 | [`automerge/internal/strategy`](internal/automerge/internal/strategy/doc.go) | Dependabot, label, and rebase policies. |
 | [`cleanup`](internal/cleanup/doc.go) | Optional merged and inactive branch cleanup. |
 | [`status`](internal/status/doc.go) | Read-only automation assessments and replies. |
-| [`summarise`](internal/summarise/doc.go) | Authorized queued summaries and bounded diff context. |
+| [`summarise`](internal/summarise/doc.go) | Authorized queued summaries and available changed-file patches. |
 | [`ai`](internal/ai/doc.go) | Provider credentials and text generation. |
 | [`commands`](internal/commands/doc.go) | Dispatch, installation validation, queues, and reactions. |
 | [`github`](internal/github/doc.go) | Discovery, identity checks, API access, and response validation. |
@@ -741,7 +753,7 @@ sequenceDiagram
     and Independent summary job
         opt Summary queued
             S->>F: Process queued request
-            F->>G: Fetch bounded diff<br/>Recheck authorization, revisions, and existing summaries
+            F->>G: Fetch changed files and available patches<br/>Recheck authorization, revisions, and existing summaries
             F->>A: Generate summary
             A-->>F: Summary text
             F->>G: Recheck state and existing summaries<br/>Publish reply if still eligible
