@@ -1,4 +1,4 @@
-@github @manual
+@github @manual @reconciliation
 Feature: Shared App installation access
   The worker and comment handler use the same App installation.
   Installation tokens renew without restarting the worker.

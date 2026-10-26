@@ -1,4 +1,4 @@
-@github @manual
+@github @manual @reconciliation
 Feature: Scheduled auto-merge checks
   Slow or failed checks must not prevent later checks.
   Restarting the worker cancels the active check and resumes checking.

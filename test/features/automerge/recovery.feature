@@ -1,4 +1,4 @@
-@github @manual
+@github @manual @reconciliation
 Feature: Auto-merge failure recovery
   A GitHub failure must not stop the worker from keeping branches current.
 

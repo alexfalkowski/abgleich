@@ -1,4 +1,4 @@
-@github @manual @merges
+@github @manual @merges @labels
 Feature: Labeled pull request automation
   Maintainers opt pull requests into squash merging with the automerge label.
   Fork branches remain under their authors' control.

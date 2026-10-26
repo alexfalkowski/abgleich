@@ -1,4 +1,4 @@
-@github @manual @commands
+@github @manual @commands @summaries
 Feature: Summary service availability
   Operators can bound how long maintainers wait for an answer.
   Repeated failures can temporarily stop new requests to the AI service.
