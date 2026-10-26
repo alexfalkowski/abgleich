@@ -127,6 +127,10 @@ Then('the summary should identify the request and the pull request revision') do
   expect(body).to include('The worker now processes requests predictably.', 'patches', 'not executed')
   expect(body).to include(Abgleich.github.pull_state('contribution').dig(:head, :sha))
   expect(body).to include("#issuecomment-#{@comment_event.fetch(:comment).fetch('id')}")
+  repository = Abgleich::GitHubRepository::DEFAULT_REPOSITORY
+  sha = Abgleich.github.pull_state('contribution').dig(:head, :sha)
+  expected_location = "- [`test.go`](https://github.com/#{repository}/blob/#{sha}/test.go) —"
+  expect(body).to include('### Where to look', expected_location), 'expected a linked changed-file pointer'
   expect(Abgleich.openai.requests.last.fetch('input')).to include('File: test.go'), 'expected all changed files to be considered'
 end
 
@@ -224,17 +228,15 @@ Then('no completed summary should be posted') do
 end
 
 Given('the contribution contains {string}') do |changes|
-  modes = { 'more than twenty changed files' => 'file budget', 'large combined changes' => 'patch budget',
-            'an oversized individual change' => 'oversized patch', 'a change without a text diff' => 'missing patch' }
+  modes = { 'more than twenty changed files' => 'many files', 'large combined changes' => 'many patches',
+            'an oversized individual change' => 'large patch', 'a change without a text diff' => 'missing patch' }
   Abgleich.github.file_mode = modes.fetch(changes)
 end
 
-Then('only permitted source should be shared with an explanation of {string}') do |omission|
+Then('all changed-file context should be shared with the AI service and include {string}') do |evidence|
   wait_for { Abgleich.openai.requests.length }.to eq(1)
   input = Abgleich.openai.requests.first.fetch('input')
-  reasons = { 'omitted files' => 'file limit', 'omitted patches' => 'patch budget', 'unavailable changes' => 'Patch omitted' }
-  expect(input).to include(reasons.fetch(omission)), 'expected omitted changes to be explained to the AI service'
-  expect(input).not_to include('file21.go', 'withheld-source'), 'expected excluded source to remain private'
+  expect(input).to include(evidence), 'expected every changed-file detail returned by GitHub to reach the AI service'
 end
 
 Given('a comment resembling an App summary was posted by {string}') do |author|

@@ -10,9 +10,6 @@ Previously: {{.PreviousFilename}}
 {{if .Patch -}}
 {{.Patch}}
 {{else -}}
-Patch omitted: unavailable or exceeds the patch budget.
+Patch unavailable from GitHub.
 {{end -}}
-{{end -}}
-{{if .OmittedFileCount}}
-{{.OmittedFileCount}} changed files omitted by the file limit.
 {{end -}}

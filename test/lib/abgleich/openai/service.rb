@@ -16,7 +16,7 @@ module Abgleich
       halt 429, { error: { message: 'Rate limited', type: 'rate_limit_error' } }.to_json if mode == 'rate limit'
       halt 200, 'null' if mode == 'null response'
 
-      output = 'The worker now processes requests predictably.'
+      output = "The worker now processes requests predictably.\n\nWhere to look:\ntest.go: tests cover the reported behavior."
       if mode == 'hostile prose'
         output = '<script>alert(1)</script> @everyone [click](https://untrusted.invalid) ![track](https://untrusted.invalid/image)'
       end

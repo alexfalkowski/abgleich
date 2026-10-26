@@ -5,4 +5,11 @@
 
 {{.Text | markdown}}
 
-**🔎 Scope:** PR metadata and bounded changed-file patches. Complete files were not retrieved; code and tests were not executed.
+{{if .Locations}}
+### Where to look
+
+{{range .Locations}}- [`{{.Path | markdown}}`]({{.URL}}) — {{.Description | markdown}}
+{{end}}
+{{end}}
+
+**🔎 Scope:** PR metadata and changed-file patches returned by GitHub. Complete files were not retrieved; code and tests were not executed.

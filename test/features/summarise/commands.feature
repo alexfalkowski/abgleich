@@ -167,18 +167,18 @@ Feature: Maintainer-requested summaries
     When a maintainer with "write" access comments "/ab summarise"
     Then the summary should identify the request and the pull request revision
 
-  Scenario Outline: Limit the source shared with the AI service
+  Scenario Outline: Share all changed-file information returned by GitHub
     Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
     And the contribution contains "<changes>"
     When a maintainer with "write" access comments "/ab summarise"
-    Then only permitted source should be shared with an explanation of "<omission>"
+    Then all changed-file context should be shared with the AI service and include "<evidence>"
 
     Examples:
-      | changes                        | omission            |
-      | more than twenty changed files | omitted files       |
-      | large combined changes         | omitted patches     |
-      | an oversized individual change | omitted patches     |
-      | a change without a text diff   | unavailable changes |
+      | changes                        | evidence                       |
+      | more than twenty changed files | File: file21.go                |
+      | large combined changes         | test.go-patch-end              |
+      | an oversized individual change | main.go-patch-end               |
+      | a change without a text diff   | Patch unavailable from GitHub. |
 
   Scenario Outline: Ignore comments that only look like an App summary
     Given a pull request from "the repository" for branch "contribution" is "waiting for checks"

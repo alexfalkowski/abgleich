@@ -20,7 +20,7 @@ func (c *Command) process(ctx context.Context, task *summaryTask) error {
 		return err
 	}
 
-	input, err := c.context(ctx, current)
+	input, files, err := c.context(ctx, current)
 	if err != nil {
 		return c.reportFailure(ctx, task, err)
 	}
@@ -52,7 +52,7 @@ func (c *Command) process(ctx context.Context, task *summaryTask) error {
 		return err
 	}
 
-	body, err := reply(task, completion.Text)
+	body, err := reply(task, completion.Text, files)
 	if err != nil {
 		return err
 	}

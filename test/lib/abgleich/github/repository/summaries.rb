@@ -27,7 +27,7 @@ module Abgleich
       def file_mode=(mode)
         @mutex.synchronize do
           @state[:file_mode] = mode
-          @state[:pulls].each_value { |pull| pull[:changed_files] = 21 } if mode == 'file budget'
+          @state[:pulls].each_value { |pull| pull[:changed_files] = 21 } if mode == 'many files'
           @state[:pulls].each_value { |pull| pull.delete(:changed_files) } if mode == 'missing file count'
         end
       end
@@ -38,7 +38,7 @@ module Abgleich
 
       def summary_files
         paths = %w[main.go worker.go test.go]
-        paths += (4..21).map { |number| "file#{number}.go" } if file_mode == 'file budget'
+        paths += (4..21).map { |number| "file#{number}.go" } if file_mode == 'many files'
         paths.pop if file_mode == 'incomplete file list'
         # An empty list must not substitute for an absent file count.
         paths.clear if file_mode == 'missing file count'
@@ -60,8 +60,12 @@ module Abgleich
       def summary_patch(path)
         case file_mode
         when 'missing patch' then nil
-        when 'patch budget' then path == 'test.go' ? 'withheld-source' * 400 : 'x' * 6000
-        when 'oversized patch' then 'withheld-source' * 1000
+        when 'many patches'
+          patch = path == 'test.go' ? 'withheld-source' * 400 : 'x' * 6000
+          "#{patch}#{path}-patch-end"
+        when 'large patch'
+          patch = 'withheld-source' * 1000
+          "#{patch}#{path}-patch-end"
         else "@@ -1,3 +1,3 @@\n package worker\n-old\n+new\n"
         end
       end
