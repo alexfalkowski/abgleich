@@ -274,6 +274,7 @@ Feature: Comment requests for auto-merge
         | the repository | closed                           | automerge | Pull request is closed         | Disabled   |
         | the repository | waiting for checks               | automerge | Would enable squash auto-merge | Disabled   |
         | a fork         | ready to merge                   | automerge | Would squash-merge             | Disabled   |
+        | a fork         | failing optional checks          | automerge | Would squash-merge             | Disabled   |
         | the repository | behind with auto-merge enabled   | bug       | Would request a rebase         | Enabled    |
         | the repository | waiting with auto-merge enabled  | bug       | Branch is current              | Enabled    |
         | a fork         | behind with auto-merge enabled   | bug       | Fork rebase unsupported        | Enabled    |
@@ -304,9 +305,10 @@ Feature: Comment requests for auto-merge
       And the status request should cause no automation mutations
 
       Examples:
-        | condition          | decision                       |
-        | waiting for checks | Would enable squash auto-merge |
-        | ready to merge     | Would squash-merge             |
+        | condition               | decision                       |
+        | waiting for checks      | Would enable squash auto-merge |
+        | ready to merge          | Would squash-merge             |
+        | failing optional checks | Would squash-merge             |
 
     Scenario Outline: Explain the need to renew revoked label authorization
       Given a pull request from "a fork" for branch "contribution" is "waiting for checks"

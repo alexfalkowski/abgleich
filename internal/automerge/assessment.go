@@ -84,11 +84,11 @@ func explainDecision(decision strategy.Decision) Assessment {
 	switch decision.Reason {
 	case strategy.ReasonReadyToMerge:
 		assessment.Decision = "Would squash-merge"
-		assessment.Reason = "GitHub reports this pull request mergeable with a clean merge state."
+		assessment.Reason = "GitHub reports this pull request ready to merge. Optional check failures do not block merging."
 		assessment.NextStep = "No new request is needed. GitHub still enforces repository rules when a sweep attempts the merge."
 	case strategy.ReasonPendingRequirements:
 		assessment.Decision = "Would enable squash auto-merge"
-		assessment.Reason = "GitHub has not confirmed a clean, mergeable state. The worker would request squash auto-merge " +
+		assessment.Reason = "GitHub has not confirmed this pull request ready to merge. The worker would request squash auto-merge " +
 			"and let GitHub enforce checks, reviews, and repository rules."
 		assessment.NextStep = "Inspect GitHub's merge box for outstanding requirements; this assessment does not identify individual checks or reviews."
 	case strategy.ReasonSquashMergeDisabled:

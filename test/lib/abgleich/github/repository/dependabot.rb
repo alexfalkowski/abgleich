@@ -56,7 +56,7 @@ module Abgleich
         return [409, { message: 'Head OID changed' }] unless input['sha'] == pull.dig(:head, :sha)
         return [422, { message: 'Invalid or premature merge request' }] unless input['merge_method'] == 'squash' && discovered?(pull)
 
-        [405, { message: 'Merge requirements not met' }] if mutation_failure(pull) || pull[:mergeable_state] != 'clean'
+        [405, { message: 'Merge requirements not met' }] if mutation_failure(pull) || !%w[clean unstable].include?(pull[:mergeable_state])
       end
     end
   end

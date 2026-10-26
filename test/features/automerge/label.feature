@@ -19,7 +19,7 @@ Feature: Labeled pull request automation
       | the repository |
 
   Scenario Outline: Merge a ready labeled pull request
-    Given a pull request from "<source>" for branch "contribution" is "ready to merge"
+    Given a pull request from "<source>" for branch "contribution" is "<condition>"
     And branch "contribution" has the "automerge" label
     When the worker checks auto-merge branches
     Then branch "contribution" should be squash-merged
@@ -28,9 +28,11 @@ Feature: Labeled pull request automation
     And only one merge action should occur for branch "contribution"
 
     Examples:
-      | source         |
-      | a fork         |
-      | the repository |
+      | source         | condition               |
+      | a fork         | ready to merge          |
+      | the repository | ready to merge          |
+      | a fork         | failing optional checks |
+      | the repository | failing optional checks |
 
   Scenario Outline: Require the exact opt-in label
     Given a pull request from "a fork" for branch "contribution" is "ready to merge"
@@ -72,11 +74,11 @@ Feature: Labeled pull request automation
     And only one merge action should occur for branch "contribution"
 
     Examples:
-      | condition            |
-      | of unknown readiness |
-      | missing mergeability |
-      | conflicting          |
-      | failing checks       |
+      | condition               |
+      | of unknown readiness    |
+      | missing mergeability    |
+      | conflicting             |
+      | failing required checks |
 
   Scenario: Rebase a labeled branch in the same repository on a later check
     Given a pull request from "the repository" for branch "contribution" is "behind its base"

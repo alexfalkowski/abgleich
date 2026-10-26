@@ -20,9 +20,11 @@ Feature: Dependabot merge automation
     And only one Dependabot action should occur for branch "dependencies"
 
     Examples:
-      | condition                     |
-      | ready to merge                |
-      | ready with auto-merge enabled |
+      | condition                                       |
+      | ready to merge                                  |
+      | ready with auto-merge enabled                   |
+      | failing optional checks                         |
+      | failing optional checks with auto-merge enabled |
 
   Scenario: Defer another ready pull request when a merge advances its base
     Given the Dependabot pull request for branch "first" is "ready with auto-merge enabled"
@@ -50,12 +52,12 @@ Feature: Dependabot merge automation
     And the branch check should succeed
 
     Examples:
-      | condition                              |
-      | waiting with auto-merge enabled        |
-      | of unknown readiness with auto-merge   |
-      | conflicting with auto-merge enabled    |
-      | failing checks with auto-merge enabled |
-      | missing mergeability with auto-merge   |
+      | condition                                       |
+      | waiting with auto-merge enabled                 |
+      | of unknown readiness with auto-merge            |
+      | conflicting with auto-merge enabled             |
+      | failing required checks with auto-merge enabled |
+      | missing mergeability with auto-merge            |
 
   Scenario Outline: Respect Dependabot eligibility
     Given the Dependabot pull request for branch "dependencies" is "<condition>"

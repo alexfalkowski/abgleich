@@ -12,7 +12,8 @@ Given('a pull request from {string} for branch {string} is {string}') do |source
     'of unknown readiness' => { mergeable_state: 'unknown' },
     'missing mergeability' => { mergeable: nil, mergeable_state: 'clean' },
     'conflicting' => { mergeable: false, mergeable_state: 'dirty' },
-    'failing checks' => { mergeable_state: 'unstable' }
+    'failing required checks' => { mergeable_state: 'blocked' },
+    'failing optional checks' => { mergeable_state: 'unstable' }
   }.fetch(condition)
   fork = { 'a fork' => true, 'the repository' => false }.fetch(source)
   Abgleich.github.add_pull(branch, fork:, auto_merge: false, current: true, **options)
