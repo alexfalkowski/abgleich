@@ -1,8 +1,32 @@
 ### 🤖 Abgleich summary
 
-**🔖 Commit:** `{{.HeadSHA}}`  
-[💬 Summary request](#issuecomment-{{.CommandCommentID}})
-
 {{.Text | markdown}}
 
-**🔎 Scope:** PR metadata and bounded changed-file patches. Complete files were not retrieved; code and tests were not executed.
+{{if .Changes}}
+**What changes**
+
+{{range .Changes}}- {{. | markdown}}
+{{end}}
+{{end}}
+{{if .Locations}}
+**Where to look**
+
+{{range .Locations}}- [{{.Path | markdown}}]({{.URL}})\
+  {{.Description | markdown}}
+{{end}}
+{{end}}
+{{if .Limits}}
+**Missing context:** {{.Limits | markdown}}
+
+{{end}}
+
+<details>
+<summary>Summary details</summary>
+
+**🔖 Commit:** `{{.HeadSHA}}`
+
+[💬 Summary request](#issuecomment-{{.CommandCommentID}})
+
+**🔎 Scope:** PR metadata and changed-file patches returned by GitHub. Complete files were not retrieved; code and tests were not executed.
+
+</details>

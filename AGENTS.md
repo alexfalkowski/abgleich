@@ -24,7 +24,7 @@ run reconciles fresh remote state; pending summary requests are held in memory.
 | `internal/automerge` | Repository opt-in, PR eligibility, merge and rebase decisions, automerge comment authorization and action, and registration of its own job and command. |
 | `internal/cleanup` | Optional merged and inactive branch cleanup policy, pre-deletion rechecks, exclusions, and registration of its own job. |
 | `internal/status` | Status comment authorization, snapshot rechecks, reply rendering and publication, and registration of its own command. |
-| `internal/summarise` | Summary authorization, bounded PR diff context, queued processing, reply publication, and registration of its own job and command. |
+| `internal/summarise` | Summary authorization, all changed-file patches returned by GitHub, queued processing, reply publication, and registration of its own job and command. |
 | `internal/ai` | Optional provider configuration, credential resolution, text generation, and generation logging. |
 | `internal/scheduler` | Reusable named jobs, timing, overlap prevention, logging, and lifecycle. |
 | `internal/config` | Composition and injection of package-owned configuration. |
@@ -118,11 +118,12 @@ run reconciles fresh remote state; pending summary requests are held in memory.
   source sharing, independently of auto-merge settings, labels, and repository
   topics. Recheck authorization and both branch revisions before source submission
   and reply publication; discard stale explanations.
-- Keep diff context bounded. Treat source text as untrusted data; generation
-  receives no tools or GitHub credentials and never executes code or requests
-  merge automation. Use explicit provider credentials and disable response
-  storage and automatic inference retries. Log generation outcomes through a
-  decorator without source, response text, or credentials.
+- Include every changed file and patch returned by GitHub in summary context;
+  do not impose local file-count or patch-size limits. Treat source text as
+  untrusted data; generation receives no tools or GitHub credentials and never
+  executes code or requests merge automation. Use explicit provider credentials
+  and disable response storage and automatic inference retries. Log generation
+  outcomes through a decorator without source, response text, or credentials.
 - Use the shared in-memory command queue and an independent summary job so
   inference does not hold the webhook command slot. Recheck existing App summaries
   before generation and publication; a published summary prevents another model

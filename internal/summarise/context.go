@@ -1,44 +1,40 @@
 package summarise
 
-import "github.com/alexfalkowski/go-service/v2/context"
-
-const (
-	maxFiles             = 20
-	maxPatchBytes        = 8 * 1024
-	maxPatchContextBytes = 16 * 1024
+import (
+	"github.com/alexfalkowski/go-service/v2/context"
+	"github.com/alexfalkowski/go-service/v2/strings"
 )
 
 // context uses the pull-request diff directly. Complete files, repository trees,
 // and old-side snapshots are not needed for an advisory summary.
-func (c *Command) context(ctx context.Context, task *summaryTask) (string, error) {
+func (c *Command) context(ctx context.Context, task *summaryTask) (string, []changedFile, error) {
 	files, err := c.github.ListPullRequestFiles(ctx, task.repository, task.pullRequest)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 
 	diff := pullRequestDiff{
-		Title:            task.pullRequest.GetTitle(),
-		Description:      task.pullRequest.GetBody(),
-		HeadSHA:          task.pullRequest.GetHead().GetSHA(),
-		BaseSHA:          task.pullRequest.GetBase().GetSHA(),
-		OmittedFileCount: max(0, len(files)-maxFiles),
+		Title:       task.pullRequest.GetTitle(),
+		Description: task.pullRequest.GetBody(),
+		HeadSHA:     task.pullRequest.GetHead().GetSHA(),
+		BaseSHA:     task.pullRequest.GetBase().GetSHA(),
 	}
-	patchBytes := 0
+	available := make([]changedFile, 0, len(files))
 
-	for _, file := range files[:min(len(files), maxFiles)] {
+	for _, file := range files {
 		change := changedFile{
 			Filename:         file.GetFilename(),
 			PreviousFilename: file.GetPreviousFilename(),
 			Status:           file.GetStatus(),
+			Patch:            file.GetPatch(),
 		}
 
-		patch := file.GetPatch()
-		if len(patch) <= maxPatchBytes && patchBytes+len(patch) <= maxPatchContextBytes {
-			change.Patch = patch
-			patchBytes += len(patch)
-		}
 		diff.Files = append(diff.Files, change)
+		if !strings.IsEmpty(change.Patch) && change.Status != "removed" {
+			available = append(available, change)
+		}
 	}
 
-	return render("context.txt.tmpl", diff)
+	input, err := render("context.txt.tmpl", diff)
+	return input, available, err
 }
