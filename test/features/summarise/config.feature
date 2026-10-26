@@ -1,4 +1,4 @@
-@github @manual
+@github @manual @summaries
 Feature: Enable optional pull request summaries
   Operators can enable summaries with a supported AI service and usable credentials.
   Ordinary automation continues when summaries are disabled.

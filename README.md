@@ -789,11 +789,14 @@ make features feature=features/automerge
 
 Use `make help` to discover the other development commands.
 
-Run a CI feature group locally with `make features-merges`,
-`make features-commands`, or `make features-worker`. These select `@merges`,
-`@commands`, and all remaining features, respectively. New features belong to
-the worker group unless tagged for one of the other groups. Run groups one at
-a time locally because the harness shares ports and configuration files.
+Run a CI feature group locally, for example `make features-dependabot` or
+`make features-summaries`. Use `make help` for all six groups and their scope;
+summaries and comment reactions share a group to balance execution time.
+`make features-merges` still runs both Dependabot and labeled merge features.
+The command group now excludes summaries and reactions, and the worker group
+excludes the new summary and reconciliation groups. New features belong to
+the worker group unless tagged for another group. Run groups one at a time
+locally because the harness shares ports and configuration files.
 
 Nonnative starts the worker and independent fake GitHub REST/GraphQL and OpenAI
 Responses APIs on one local HTTP listener:

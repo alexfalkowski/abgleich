@@ -1,4 +1,4 @@
-@github @manual @commands
+@github @manual @commands @summaries
 Feature: Maintainer-requested summaries
   Maintainers can request one advisory explanation of a pull request.
   Requests require current write access and never change pull request automation.

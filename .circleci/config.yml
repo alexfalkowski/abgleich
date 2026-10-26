@@ -80,21 +80,37 @@ jobs:
           paths:
             - ~/.cache/go-build
     resource_class: arm.large
-  features-merges:
+  features-dependabot:
     executor: go
     working_directory: ~/abgleich
     steps:
       - prepare-service
-      - run: make features-merges
+      - run: make features-dependabot
       - store_test_results:
           path: test/reports
       - store_artifacts:
           path: test/reports
-      - run: make coverage-workspace-stage partition=merges
+      - run: make coverage-workspace-stage partition=dependabot
       - persist_to_workspace:
           root: /tmp/abgleich-reports
           paths:
-            - merges
+            - dependabot
+    resource_class: arm.large
+  features-labels:
+    executor: go
+    working_directory: ~/abgleich
+    steps:
+      - prepare-service
+      - run: make features-labels
+      - store_test_results:
+          path: test/reports
+      - store_artifacts:
+          path: test/reports
+      - run: make coverage-workspace-stage partition=labels
+      - persist_to_workspace:
+          root: /tmp/abgleich-reports
+          paths:
+            - labels
     resource_class: arm.large
   features-commands:
     executor: go
@@ -111,6 +127,38 @@ jobs:
           root: /tmp/abgleich-reports
           paths:
             - commands
+    resource_class: arm.large
+  features-summaries:
+    executor: go
+    working_directory: ~/abgleich
+    steps:
+      - prepare-service
+      - run: make features-summaries
+      - store_test_results:
+          path: test/reports
+      - store_artifacts:
+          path: test/reports
+      - run: make coverage-workspace-stage partition=summaries
+      - persist_to_workspace:
+          root: /tmp/abgleich-reports
+          paths:
+            - summaries
+    resource_class: arm.large
+  features-reconciliation:
+    executor: go
+    working_directory: ~/abgleich
+    steps:
+      - prepare-service
+      - run: make features-reconciliation
+      - store_test_results:
+          path: test/reports
+      - store_artifacts:
+          path: test/reports
+      - run: make coverage-workspace-stage partition=reconciliation
+      - persist_to_workspace:
+          root: /tmp/abgleich-reports
+          paths:
+            - reconciliation
     resource_class: arm.large
   features-worker:
     executor: go
@@ -155,6 +203,19 @@ jobs:
     working_directory: ~/abgleich
     steps:
       - checkout-submodules
+      - run: version
+      - persist_to_workspace:
+          root: /tmp/workspace
+          paths:
+            - .
+    resource_class: arm.large
+  package:
+    executor: release
+    working_directory: ~/abgleich
+    steps:
+      - checkout-submodules
+      - attach_workspace:
+          at: /tmp/workspace
       - run: make source-key
       - restore_cache:
           name: restore go cache
@@ -166,11 +227,6 @@ jobs:
           keys:
             - abgleich-go-build-cache-{{ checksum "go.sum" }}-{{ checksum "~/.go-version" }}-{{ checksum ".source-key" }}
             - abgleich-go-build-cache-
-      - run: version
-      - persist_to_workspace:
-          root: /tmp/workspace
-          paths:
-            - .
       - run: package
     resource_class: arm.large
   wait-all:
@@ -252,10 +308,19 @@ workflows:
   abgleich:
     jobs:
       - build-service
-      - features-merges:
+      - features-dependabot:
+          requires:
+            - build-service
+      - features-labels:
           requires:
             - build-service
       - features-commands:
+          requires:
+            - build-service
+      - features-summaries:
+          requires:
+            - build-service
+      - features-reconciliation:
           requires:
             - build-service
       - features-worker:
@@ -263,8 +328,11 @@ workflows:
             - build-service
       - coverage:
           requires:
-            - features-merges
+            - features-dependabot
+            - features-labels
             - features-commands
+            - features-summaries
+            - features-reconciliation
             - features-worker
       - test-docker-amd64:
           filters:
@@ -287,6 +355,14 @@ workflows:
           serial-group: << pipeline.project.slug >>/version
           requires:
             - coverage
+          filters:
+            branches:
+              only: master
+      - package:
+          context: gh
+          serial-group: << pipeline.project.slug >>/package
+          requires:
+            - version
           filters:
             branches:
               only: master
@@ -316,6 +392,7 @@ workflows:
       - deploy:
           context: gh
           requires:
+            - package
             - manifest-docker
           filters:
             branches:
@@ -323,13 +400,17 @@ workflows:
       - wait-all:
           requires:
             - coverage
-            - features-merges
+            - features-dependabot
+            - features-labels
             - features-commands
+            - features-summaries
+            - features-reconciliation
             - features-worker
             - sync
             - test-docker-amd64
             - test-docker-arm64
             - version
+            - package
             - release-docker-amd64
             - release-docker-arm64
             - manifest-docker

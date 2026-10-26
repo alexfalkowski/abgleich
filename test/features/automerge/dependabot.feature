@@ -1,4 +1,4 @@
-@github @manual @merges
+@github @manual @merges @dependabot
 Feature: Dependabot merge automation
   Repositories opt in through their auto-merge setting.
   Dependabot pull requests are queued for auto-merge or merged when ready.

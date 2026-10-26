@@ -1,4 +1,4 @@
-@github @manual @commands
+@github @manual @commands @summaries
 Feature: Summaries based on complete pull request information
   Maintainers can request summaries of long discussions.
   Unavailable or inconsistent information prevents source from being shared.
