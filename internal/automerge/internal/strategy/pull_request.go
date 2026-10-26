@@ -7,7 +7,8 @@ func Eligible(pull *github.PullRequest) bool {
 	return pull.GetState() == "open" && !pull.GetDraft() && !github.HasLabel(pull.GetLabels(), "hold")
 }
 
-// readyToMerge requires GitHub to confirm mergeability and a clean merge state.
+// readyToMerge accepts optional check failures; GitHub still enforces merge requirements.
 func readyToMerge(pull *github.PullRequest) bool {
-	return pull.GetMergeable() && pull.GetMergeableState() == "clean"
+	state := pull.GetMergeableState()
+	return pull.GetMergeable() && (state == "clean" || state == "unstable")
 }

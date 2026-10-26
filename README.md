@@ -292,8 +292,9 @@ repository list omits merge settings. Dependabot and labeled automation use Grap
 [`enablePullRequestAutoMerge`](https://docs.github.com/en/graphql/reference/pulls#enablepullrequestautomerge)
 with `mergeMethod: SQUASH` and `expectedHeadOid`, or the REST merge API with
 `merge_method: squash` and the expected head SHA. Immediate merges require `mergeable: true` and
-`mergeable_state: clean`; unknown or failing check states never trigger an
-immediate merge. GitHub still enforces checks, reviews, and repository rules.
+`mergeable_state: clean` or `unstable`. Optional check failures do not block an
+immediate merge; unknown readiness and blocking requirements defer it.
+GitHub still enforces required checks, reviews, and repository rules.
 The worker does not approve reviews or request rule bypasses.
 
 Each sweep attempts at most one mutation per PR. After enabling auto-merge,

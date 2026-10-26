@@ -9,7 +9,7 @@ import (
 type Reason string
 
 const (
-	// ReasonReadyToMerge requires GitHub's clean, mergeable state.
+	// ReasonReadyToMerge permits optional check failures when GitHub reports mergeability.
 	ReasonReadyToMerge Reason = "ready_to_merge"
 	// ReasonPendingRequirements leaves merge requirements to GitHub.
 	ReasonPendingRequirements Reason = "pending_requirements"
