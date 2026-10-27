@@ -3,19 +3,27 @@ package automerge
 import (
 	"github.com/alexfalkowski/abgleich/internal/automerge/internal/strategy"
 	"github.com/alexfalkowski/abgleich/internal/commands"
+	"github.com/alexfalkowski/abgleich/internal/github"
 	"github.com/alexfalkowski/abgleich/internal/scheduler"
 	"github.com/alexfalkowski/go-service/v2/di"
 )
 
-// Module connects the shared coordinator before the scheduler starts and registers
-// the scheduled sweep and comment command before startup.
+// Module provides Dependabot, label, and rebase strategies in precedence order,
+// connects the coordinator, and registers its sweep and command before startup.
 var Module = di.Module(
-	strategy.Module,
-	di.Constructor(NewReconciler, NewCommand, NewCoordinator),
+	di.Constructor(NewReconciler, NewCommand, NewCoordinator, strategies),
 	di.Register(registerCoordinator),
 	di.Register(registerSchedule),
 	di.Register(registerCommand),
 )
+
+func strategies(service github.Service, cfg *Config) []strategy.Strategy {
+	return []strategy.Strategy{
+		strategy.NewDependabot(service, cfg.GetDependabotExclusions()),
+		strategy.NewLabel(service),
+		strategy.NewRebase(service),
+	}
+}
 
 func registerCoordinator(lifecycle di.Lifecycle, coordinator *Coordinator) {
 	lifecycle.Append(di.Hook{

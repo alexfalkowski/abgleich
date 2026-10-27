@@ -101,6 +101,10 @@ type Service interface {
 	// repository, comparing names case-insensitively.
 	IsSameRepository(repo *Repository, pull *PullRequest) bool
 
+	// IsRepository compares a repository's full owner/name with name, ignoring
+	// case. It performs no remote access or partial-name matching.
+	IsRepository(repo *Repository, name string) bool
+
 	// IsBaseRepository checks that the PR targets the discovered repository,
 	// comparing names case-insensitively. Its head may belong to a fork.
 	IsBaseRepository(repo *Repository, pull *PullRequest) bool

@@ -21,7 +21,3 @@ type Strategy interface {
 	// Pull requests requiring no action return nil; failures are not retried.
 	Reconcile(ctx context.Context, repository *github.Repository, pull *github.PullRequest) error
 }
-
-func strategies(service github.Service) []Strategy {
-	return []Strategy{NewDependabot(service), NewLabel(service), NewRebase(service)}
-}

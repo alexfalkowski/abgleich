@@ -8,6 +8,13 @@ Given('GitHub event checks are configured between hourly sweeps') do
   File.write('.config/server.yaml', YAML.dump(config))
 end
 
+Given('the worker restarted with the current configuration') do
+  completed = Abgleich.job_logs('automerge').length
+  Abgleich.restart
+  wait_for { Abgleich.job_logs('automerge').length }.to be > completed, 'expected the restarted worker to finish its startup sweep'
+  expect_successful_check('automerge')
+end
+
 Given('the repository notification has {string}') do |problem|
   @repository_event = Abgleich.github.repository_notification
   case problem

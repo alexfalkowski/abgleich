@@ -18,9 +18,16 @@ installation, excluding archived, disabled, and foreign repositories. Merge
 automation requires **Allow auto-merge**. Only open, non-draft PRs are eligible.
 
 For PRs authored by `dependabot[bot]` with both branches in the discovered
-repository, Abgleich enables squash auto-merge while requirements are pending or
-requests a squash merge when ready. Other authors can enable auto-merge themselves
-or use the label below.
+repository, Abgleich by default enables squash auto-merge while requirements are
+pending or requests a squash merge when ready. Other authors can enable auto-merge
+themselves or use the label below.
+
+Configure [Dependabot repository exclusions](#-dependabot-settings) to require
+explicit opt-in in selected repositories. Excluded repositories still accept
+the `automerge` label and `/ab automerge`, including their normal consent checks.
+Exclusion does not cancel existing GitHub auto-merge; those branches remain
+eligible for rebasing. Disable auto-merge in GitHub separately to stop an existing
+request.
 
 Auto-merge PRs are rebased when their branch lacks base-branch commits, regardless
 of age, and only when both branches belong to the discovered repository. AI
@@ -149,8 +156,9 @@ acceptance feedback. Consult current PR state for the outcome.
 
 `/ab status` replies with the observed policy decision, reason, next step, head
 commit, UTC assessment time, auto-merge state, and request link. It explains
-opt-out, PR eligibility, `hold`, squash settings, label consent, and the applicable
-strategy, explicitly reporting missing history or comparison evidence.
+opt-out, Dependabot exclusions, PR eligibility, `hold`, squash settings, label
+consent, and the applicable strategy, explicitly reporting missing history or
+comparison evidence.
 
 Status is advisory and performs no merge automation. Consult GitHub's merge box
 for individual failing checks or missing reviews. A detected revision or policy
@@ -387,6 +395,22 @@ accommodate webhook work: the example allows `8s` within the server's `9s` and
 GitHub's ten-second deadline. `transport.http.max_receive_size` also applies.
 See [webhook delivery](#-webhook-delivery) for responses and concurrency.
 
+### 🤖 Dependabot settings
+
+To require explicit opt-in for Dependabot PRs in selected repositories, merge
+this block into the worker configuration:
+
+```yaml
+automerge:
+  dependabot:
+    exclude_repositories:
+      - alexfalkowski/docker
+```
+
+Entries match complete `owner/repository` names case-insensitively, without
+wildcards or partial-name matching. Restart the worker after changing exclusions.
+See [Background](#-background) for explicit opt-in and existing auto-merge behavior.
+
 ### 🧪 Event-driven rebase settings
 
 To allow event checks to rebase after CI has finished, configure its final
@@ -404,7 +428,7 @@ reported check runs and commit statuses must also be terminal. Completion can be
 successful or failed.
 
 Omitting `automerge` or leaving `completion_check` empty leaves rebasing to scheduled
-recovery; events still enable auto-merge or merge ready PRs. Replace any existing
+recovery; events still apply the configured merge policies. Replace any existing
 `automerge.completion_checks` list with the singular `automerge.completion_check`
 string shown above.
 Configure the [App permissions](#-github-app-setup) and
@@ -492,6 +516,7 @@ scheduler:
 | `scheduler.interval` | `15m` | Time between owner-wide auto-merge sweeps. |
 | `scheduler.timeout` | `5m` | Deadline for a complete auto-merge sweep or an executing event check. |
 | `automerge.completion_check` | `""` | Final CI signal required for event-driven rebasing; an empty value disables event rebasing. |
+| `automerge.dependabot.exclude_repositories` | `[]` | Full repository names requiring explicit Dependabot opt-in; omitted or empty settings preserve automatic enrollment everywhere. |
 | `cleanup.inactive_after` | `720h` (30 days) | Latest-commit age required for inactive cleanup. |
 | `cleanup.interval` | `24h` | Time between cleanup runs. |
 | `cleanup.timeout` | `5m` | Deadline for a complete cleanup run. |
@@ -509,7 +534,7 @@ scheduler:
 Omitted or zero auto-merge, cleanup, and summary job durations, inactivity
 thresholds, webhook budgets, and GitHub and AI client timeouts use the defaults
 above. Negative schedule durations, inactivity thresholds, and HTTP client
-timeouts are invalid. Excluded branch names must be nonempty.
+timeouts are invalid. Excluded branch and repository names must be nonempty.
 
 ### 🔐 Credentials
 

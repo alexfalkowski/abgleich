@@ -82,6 +82,10 @@ func (r *Reconciler) SamePolicyState(currentRepo, expectedRepo *github.Repositor
 func explainDecision(decision strategy.Decision) Assessment {
 	assessment := Assessment{Policy: decision.Policy, Action: decision.Action}
 	switch decision.Reason {
+	case strategy.ReasonDependabotExcluded:
+		assessment.Decision = "Dependabot automation disabled"
+		assessment.Reason = "This repository is excluded from automatic Dependabot merging by worker configuration."
+		assessment.NextStep = "An authorized maintainer can apply automerge or post /ab automerge to request labeled automation."
 	case strategy.ReasonReadyToMerge:
 		assessment.Decision = "Would squash-merge"
 		assessment.Reason = "GitHub reports this pull request ready to merge. Optional check failures do not block merging."

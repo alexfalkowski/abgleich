@@ -9,6 +9,8 @@ import (
 type Reason string
 
 const (
+	// ReasonDependabotExcluded requires explicit opt-in instead of author-based automation.
+	ReasonDependabotExcluded Reason = "dependabot_excluded"
 	// ReasonReadyToMerge permits optional check failures when GitHub reports mergeability.
 	ReasonReadyToMerge Reason = "ready_to_merge"
 	// ReasonPendingRequirements leaves merge requirements to GitHub.

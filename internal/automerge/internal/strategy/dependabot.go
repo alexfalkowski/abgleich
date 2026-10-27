@@ -9,23 +9,39 @@ import (
 var _ Strategy = (*Dependabot)(nil)
 
 // NewDependabot constructs the policy for same-repository Dependabot pull requests.
-func NewDependabot(service github.Service) *Dependabot {
-	return &Dependabot{github: service}
+// Excluded repositories retain explicit label opt-in and existing auto-merge rebasing.
+// Nil or empty excludedRepositories preserves author-based automation everywhere.
+func NewDependabot(service github.Service, excludedRepositories []string) *Dependabot {
+	return &Dependabot{github: service, exclude: excludedRepositories}
 }
 
 // Dependabot enables squash auto-merge or merges ready Dependabot pull requests.
 type Dependabot struct {
-	github github.Service
+	github  github.Service
+	exclude []string
 }
 
-// Matches identifies eligible Dependabot pull requests that need a merge action.
+// Matches selects eligible Dependabot PRs. Excluded PRs without explicit opt-in
+// match a no-op decision for status; labels and enabled auto-merge fall through
+// to their respective strategies.
 func (s *Dependabot) Matches(repository *github.Repository, pull *github.PullRequest) bool {
-	return Eligible(pull) && s.github.IsSameRepository(repository, pull) && isDependabot(pull) &&
-		(readyToMerge(pull) || pull.GetAutoMerge() == nil)
+	if !Eligible(pull) || !s.github.IsSameRepository(repository, pull) || !isDependabot(pull) {
+		return false
+	}
+
+	if s.excludesRepository(repository) {
+		return pull.GetAutoMerge() == nil && !github.HasLabel(pull.GetLabels(), AutoMergeLabel)
+	}
+
+	return readyToMerge(pull) || pull.GetAutoMerge() == nil
 }
 
 // Assess selects the Dependabot merge action using the same policy as reconciliation.
 func (s *Dependabot) Assess(_ context.Context, repository *github.Repository, pull *github.PullRequest) (Decision, error) {
+	if s.excludesRepository(repository) {
+		return Decision{Policy: "Dependabot", Reason: ReasonDependabotExcluded}, nil
+	}
+
 	decision, err := decideMerge(repository, pull)
 	decision.Policy = "Dependabot"
 	return decision, err
@@ -60,6 +76,16 @@ func (s *Dependabot) Reconcile(ctx context.Context, repository *github.Repositor
 	}
 
 	return nil
+}
+
+func (s *Dependabot) excludesRepository(repository *github.Repository) bool {
+	for _, name := range s.exclude {
+		if s.github.IsRepository(repository, name) {
+			return true
+		}
+	}
+
+	return false
 }
 
 // isDependabot identifies the bot by its GitHub login rather than branch naming.
