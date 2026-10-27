@@ -54,8 +54,8 @@ run reconciles fresh remote state; pending summary requests are held in memory.
 - Keep accepted-action logging in the service's logging decorator, separate from
   remote access and reconciliation decisions.
 - Keep the strategy interface, implementations, and shared PR eligibility helpers
-  in `internal/automerge/internal/strategy`; its module provides their precedence
-  order for injection into the reconciler.
+  in `internal/automerge/internal/strategy`. `automerge.Module` constructs the
+  strategies and provides their precedence order for injection into the reconciler.
 - `cleanup` depends on `github` and `scheduler`. Omitted cleanup configuration
   disables its job; repositories also require auto-merge opt-in. Preserve default,
   protected, excluded, and open-PR branches. Guard deletions atomically with

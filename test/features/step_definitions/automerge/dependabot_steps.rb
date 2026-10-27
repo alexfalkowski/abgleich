@@ -1,5 +1,17 @@
 # frozen_string_literal: true
 
+Given('Dependabot automation excludes repositories:') do |table|
+  config = YAML.safe_load_file('.config/server.yaml')
+  config['automerge'] ||= {}
+  config['automerge']['dependabot'] = { 'exclude_repositories' => table.hashes.map { |row| row.fetch('repository') } }
+  File.write('.config/server.yaml', YAML.dump(config))
+end
+
+Given('repository {string} has a ready Dependabot pull request for branch {string}') do |repository, branch|
+  Abgleich.github.add_repository(repository)
+  Abgleich.github.add_pull(branch, repository:, author: 'dependabot[bot]', auto_merge: false, current: true, mergeable_state: 'clean')
+end
+
 Given('the Dependabot pull request for branch {string} is {string}') do |branch, condition|
   options = {
     'waiting for checks' => {},
@@ -8,6 +20,7 @@ Given('the Dependabot pull request for branch {string} is {string}') do |branch,
     'failing optional checks' => { mergeable_state: 'unstable' },
     'failing optional checks with auto-merge enabled' => { auto_merge: true, mergeable_state: 'unstable' },
     'behind its base' => { current: false },
+    'behind with auto-merge enabled' => { current: false, auto_merge: true },
     'waiting with auto-merge enabled' => { auto_merge: true },
     'of unknown readiness with auto-merge' => { auto_merge: true, mergeable_state: 'unknown' },
     'conflicting with auto-merge enabled' => { auto_merge: true, mergeable: false, mergeable_state: 'dirty' },

@@ -8,6 +8,13 @@ Feature: GitHub App credentials
     When I attempt to start the system
     Then starting the system should raise an error
 
+  Scenario: Reject an empty Dependabot repository exclusion
+    Given Dependabot automation excludes repositories:
+      | repository |
+      |            |
+    When I attempt to start the system
+    Then starting the system should raise an error
+
   Scenario Outline: Reject a <state> App private key at startup
     Given the App private key is "<state>"
     When I attempt to start the system

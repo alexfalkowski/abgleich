@@ -43,6 +43,22 @@ Feature: Event-triggered auto-merge checks
       | waiting for checks | enabled pull request auto-merge |
       | ready to merge     | merged pull request             |
 
+  Scenario Outline: Respect Dependabot repository exclusions on notification
+    Given Dependabot automation excludes repositories:
+      | repository             |
+      | alexfalkowski/infraops |
+    And the worker restarted with the current configuration
+    And the Dependabot pull request for branch "feature" is "<condition>"
+    When GitHub delivers a "pull_request" notification with action "opened"
+    Then the event delivery should return HTTP 204
+    And exactly 1 event checks should finish
+    And no event mutations should reach GitHub
+
+    Examples:
+      | condition          |
+      | waiting for checks |
+      | ready to merge     |
+
   Scenario Outline: Apply current labeled policy to a repository notification
     Given a pull request from "<source>" for branch "feature" is "<condition>"
     And branch "feature" has the "automerge" label

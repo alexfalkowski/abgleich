@@ -2,6 +2,11 @@ package github
 
 import "github.com/alexfalkowski/go-service/v2/strings"
 
+// IsRepository compares the complete owner/repository name case-insensitively.
+func (s *service) IsRepository(repo *Repository, name string) bool {
+	return strings.ToLower(repo.GetFullName()) == strings.ToLower(name)
+}
+
 // IsSameRepository checks both PR branch repositories against the discovered
 // repository using case-insensitive full names.
 func (s *service) IsSameRepository(repo *Repository, pull *PullRequest) bool {

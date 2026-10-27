@@ -253,6 +253,16 @@ Feature: Comment requests for auto-merge
     And branch "contribution" should retain the "hold" label
     And no pull request mutations should be requested
 
+  Scenario: Explicitly request Dependabot automation in an excluded repository
+    Given Dependabot automation excludes repositories:
+      | repository             |
+      | alexfalkowski/infraops |
+    And the Dependabot pull request for branch "contribution" is "ready to merge"
+    When a maintainer with "write" access comments "/ab automerge"
+    Then the comment delivery should return HTTP 204
+    And branch "contribution" should be squash-merged
+    And exactly 1 label request should reach GitHub
+
   Rule: Requested automation status
     Background:
       Given scheduled pull request listing is unavailable
@@ -293,6 +303,27 @@ Feature: Comment requests for auto-merge
         | setting        | decision                       |
         | auto-merge     | Repository automation disabled |
         | squash merging | Squash merging unavailable     |
+
+    Scenario Outline: Explain the applicable policy in an excluded Dependabot repository
+      Given Dependabot automation excludes repositories:
+        | repository             |
+        | alexfalkowski/infraops |
+      And the Dependabot pull request for branch "contribution" is "<condition>"
+      And branch "contribution" has the "<label>" label
+      When a maintainer with "write" access comments "/ab status"
+      Then the comment delivery should return HTTP 204
+      And the status reply should explain "<decision>"
+      And the status reply should include "<explanation>"
+      And the status request should cause no automation mutations
+
+      Examples:
+        | condition                      | label     | decision                       | explanation          |
+        | waiting for checks             | bug       | Dependabot automation disabled | /ab automerge        |
+        | ready to merge                 | bug       | Dependabot automation disabled | worker configuration |
+        | waiting for checks             | automerge | Would enable squash auto-merge | automerge label      |
+        | ready to merge                 | automerge | Would squash-merge             | automerge label      |
+        | behind with auto-merge enabled | bug       | Would request a rebase         | rebase               |
+        | ready with auto-merge enabled  | bug       | Branch is current              | rebase               |
 
     Scenario Outline: Explain Dependabot policy before label authorization
       Given the Dependabot pull request for branch "contribution" is "<condition>"

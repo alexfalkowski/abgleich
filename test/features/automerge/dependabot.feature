@@ -3,6 +3,96 @@ Feature: Dependabot merge automation
   Repositories opt in through their auto-merge setting.
   Dependabot pull requests are queued for auto-merge or merged when ready.
 
+  Scenario Outline: Require explicit opt-in in excluded repositories
+    Given Dependabot automation excludes repositories:
+      | repository              |
+      | alexfalkowski/unrelated |
+      | <repository>            |
+    And the Dependabot pull request for branch "dependencies" is "<condition>"
+    When the worker checks auto-merge branches
+    Then no pull request mutations should be requested
+    And the branch check should succeed
+
+    Examples:
+      | repository             | condition                     |
+      | alexfalkowski/infraops | waiting for checks            |
+      | alexfalkowski/infraops | ready to merge                |
+      | alexfalkowski/infraops | behind its base               |
+      | ALEXFALKOWSKI/INFRAOPS | ready to merge                |
+      | alexfalkowski/infraops | ready with auto-merge enabled |
+
+  Scenario: Exclude Docker without affecting another repository
+    Given Dependabot automation excludes repositories:
+      | repository           |
+      | alexfalkowski/docker |
+    And repository "alexfalkowski/docker" has a ready Dependabot pull request for branch "docker-dependencies"
+    And the Dependabot pull request for branch "other-dependencies" is "ready to merge"
+    When the worker checks auto-merge branches
+    Then branch "other-dependencies" should be squash-merged
+    And branch "docker-dependencies" should receive no worker mutations
+    And only one mutation request should have been sent
+
+  Scenario Outline: Compare complete repository names for exclusions
+    Given Dependabot automation excludes repositories:
+      | repository  |
+      | <exclusion> |
+    And the Dependabot pull request for branch "dependencies" is "waiting for checks"
+    When the worker checks auto-merge branches
+    Then branch "dependencies" should have squash auto-merge enabled
+    And the branch check should succeed
+
+    Examples:
+      | exclusion                    |
+      | someone/infraops             |
+      | alexfalkowski/infraops-extra |
+      | alexfalkowski/infra          |
+
+  Scenario: Preserve automatic enrollment with an empty exclusion list
+    Given Dependabot automation excludes repositories:
+      | repository |
+    And the Dependabot pull request for branch "dependencies" is "waiting for checks"
+    When the worker checks auto-merge branches
+    Then branch "dependencies" should have squash auto-merge enabled
+    And the branch check should succeed
+
+  Scenario Outline: Honor explicit labels in excluded repositories
+    Given Dependabot automation excludes repositories:
+      | repository             |
+      | alexfalkowski/infraops |
+    And the Dependabot pull request for branch "dependencies" is "<condition>"
+    And branch "dependencies" has the "automerge" label
+    When the worker checks auto-merge branches
+    Then the worker should report "<action>" for branch "dependencies"
+    And only one merge action should occur for branch "dependencies"
+    And the branch check should succeed
+
+    Examples:
+      | condition          | action                          |
+      | waiting for checks | enabled pull request auto-merge |
+      | ready to merge     | merged pull request             |
+
+  Scenario: Respect revoked label consent in an excluded repository
+    Given Dependabot automation excludes repositories:
+      | repository             |
+      | alexfalkowski/infraops |
+    And the Dependabot pull request for branch "dependencies" is "ready to merge"
+    And branch "dependencies" has the "automerge" label
+    And GitHub disabled auto-merge for branch "dependencies" "after the maintainer disables it"
+    When the worker checks auto-merge branches
+    Then no pull request mutations should be requested
+    And the branch check should succeed
+
+  Scenario: Keep existing Dependabot auto-merge branches current in an excluded repository
+    Given Dependabot automation excludes repositories:
+      | repository             |
+      | alexfalkowski/infraops |
+    And the Dependabot pull request for branch "dependencies" is "behind with auto-merge enabled"
+    When the worker checks auto-merge branches
+    Then branch "dependencies" should be rebased
+    And no merge actions should be accepted
+    And only one mutation request should have been sent
+    And the branch check should succeed
+
   Scenario: Enable auto-merge while Dependabot checks are pending
     Given the Dependabot pull request for branch "dependencies" is "waiting for checks"
     When the worker checks auto-merge branches
