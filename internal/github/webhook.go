@@ -10,8 +10,8 @@ import (
 	"github.com/google/go-github/v93/github"
 )
 
-// ErrIgnoredDelivery identifies a verified delivery that needs no command action.
-var ErrIgnoredDelivery = errors.New("github: delivery does not contain a new PR comment")
+// ErrIgnoredDelivery identifies a verified event or action with no worker handler.
+var ErrIgnoredDelivery = errors.New("github: delivery does not require processing")
 
 // NewWebhook resolves optional delivery credentials at startup, returning nil
 // when webhook configuration is disabled. A configured webhook requires App
@@ -47,10 +47,25 @@ type Webhook struct {
 // GetTimeout returns the independent synchronous processing budget.
 func (w *Webhook) GetTimeout() time.Duration { return w.config.Webhook.GetTimeout() }
 
-// Read verifies SHA-256 signatures and installation/repository identity. Signed
-// events other than newly created PR comments are acknowledged without action.
-func (w *Webhook) Read(req *http.Request) (*IssueCommentEvent, error) {
-	if !strings.HasPrefix(req.Header.Get("X-Hub-Signature-256"), "sha256=") {
+// Delivery routes a verified comment command or repository notification.
+// Repository is only a discovery hint; current settings and PR state must be read
+// from GitHub before automation. Comment is nil for repository notifications.
+type Delivery struct {
+	Comment    *IssueCommentEvent
+	Repository string
+}
+
+type repositoryIdentity interface {
+	GetOwner() *github.User
+	GetName() string
+	GetFullName() string
+}
+
+// Read verifies SHA-256 signatures and installation/repository identity before
+// routing supported events. Unknown event types and actions are ignored.
+func (w *Webhook) Read(req *http.Request) (*Delivery, error) {
+	signature := req.Header.Get("X-Hub-Signature-256")
+	if !strings.HasPrefix(signature, "sha256=") {
 		return nil, status.Error(http.StatusUnauthorized, "github: missing GitHub SHA-256 signature")
 	}
 
@@ -59,50 +74,68 @@ func (w *Webhook) Read(req *http.Request) (*IssueCommentEvent, error) {
 		return nil, status.SafeError(http.StatusUnauthorized, err)
 	}
 
-	if github.WebHookType(req) != "issue_comment" {
+	kind := github.WebHookType(req)
+	switch kind {
+	case "issue_comment", "pull_request", "push", "status", "check_run":
+	default:
 		return nil, ErrIgnoredDelivery
 	}
 
-	event, err := github.ParseWebHook("issue_comment", payload)
+	event, err := github.ParseWebHook(kind, payload)
 	if err != nil {
 		return nil, status.SafeError(http.StatusBadRequest, err)
 	}
 
-	comment, ok := event.(*github.IssueCommentEvent)
-	if !ok {
-		return nil, status.Error(http.StatusBadRequest, "github: unexpected GitHub event type")
-	}
+	return w.readEvent(event)
+}
 
-	if comment.GetIssue() == nil {
+func (w *Webhook) readComment(event *IssueCommentEvent) (*Delivery, error) {
+	issue := event.GetIssue()
+	if issue == nil {
 		return nil, status.Error(http.StatusBadRequest, "github: missing GitHub issue")
 	}
 
-	if comment.GetAction() != "created" || !comment.GetIssue().IsPullRequest() {
+	isNewComment := event.GetAction() == "created"
+	if !isNewComment || !issue.IsPullRequest() {
 		return nil, ErrIgnoredDelivery
 	}
 
-	if err := w.validateComment(comment); err != nil {
+	if err := w.validateComment(event); err != nil {
 		return nil, err
 	}
 
-	return comment, nil
+	return &Delivery{Comment: event}, nil
 }
 
-func (w *Webhook) validateComment(comment *IssueCommentEvent) error {
-	if comment.GetInstallation().GetID() != w.config.App.InstallationID {
+func (w *Webhook) validateComment(event *IssueCommentEvent) error {
+	if err := w.validateRepository(event.GetInstallation(), event.GetRepo()); err != nil {
+		return err
+	}
+
+	comment := event.GetComment()
+	hasIssueNumber := event.GetIssue().GetNumber() > 0
+	hasCommentID := comment.GetID() > 0
+	hasAuthorID := comment.GetUser().GetID() > 0
+	hasCreatedAt := !comment.GetCreatedAt().IsZero()
+	if !hasIssueNumber || !hasCommentID || !hasAuthorID || !hasCreatedAt {
+		return status.Error(http.StatusBadRequest, "github: incomplete GitHub comment")
+	}
+
+	return nil
+}
+
+func (w *Webhook) validateRepository(installation *github.Installation, repo repositoryIdentity) error {
+	sameInstallation := installation.GetID() == w.config.App.InstallationID
+	if !sameInstallation {
 		return status.Error(http.StatusForbidden, "github: unexpected GitHub installation")
 	}
 
-	repo := comment.GetRepo()
-
-	if strings.ToLower(repo.GetOwner().GetLogin()) != strings.ToLower(w.config.Owner) ||
-		strings.ToLower(repo.GetFullName()) != strings.ToLower(w.config.Owner+"/"+repo.GetName()) || strings.IsEmpty(repo.GetName()) {
+	expectedFullName := w.config.Owner + "/" + repo.GetName()
+	sameOwner := strings.ToLower(repo.GetOwner().GetLogin()) == strings.ToLower(w.config.Owner)
+	sameFullName := strings.ToLower(repo.GetFullName()) == strings.ToLower(expectedFullName)
+	hasName := !strings.IsEmpty(repo.GetName())
+	if !sameOwner || !sameFullName || !hasName {
 		return status.Error(http.StatusForbidden, "github: unexpected GitHub repository")
-	}
-
-	if comment.GetIssue().GetNumber() <= 0 || comment.GetComment().GetID() <= 0 ||
-		comment.GetComment().GetUser().GetID() <= 0 || comment.GetComment().GetCreatedAt().IsZero() {
-		return status.Error(http.StatusBadRequest, "github: incomplete GitHub comment")
 	}
 
 	return nil

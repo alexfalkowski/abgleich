@@ -173,12 +173,12 @@ Feature: Labeled pull request automation
     And the branch check should succeed
 
     Examples:
-      | condition          | revocation                                  |
-      | waiting for checks | after the contributor pushes                |
-      | ready to merge     | after the contributor pushes                |
-      | waiting for checks | after the maintainer disables it            |
-      | waiting for checks | at the same time as the label is reapplied   |
-      | waiting for checks | and a different label is applied            |
+      | condition          | revocation                                 |
+      | waiting for checks | after the contributor pushes               |
+      | ready to merge     | after the contributor pushes               |
+      | waiting for checks | after the maintainer disables it           |
+      | waiting for checks | at the same time as the label is reapplied |
+      | waiting for checks | and a different label is applied           |
 
   Scenario: Preserve revocation across a worker restart
     Given the worker previously enabled labeled auto-merge before the contributor updated branch "contribution"

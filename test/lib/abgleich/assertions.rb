@@ -3,6 +3,16 @@
 module Abgleich
   # Shared assertions evaluated in the Cucumber scenario's RSpec context.
   module Assertions
+    # A later repository notification completes after earlier queued work,
+    # exposing accidental checks without relying on an arbitrary sleep.
+    def expect_event_barrier
+      repository = 'alexfalkowski/event-control'
+      Abgleich.github.add_repository(repository)
+      event = Abgleich.github.repository_notification(repository:)
+      expect(Abgleich.deliver_event('push', event).code).to eq(204), 'expected the control notification to be queued'
+      wait_for { Abgleich.logs }.to include(a_hash_including('msg' => 'automerge event finished', 'repository' => repository))
+    end
+
     # Observe a later completed summary check before asserting that no work occurred.
     def expect_summary_check
       next_check = Abgleich.job_logs('summarise').length + 1

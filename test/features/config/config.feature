@@ -3,6 +3,11 @@ Feature: GitHub App credentials
   A readable RSA private key is required at startup.
   Restored or replaced credentials take effect after restarting the worker.
 
+  Scenario: Reject a CI completion check configured as a list
+    Given the CI completion check is configured as a list
+    When I attempt to start the system
+    Then starting the system should raise an error
+
   Scenario Outline: Reject a <state> App private key at startup
     Given the App private key is "<state>"
     When I attempt to start the system

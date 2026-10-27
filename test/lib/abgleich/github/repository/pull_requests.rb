@@ -6,6 +6,22 @@ module Abgleich
   class GitHubRepository
     # Pull request snapshots, pagination, and branch comparisons.
     module PullRequests
+      # Hold one response after its snapshot is captured, allowing webhook
+      # scenarios to establish concurrent changes without timing sleeps.
+      def pause_pull_listing
+        @mutex.synchronize { @state[:listing_gate] = Queue.new }
+      end
+
+      def wait_for_pull_listing
+        gate = @mutex.synchronize { @state[:listing_gate] }
+        gate&.pop(timeout: 5)
+      end
+
+      def resume_pull_listing
+        gate = @mutex.synchronize { @state.delete(:listing_gate) }
+        gate&.push(true)
+      end
+
       def paginate(overlap: false)
         @mutex.synchronize do
           @state[:pagination] = true

@@ -12,6 +12,7 @@ require 'abgleich/credentials'
 require 'abgleich/github/repository'
 require 'abgleich/github/service'
 require 'abgleich/github/pull_request_service'
+require 'abgleich/github/check_service'
 require 'abgleich/github/app_service'
 require 'abgleich/github/branch_service'
 require 'abgleich/openai/responses'
@@ -22,11 +23,16 @@ module Abgleich
   class << self
     # Send a signed delivery to the actual worker HTTP boundary.
     def deliver_comment(event, signature: nil)
+      deliver_event('issue_comment', event, signature:)
+    end
+
+    # Repository events and comment commands share verification and HTTP limits.
+    def deliver_event(kind, event, signature: nil)
       payload = event.is_a?(String) ? event : JSON.generate(event)
       signature ||= "sha256=#{OpenSSL::HMAC.hexdigest('SHA256', WEBHOOK_SECRET, payload)}"
       RestClient::Request.execute(method: :post, url: 'http://localhost:11000/webhooks/github', payload:,
                                   headers: { content_type: :json, user_agent: 'GitHub-Hookshot/nonnative',
-                                             'X-GitHub-Event' => 'issue_comment', 'X-Hub-Signature-256' => signature },
+                                             'X-GitHub-Event' => kind, 'X-Hub-Signature-256' => signature },
                                   timeout: 5)
     rescue RestClient::ExceptionWithResponse => e
       e.response

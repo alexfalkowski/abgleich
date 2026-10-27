@@ -4,6 +4,15 @@ module Abgleich
   class GitHubRepository
     # Owner-wide discovery and repository settings for the fake API.
     module Discovery
+      # Notifications carry identity hints; scenarios independently change the
+      # state returned by subsequent API reads.
+      def repository_notification(action: '', repository: DEFAULT_REPOSITORY, ref: 'refs/heads/master')
+        @mutex.synchronize do
+          snapshot = @state[:repositories][repository] || repository_data(repository)
+          { action:, ref:, installation: { id: INSTALLATION_ID }, repository: JSON.parse(snapshot.to_json, symbolize_names: true) }
+        end
+      end
+
       def add_repository(name, **)
         @mutex.synchronize { @state[:repositories][name] = repository_data(name, **) }
       end

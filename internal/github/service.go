@@ -89,6 +89,10 @@ type Service interface {
 	// before returning active owned repositories accessible to the installation.
 	ListRepositories(ctx context.Context) ([]*Repository, error)
 
+	// FindRepository completes installation discovery and returns the active
+	// owned repository with this full name, ignoring case, or nil when absent.
+	FindRepository(ctx context.Context, name string) (*Repository, error)
+
 	// GetRepository reads full settings omitted by discovery and validates that
 	// the response identifies the discovered repository.
 	GetRepository(ctx context.Context, repo *Repository) (*Repository, error)
@@ -120,6 +124,13 @@ type Service interface {
 	// Compare reports commits missing from head relative to base. A missing
 	// behind_by is an error rather than evidence that the branch is current.
 	Compare(ctx context.Context, repo *Repository, base, head string) (*CommitsComparison, error)
+
+	// ListCheckRuns collects all latest check runs and validates their head SHA.
+	ListCheckRuns(ctx context.Context, repo *Repository, sha string) ([]*CheckRun, error)
+
+	// ListCommitStatuses collects the latest status for each context, validating
+	// the commit SHA and complete pagination of the combined-status response.
+	ListCommitStatuses(ctx context.Context, repo *Repository, sha string) ([]*CommitStatus, error)
 
 	// Rebase requests a server-side rebase guarded by the expected head SHA.
 	// HTTP failures, GraphQL errors, and mismatched responses fail without
@@ -181,6 +192,24 @@ func (s *service) ListRepositories(ctx context.Context) ([]*Repository, error) {
 
 		opts.Page = response.NextPage
 	}
+}
+
+// FindRepository resolves a webhook's repository name through fresh, complete
+// installation discovery. Absent or ineligible repositories return nil; failed
+// discovery returns an error without a repository.
+func (s *service) FindRepository(ctx context.Context, name string) (*Repository, error) {
+	repositories, err := s.ListRepositories(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, repository := range repositories {
+		if strings.ToLower(repository.GetFullName()) == strings.ToLower(name) {
+			return repository, nil
+		}
+	}
+
+	return nil, nil
 }
 
 // GetRepository reads full repository settings, including AllowAutoMerge and
