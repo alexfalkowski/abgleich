@@ -52,7 +52,7 @@ func (c *Command) process(ctx context.Context, task *summaryTask) error {
 		return err
 	}
 
-	body, err := reply(task, completion.Text, files)
+	body, err := reply(task, completion, files)
 	if err != nil {
 		return err
 	}

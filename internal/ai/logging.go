@@ -14,22 +14,28 @@ type loggingProvider struct {
 func (p *loggingProvider) Generate(ctx context.Context, prompt Prompt) (*Completion, error) {
 	started := time.Now()
 	completion, err := p.Provider.Generate(ctx, prompt)
+	fields := []any{
+		"task", prompt.Task,
+		"model", prompt.Model,
+		"duration", time.Since(started),
+	}
+
 	if err != nil {
-		p.logger.Error("ai generation",
-			"task", prompt.Task,
-			"model", prompt.Model,
-			"duration", time.Since(started),
-			"error", err)
+		fields = append(fields, "error", err)
+		p.logger.Error("ai generation", fields...)
 
 		return nil, err
 	}
 
-	p.logger.Info("ai generation",
-		"task", prompt.Task,
-		"model", prompt.Model,
-		"duration", time.Since(started),
-		"input_tokens", completion.InputTokens,
-		"output_tokens", completion.OutputTokens)
+	if usage := completion.Usage; usage != nil {
+		fields = append(fields,
+			"input_tokens", usage.InputTokens,
+			"cached_input_tokens", usage.CachedInputTokens,
+			"cache_write_tokens", usage.CacheWriteTokens,
+			"output_tokens", usage.OutputTokens)
+	}
+
+	p.logger.Info("ai generation", fields...)
 
 	return completion, nil
 }

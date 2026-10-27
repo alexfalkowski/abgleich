@@ -4,6 +4,7 @@ import (
 	"html"
 	"net/url"
 
+	"github.com/alexfalkowski/abgleich/internal/ai"
 	"github.com/alexfalkowski/go-service/v2/slices"
 	"github.com/alexfalkowski/go-service/v2/strings"
 )
@@ -13,12 +14,13 @@ const (
 	maxSummaryLocations = 3
 )
 
-func reply(task *summaryTask, text string, files []changedFile) (string, error) {
-	text, limits, _ := strings.Cut(text, "\nLimits:")
+func reply(task *summaryTask, completion *ai.Completion, files []changedFile) (string, error) {
+	text, limits, _ := strings.Cut(completion.Text, "\nLimits:")
 	text, locations := summaryLocations(text, files, task.repository.GetFullName(), task.pullRequest.GetHead().GetSHA())
 	text, changes := summaryChanges(text)
 
 	return render("summary.md.tmpl", summaryComment{
+		Completion:       completion,
 		HeadSHA:          task.pullRequest.GetHead().GetSHA(),
 		CommandCommentID: task.commandComment.GetID(),
 		Text:             text,
@@ -38,6 +40,7 @@ func summaryChanges(text string) (string, []string) {
 	if len(changes) > maxSummaryChanges {
 		return text, nil
 	}
+
 	for i, change := range changes {
 		changes[i] = strings.TrimSpace(change)
 		if strings.IsEmpty(changes[i]) {
@@ -70,6 +73,7 @@ func summaryLocations(text string, files []changedFile, repository, sha string) 
 		if !ok || strings.IsEmpty(path) || strings.IsEmpty(strings.TrimSpace(description)) {
 			return text, nil
 		}
+
 		if _, ok := available[path]; !ok {
 			return text, nil
 		}
@@ -80,6 +84,7 @@ func summaryLocations(text string, files []changedFile, repository, sha string) 
 			Path:   "/" + repository + "/blob/" + sha + "/" + path,
 		}
 		linkURL := strings.NewReplacer("(", "%28", ")", "%29").Replace(link.String())
+
 		locations = append(locations, summaryLocation{
 			Path:        path,
 			URL:         linkURL,

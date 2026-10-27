@@ -11,10 +11,19 @@ type Prompt struct {
 	MaxOutputTokens int64
 }
 
-// Completion contains nonempty generated text from a completed response and its
-// provider-reported token usage. Callers interpret the text within their task's domain.
+// Completion contains completed text and optional provider-reported usage.
+// Missing or inconsistent usage is nil rather than an invented zero count.
 type Completion struct {
-	Text         string
-	InputTokens  int64
-	OutputTokens int64
+	Usage *Usage
+	Model string
+	Text  string
+}
+
+// Usage separates provider-reported input categories. Cached and cache-write tokens are
+// subsets of InputTokens; OutputTokens already includes reasoning tokens.
+type Usage struct {
+	InputTokens       int64
+	CachedInputTokens int64
+	CacheWriteTokens  int64
+	OutputTokens      int64
 }
