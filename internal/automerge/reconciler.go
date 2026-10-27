@@ -12,14 +12,15 @@ import (
 // NewReconciler constructs owner-wide reconciliation using strategies in the
 // supplied order. Each invocation discovers fresh repositories and pull requests
 // without retaining progress between runs.
-func NewReconciler(service github.Service, strategies []strategy.Strategy) *Reconciler {
-	return &Reconciler{github: service, strategies: strategies}
+func NewReconciler(service github.Service, cfg *Config, strategies []strategy.Strategy) *Reconciler {
+	return &Reconciler{github: service, config: cfg, strategies: strategies}
 }
 
 // Reconciler automates Dependabot and labeled PRs in opted-in repositories and
 // keeps same-repository auto-merge branches current. Failures are isolated.
 type Reconciler struct {
 	github     github.Service
+	config     *Config
 	strategies []strategy.Strategy
 }
 
@@ -40,7 +41,7 @@ func (r *Reconciler) Reconcile(ctx context.Context) error {
 			return errors.Join(failures, context.Cause(ctx))
 		}
 
-		if err := r.reconcileRepository(ctx, repository); err != nil {
+		if err := r.reconcileRepository(ctx, repository, false); err != nil {
 			failures = errors.Join(failures, fmt.Errorf("automerge: repository %s: %w", repository.GetFullName(), err))
 
 			if github.IsRateLimited(err) || ctx.Err() != nil {
@@ -52,7 +53,20 @@ func (r *Reconciler) Reconcile(ctx context.Context) error {
 	return failures
 }
 
-func (r *Reconciler) reconcileRepository(ctx context.Context, repository *github.Repository) error {
+// ReconcileRepository completes fresh installation discovery before checking
+// one repository. Missing or no longer accessible repositories need no action;
+// event payloads never supply repository settings or pull request state.
+// Rebasing requires the configured completion signal on the current head.
+func (r *Reconciler) ReconcileRepository(ctx context.Context, name string) error {
+	repository, err := r.github.FindRepository(ctx, name)
+	if err != nil || repository == nil {
+		return err
+	}
+
+	return r.reconcileRepository(ctx, repository, true)
+}
+
+func (r *Reconciler) reconcileRepository(ctx context.Context, repository *github.Repository, waitForCI bool) error {
 	repository, err := r.github.GetRepository(ctx, repository)
 	if err != nil {
 		return err
@@ -77,7 +91,7 @@ func (r *Reconciler) reconcileRepository(ctx context.Context, repository *github
 			continue
 		}
 
-		if err := r.reconcilePullRequest(ctx, repository, pull.GetNumber()); err != nil {
+		if err := r.reconcilePullRequest(ctx, repository, pull.GetNumber(), waitForCI); err != nil {
 			failures = errors.Join(failures, fmt.Errorf("automerge: pull request #%d: %w", pull.GetNumber(), err))
 
 			if github.IsRateLimited(err) || ctx.Err() != nil {
@@ -89,7 +103,7 @@ func (r *Reconciler) reconcileRepository(ctx context.Context, repository *github
 	return failures
 }
 
-func (r *Reconciler) reconcilePullRequest(ctx context.Context, repository *github.Repository, number int) error {
+func (r *Reconciler) reconcilePullRequest(ctx context.Context, repository *github.Repository, number int, waitForCI bool) error {
 	pull, err := r.github.GetPullRequest(ctx, repository, number)
 	if err != nil {
 		return err
@@ -105,6 +119,10 @@ func (r *Reconciler) reconcilePullRequest(ctx context.Context, repository *githu
 
 	for _, s := range r.strategies {
 		if s.Matches(repository, pull) {
+			if rebase, ok := s.(*strategy.Rebase); ok && waitForCI {
+				return rebase.ReconcileAfterChecks(ctx, repository, pull, r.config.GetCompletionCheck())
+			}
+
 			return s.Reconcile(ctx, repository, pull)
 		}
 	}

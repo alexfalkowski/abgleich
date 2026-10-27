@@ -7,7 +7,7 @@ import (
 )
 
 // ValidateInstallation rejects an installation for another App or account and
-// suspended installations. Each sweep and comment command checks fresh state.
+// suspended installations. Each sweep, event check, and comment command checks fresh state.
 func (s *service) ValidateInstallation(ctx context.Context) error {
 	installation, _, err := s.client.application.Apps.GetInstallation(ctx, s.config.App.InstallationID)
 	if err != nil {

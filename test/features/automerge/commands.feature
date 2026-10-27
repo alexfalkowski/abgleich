@@ -60,9 +60,9 @@ Feature: Comment requests for auto-merge
     And exactly 0 label requests should reach GitHub
 
     Examples:
-      | state       |
-      | a draft     |
-      | closed      |
+      | state   |
+      | a draft |
+      | closed  |
 
   Scenario: Ignore a pull request without its GraphQL identity
     Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
@@ -137,14 +137,14 @@ Feature: Comment requests for auto-merge
     And exactly 0 label requests should reach GitHub
 
     Examples:
-      | problem                | status |
-      | an invalid signature   | 401    |
-      | a missing signature    | 401    |
-      | another installation   | 403    |
-      | another owner          | 403    |
-      | missing PR identity    | 400    |
-      | an invalid JSON body   | 400    |
-      | an oversized body      | 413    |
+      | problem              | status |
+      | an invalid signature | 401    |
+      | a missing signature  | 401    |
+      | another installation | 403    |
+      | another owner        | 403    |
+      | missing PR identity  | 400    |
+      | an invalid JSON body | 400    |
+      | an oversized body    | 413    |
 
   Scenario Outline: Acknowledge signed events that cannot request automation
     Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
@@ -154,9 +154,9 @@ Feature: Comment requests for auto-merge
     And exactly 0 label requests should reach GitHub
 
     Examples:
-      | event               |
-      | an edited comment   |
-      | an issue comment    |
+      | event             |
+      | an edited comment |
+      | an issue comment  |
 
   Scenario Outline: Re-read current comments before authorizing a label
     Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
@@ -166,16 +166,16 @@ Feature: Comment requests for auto-merge
     And exactly 0 label requests should reach GitHub
 
     Examples:
-      | change                 | status |
-      | different text         | 204    |
-      | an unknown command     | 204    |
-      | extra command text     | 204    |
-      | an edit timestamp      | 204    |
-      | no edit timestamp      | 204    |
-      | no author login        | 204    |
-      | a bot author           | 204    |
-      | another pull request   | 503    |
-      | another author         | 503    |
+      | change               | status |
+      | different text       | 204    |
+      | an unknown command   | 204    |
+      | extra command text   | 204    |
+      | an edit timestamp    | 204    |
+      | no edit timestamp    | 204    |
+      | no author login      | 204    |
+      | a bot author         | 204    |
+      | another pull request | 503    |
+      | another author       | 503    |
 
   Scenario Outline: Fail without labeling when GitHub reads fail
     Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
@@ -185,11 +185,11 @@ Feature: Comment requests for auto-merge
     And exactly 0 label requests should reach GitHub
 
     Examples:
-      | failure          |
-      | comment HTTP     |
-      | permission HTTP  |
-      | history HTTP     |
-      | comment timeout  |
+      | failure         |
+      | comment HTTP    |
+      | permission HTTP |
+      | history HTTP    |
+      | comment timeout |
 
   Scenario Outline: Recheck the PR immediately before labeling
     Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
@@ -241,7 +241,7 @@ Feature: Comment requests for auto-merge
     Examples:
       | condition                       |
       | waiting for checks              |
-      | waiting with auto-merge enabled  |
+      | waiting with auto-merge enabled |
 
   Scenario: Observe a hold added immediately before the command requests a label
     Given a pull request from "a fork" for branch "contribution" is "waiting for checks"
@@ -268,17 +268,17 @@ Feature: Comment requests for auto-merge
       And the status request should cause no automation mutations
 
       Examples:
-        | source         | condition                        | label     | decision                       | auto-merge |
-        | the repository | waiting for checks               | hold      | On hold                        | Disabled   |
-        | the repository | a draft                          | automerge | Draft pull request             | Disabled   |
-        | the repository | closed                           | automerge | Pull request is closed         | Disabled   |
-        | the repository | waiting for checks               | automerge | Would enable squash auto-merge | Disabled   |
-        | a fork         | ready to merge                   | automerge | Would squash-merge             | Disabled   |
-        | a fork         | failing optional checks          | automerge | Would squash-merge             | Disabled   |
-        | the repository | behind with auto-merge enabled   | bug       | Would request a rebase         | Enabled    |
-        | the repository | waiting with auto-merge enabled  | bug       | Branch is current              | Enabled    |
-        | a fork         | behind with auto-merge enabled   | bug       | Fork rebase unsupported        | Enabled    |
-        | the repository | waiting for checks               | bug       | No automation requested        | Disabled   |
+        | source         | condition                       | label     | decision                       | auto-merge |
+        | the repository | waiting for checks              | hold      | On hold                        | Disabled   |
+        | the repository | a draft                         | automerge | Draft pull request             | Disabled   |
+        | the repository | closed                          | automerge | Pull request is closed         | Disabled   |
+        | the repository | waiting for checks              | automerge | Would enable squash auto-merge | Disabled   |
+        | a fork         | ready to merge                  | automerge | Would squash-merge             | Disabled   |
+        | a fork         | failing optional checks         | automerge | Would squash-merge             | Disabled   |
+        | the repository | behind with auto-merge enabled  | bug       | Would request a rebase         | Enabled    |
+        | the repository | waiting with auto-merge enabled | bug       | Branch is current              | Enabled    |
+        | a fork         | behind with auto-merge enabled  | bug       | Fork rebase unsupported        | Enabled    |
+        | the repository | waiting for checks              | bug       | No automation requested        | Disabled   |
 
     Scenario Outline: Explain repository settings that prevent automation
       Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
@@ -326,7 +326,7 @@ Feature: Comment requests for auto-merge
       Examples:
         | revocation                                 |
         | after the maintainer disables it           |
-        | at the same time as the label is reapplied  |
+        | at the same time as the label is reapplied |
 
     Scenario: A label without its authorization history needs renewal
       Given a pull request from "a fork" for branch "contribution" is "waiting for checks"
@@ -351,8 +351,8 @@ Feature: Comment requests for auto-merge
         | condition                       | label     | failure            | evidence   |
         | waiting for checks              | automerge | history HTTP       | history    |
         | waiting for checks              | automerge | incomplete history | history    |
-        | waiting with auto-merge enabled  | bug       | comparison         | comparison |
-        | waiting with auto-merge enabled  | bug       | missing comparison | comparison |
+        | waiting with auto-merge enabled | bug       | comparison         | comparison |
+        | waiting with auto-merge enabled | bug       | missing comparison | comparison |
 
     Scenario Outline: Do not publish status for unauthorized or unrelated commands
       Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
@@ -378,13 +378,13 @@ Feature: Comment requests for auto-merge
       And the status request should cause no automation mutations
 
       Examples:
-        | condition          | status |
-        | edited             | 204    |
-        | now different text | 204    |
-        | now edited         | 204    |
-        | for another PR     | 503    |
-        | a bot request      | 204    |
-        | from another author | 503   |
+        | condition           | status |
+        | edited              | 204    |
+        | now different text  | 204    |
+        | now edited          | 204    |
+        | for another PR      | 503    |
+        | a bot request       | 204    |
+        | from another author | 503    |
 
     Scenario Outline: Refuse to publish a changing status snapshot
       Given a pull request from "the repository" for branch "contribution" is "waiting for checks"

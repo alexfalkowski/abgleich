@@ -5,7 +5,7 @@ Feature: Shared App installation access
 
   Scenario: Discover installation repositories across every page
     Given GitHub has repositories with stale auto-merge branches:
-      | repository            | branch  | state  |
+      | repository             | branch  | state  |
       | alexfalkowski/infraops | feature | active |
       | alexfalkowski/another  | another | active |
     And the repositories span multiple pages
@@ -39,7 +39,7 @@ Feature: Shared App installation access
 
   Scenario: Renew an installation token while processing a check
     Given GitHub has repositories with stale auto-merge branches:
-      | repository            | branch  | state  |
+      | repository             | branch  | state  |
       | alexfalkowski/infraops | feature | active |
       | alexfalkowski/infraops | second  | active |
       | alexfalkowski/later    | another | active |
@@ -53,7 +53,7 @@ Feature: Shared App installation access
 
   Scenario: Stop a check at throttled token renewal and recover on a later schedule
     Given GitHub has repositories with stale auto-merge branches:
-      | repository            | branch  | state  |
+      | repository             | branch  | state  |
       | alexfalkowski/infraops | feature | active |
       | alexfalkowski/infraops | second  | active |
       | alexfalkowski/later    | another | active |
@@ -68,7 +68,7 @@ Feature: Shared App installation access
 
   Scenario: Continue reporting ordinary token-renewal failures
     Given GitHub has repositories with stale auto-merge branches:
-      | repository            | branch  | state  |
+      | repository             | branch  | state  |
       | alexfalkowski/infraops | feature | active |
       | alexfalkowski/infraops | second  | active |
       | alexfalkowski/later    | another | active |

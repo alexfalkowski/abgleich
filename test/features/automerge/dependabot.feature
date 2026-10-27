@@ -244,7 +244,7 @@ Feature: Dependabot merge automation
       | condition                     |
       | waiting for checks            |
       | ready to merge                |
-      | ready with auto-merge enabled  |
+      | ready with auto-merge enabled |
 
   Scenario: Continue processing an unheld Dependabot pull request
     Given the Dependabot pull request for branch "held" is "ready to merge"

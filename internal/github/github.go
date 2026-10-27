@@ -82,6 +82,12 @@ type CommitsComparison = github.CommitsComparison
 // CommitFile aliases [github.CommitFile] for pull request file snapshots.
 type CommitFile = github.CommitFile
 
+// CheckRun aliases [github.CheckRun] for current-head CI observations.
+type CheckRun = github.CheckRun
+
+// CommitStatus aliases [github.RepoStatus] for commit-status contexts.
+type CommitStatus = github.RepoStatus
+
 // UpdatePullRequestBranchInput supplies GitHub's branch-update arguments.
 // ExpectedHeadOID rejects concurrent head changes; UpdateMethod selects REBASE
 // or MERGE.

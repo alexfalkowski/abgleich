@@ -9,6 +9,7 @@ Around do |_scenario, run|
   Abgleich::GitHubService.reset_request_counts
   run.call
 ensure
+  Abgleich.github.resume_pull_listing
   server.environment = server_environment
   File.write('.config/server.yaml', server_config)
   Abgleich.github.reset

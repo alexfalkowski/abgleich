@@ -12,6 +12,7 @@ require 'abgleich/github/repository/commands'
 require 'abgleich/github/repository/summaries'
 require 'abgleich/github/repository/cleanup'
 require 'abgleich/github/repository/branches'
+require 'abgleich/github/repository/checks'
 
 module Abgleich
   # Shared state for the fake GitHub REST and GraphQL API.
@@ -27,6 +28,7 @@ module Abgleich
     include Summaries
     include Cleanup
     include Branches
+    include Checks
 
     attr_reader :raced_sha
 
@@ -40,7 +42,7 @@ module Abgleich
         @generation = (@generation || 0) + 1
         @state = { failure: nil, scans: 0, pagination: false, pulls: {}, behind: {}, original: {}, updates: [], details: Hash.new(0),
                    repositories: {}, repository_failures: {}, repository_pagination: false, discovery_complete: false,
-                   login: 'alexfalkowski', listed: {}, automation_pagination: false,
+                   login: 'alexfalkowski', listed: {}, automation_pagination: false, statuses: {}, checks: {}, ci_pages: false,
                    file_mode: nil, branches: {}, commits: {}, deletions: [], branch_pages: false, branch_listed: {}, cleanup_mode: nil,
                    token_requests: 0, token_lifetime: 3600, comments: {}, replies: [], reply_requests: 0, label_requests: 0 }
         @state[:repositories][DEFAULT_REPOSITORY] = repository_data(DEFAULT_REPOSITORY)

@@ -10,21 +10,21 @@ Feature: Auto-merge failure recovery
     And the worker should remain healthy
 
     Examples:
-      | reason                                  |
-      | pull requests could not be listed       |
-      | the pull request could not be read      |
-      | the pull request could not be rechecked |
-      | the token was rejected                  |
-      | the rate limit was reached              |
-      | the pull request response was malformed |
-      | the branches could not be compared      |
-      | the comparison was incomplete           |
-      | the pull request identity was missing   |
-      | the branch update request failed        |
-      | GitHub rejected the rebase              |
+      | reason                                   |
+      | pull requests could not be listed        |
+      | the pull request could not be read       |
+      | the pull request could not be rechecked  |
+      | the token was rejected                   |
+      | the rate limit was reached               |
+      | the pull request response was malformed  |
+      | the branches could not be compared       |
+      | the comparison was incomplete            |
+      | the pull request identity was missing    |
+      | the branch update request failed         |
+      | GitHub rejected the rebase               |
       | GitHub reported a partial rebase failure |
-      | the rebase response was empty           |
-      | the rebase response was malformed       |
+      | the rebase response was empty            |
+      | the rebase response was malformed        |
 
   Scenario: Resume a failed rebase after restarting
     Given the worker could not rebase branch "feature" because "GitHub rejected the rebase"

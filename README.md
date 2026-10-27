@@ -26,6 +26,44 @@ Auto-merge PRs are rebased when their branch lacks base-branch commits, regardle
 of age, and only when both branches belong to the discovered repository. AI
 summaries are enabled separately through [configuration](#-summary-settings).
 
+### ⚡ Event-triggered checks
+
+With [webhooks configured](#-comment-webhooks), GitHub notifications also prompt
+checks of the affected repository. PR changes and branch pushes trigger a check;
+terminal commit statuses and completed check runs prompt another assessment after
+CI advances. Auto-merge enablement and ready merges use the existing policies.
+GitHub [completes enabled auto-merge](https://docs.github.com/en/pull-requests/how-tos/merge-and-close-pull-requests/automatically-merging-a-pull-request)
+when required checks and reviews pass.
+
+Event-driven rebasing requires a [configured final CI signal](#-event-driven-rebase-settings)
+on the current head and no reported active checks or pending commit statuses.
+This lets CI reach its own sync-and-push stage first. An individual job finishing
+does not establish workflow completion. A missing signal, unreadable or incomplete
+observations, and new heads without completed CI defer event rebasing. A failed
+final signal still establishes completion; GitHub enforces merge requirements.
+
+A later base update can prompt repair once the head's CI has finished. If CI
+already synchronized the branch, the fresh comparison needs no rebase. Startup
+and scheduled recovery retain their existing rebase policy and do not require
+the final CI signal, including when a failed workflow never reaches its sync job.
+
+Notifications are hints: every check completes fresh installation discovery,
+reads current repository settings, and finishes its PR pagination before applying
+the same policies as a scheduled sweep. Only the affected repository's PRs are
+checked. Bot events are supported; label consent and `hold` still apply.
+CI can restart after the final observation; head guards reject concurrent pushes,
+but the worker does not lock CI or promise to eliminate competing runs.
+
+One automerge coordinator serializes event checks and scheduled sweeps per
+process. Repeated notifications for a queued repository combine into one check.
+Events received during its check request one later pass. Pending notifications
+are held in memory without a fixed repository limit. An event may wait behind a
+running sweep.
+
+Startup and [scheduled sweeps](#-auto-merge-schedule) still reconcile all opted-in
+repositories, recovering missed events, failures, and pending work lost on restart.
+Cleanup and summary jobs retain their independent schedules.
+
 ### 🏷️ Labeled pull requests
 
 Apply the exact `automerge` label to request squash auto-merge or an immediate
@@ -40,8 +78,8 @@ reviews and stale-review rules for human approval.
 
 After GitHub disables auto-merge, remove and reapply `automerge` to renew consent,
 waiting at least a second between events. Complete label and disable history is
-checked on every sweep, including after restart. Missing or invalid history blocks
-automation; equal application and revocation timestamps defer it. Removing the
+checked on every automation check, including after restart. Missing or invalid
+history blocks automation; equal application and revocation timestamps defer it. Removing the
 label prevents new requests but does not cancel existing GitHub auto-merge;
 disable that separately to stop it.
 
@@ -92,9 +130,10 @@ on the original comment:
 | 👍 | Accepted: automerge labeled or already enabled, status published, or summary queued or already present. |
 | 😕 | The request was ineligible, rejected, or failed. |
 
-`/ab automerge` adds the durable `automerge` label for the next sweep, including
-fork PRs. Existing labels or enabled auto-merge need no write, but authorization
-is still checked. Acceptance does not mean merging has finished.
+`/ab automerge` adds the durable `automerge` label for the next automation check,
+including fork PRs. With PR event subscriptions enabled, GitHub's label event
+prompts that check. Existing labels or enabled auto-merge need no write, but
+authorization is still checked. Acceptance does not mean merging has finished.
 
 A command at or before a label removal or auto-merge disablement cannot restore
 the label; missing history blocks action. After revocation, remove any remaining
@@ -221,23 +260,28 @@ it. GitHub enforces required checks, reviews, and rules; Abgleich never approves
 or bypasses them. Disabled squash merging produces an operator-visible error
 rather than a fallback method. Other authors' auto-merge PRs retain their method.
 
-Each PR gets at most one mutation attempt per sweep. Eligibility is rechecked
-immediately before acting; `expectedHeadOid` guards rebases and auto-merge, and
+Each PR gets at most one mutation attempt per scheduled or event check.
+Eligibility is rechecked immediately before acting; `expectedHeadOid` guards rebases and auto-merge, and
 `sha` guards immediate merges. Concurrent changes are reconsidered next run.
 Conflicts require author repair; individual failures do not block other PRs or
 repositories. The worker needs REST and GraphQL access, with no writable checkout.
 
 ### 🚦 API usage
 
-Polling and commands share the installation's API budget. The auto-merge interval
-controls polling volume; go-github supplies built-in rate-limit checks without
-additional configuration. Throttling stops the sweep until the next scheduled run.
+Polling, event checks, and commands share the installation's API budget. The
+auto-merge interval controls polling volume; event frequency also affects usage.
+Event checks still discover all repository pages, but list PRs only in the
+affected repository. go-github supplies built-in rate-limit checks without
+additional configuration. Throttling stops the current check; a later event or
+scheduled run reads fresh state.
 
 ### 💬 Webhook delivery
 
 Webhooks require SHA-256 signatures and respect the configured body limit.
-Ignored or completed deliveries return 204, invalid signatures 401, unauthorized
-commands 403, and API failures, conflicts, or timeouts non-success responses.
+Ignored, queued, or completed deliveries return 204, invalid signatures 401,
+unauthorized commands 403, and API failures, conflicts, or timeouts non-success responses.
+Repository notifications queue without waiting for GitHub; 204 confirms queue
+acceptance, not a completed check. Monitor event-check logs for the later outcome.
 
 Each process handles one command at a time; concurrent commands receive 503.
 Automerge and status finish within the request; summaries queue in memory and
@@ -290,8 +334,10 @@ follow below.
 ### 🤖 GitHub App setup
 
 Register one App with **Contents**, **Pull requests**, and **Issues** permissions
-set to **read and write**; metadata read is automatic. These cover all features,
-including reactions, which require Issues write. Approve installation permission
+set to **read and write**; metadata read is automatic. These cover commands,
+scheduled automation, cleanup, and summaries, including reactions, which require
+Issues write. For event-driven rebasing, also grant **Commit statuses: read** and
+**Checks: read** to inspect completion evidence. Approve installation permission
 changes when upgrading.
 
 Install on all owned repositories to include future repositories automatically,
@@ -300,8 +346,8 @@ cleanup, and **Allow squash merging** for Dependabot and labeled automation.
 Give the App no ruleset bypass.
 
 `github.owner` must match the installation account. App ID, owner, and suspension
-are validated before repository access on each sweep and command. REST and
-GraphQL share installation credentials; `ghinstallation` signs requests and
+are validated before repository access on each sweep, event check, and command.
+REST and GraphQL share installation credentials; `ghinstallation` signs requests and
 renews tokens. Redirects to other API origins are rejected; personal tokens are
 not used.
 
@@ -310,7 +356,8 @@ Remove any unused token secret after a successful rollout.
 
 ### 💬 Comment webhooks
 
-Add to `github` to enable commands; omitting `github.webhook` disables the endpoint.
+Add to `github` to enable commands and event-triggered checks; omitting
+`github.webhook` disables the endpoint while scheduled sweeps continue.
 
 ```yaml
 github:
@@ -319,14 +366,55 @@ github:
     timeout: 8s
 ```
 
-Configure the App's **Issue comment** subscription, a matching random secret,
-and an HTTPS URL ending in `/webhooks/github`. Provision DNS and ingress before
-activating the proposed URL, `https://abgleich.lean-thoughts.com/webhooks/github`.
+Configure a matching random secret and an HTTPS URL ending in `/webhooks/github`.
+Select the App event subscriptions needed below:
+
+| Subscription | Processed activity |
+| --- | --- |
+| **Issue comment** | New PR comments for `/ab` commands. |
+| **Pull request** | Opened, reopened, synchronized, ready for review, converted to draft, edited, labeled, unlabeled, auto-merge enabled or disabled, and closed. |
+| **Push** | Branch pushes, including target-branch updates; tag pushes are ignored. |
+| **Status** | Terminal commit statuses (`success`, `failure`, or `error`); required to react to the existing CircleCI final status. |
+| **Check run** | Completed check runs; use when the final CI signal or remaining work is reported as check runs. |
+
+Other events and actions are acknowledged without work. Existing comment-only
+subscriptions keep working; add subscriptions to enable event checks. Provision
+DNS and ingress before activating the proposed URL,
+`https://abgleich.lean-thoughts.com/webhooks/github`.
 
 Keep request, webhook, job, and health timeouts independent. The HTTP timeout must
 accommodate webhook work: the example allows `8s` within the server's `9s` and
 GitHub's ten-second deadline. `transport.http.max_receive_size` also applies.
 See [webhook delivery](#-webhook-delivery) for responses and concurrency.
+
+### 🧪 Event-driven rebase settings
+
+To allow event checks to rebase after CI has finished, configure its final
+completion signal. For the existing CircleCI workflows:
+
+```yaml
+automerge:
+  completion_check: "ci/circleci: wait-all"
+```
+
+The value is an exact, case-sensitive commit-status context or check-run name.
+Choose a signal emitted only after all CI work, including branch synchronization,
+has finished. The configured signal must be terminal on the current head, and all
+reported check runs and commit statuses must also be terminal. Completion can be
+successful or failed.
+
+Omitting `automerge` or leaving `completion_check` empty leaves rebasing to scheduled
+recovery; events still enable auto-merge or merge ready PRs. Replace any existing
+`automerge.completion_checks` list with the singular `automerge.completion_check`
+string shown above.
+Configure the [App permissions](#-github-app-setup) and
+[webhook subscriptions](#-comment-webhooks) to read evidence and receive later
+results. No CircleCI API credentials are used.
+
+The current `wait-all` job runs after successful upstream jobs. If an earlier job
+fails, its final status may never appear; the next scheduled sweep remains the
+recovery path. A PR status assessment describes scheduled policy, so it can still
+report a possible rebase while event rebasing waits for CI evidence.
 
 ### 🧹 Cleanup settings
 
@@ -386,7 +474,10 @@ cannot extend the independent inference or job budget.
 
 ### 🗓️ Auto-merge schedule
 
-`scheduler` controls auto-merge sweeps; cleanup and summaries use their own blocks.
+`scheduler.interval` controls owner-wide sweeps. `scheduler.timeout` bounds a
+complete sweep, including waiting for the automerge coordinator, and each event
+check once it begins. Event checks start as the coordinator becomes available.
+Cleanup and summaries use their own blocks.
 
 ```yaml
 scheduler:
@@ -399,7 +490,8 @@ scheduler:
 | Setting | Default | Purpose |
 | --- | --- | --- |
 | `scheduler.interval` | `15m` | Time between owner-wide auto-merge sweeps. |
-| `scheduler.timeout` | `5m` | Deadline for a complete auto-merge sweep. |
+| `scheduler.timeout` | `5m` | Deadline for a complete auto-merge sweep or an executing event check. |
+| `automerge.completion_check` | `""` | Final CI signal required for event-driven rebasing; an empty value disables event rebasing. |
 | `cleanup.inactive_after` | `720h` (30 days) | Latest-commit age required for inactive cleanup. |
 | `cleanup.interval` | `24h` | Time between cleanup runs. |
 | `cleanup.timeout` | `5m` | Deadline for a complete cleanup run. |
@@ -459,10 +551,17 @@ Each completed job logs `job` (`automerge`, `cleanup`, or `summarise`), `duratio
 | Failure | `error` | Includes the error, even when the check also overran. |
 
 Timeouts cancel active work. Overruns preserve the handler's outcome and set
-`overrun: true`; starts during active work are skipped without queuing.
+`overrun: true`; subsequent scheduled starts while that job is still running
+are skipped without queuing.
 Individual branch failures contribute to the job error while other branches
 continue. Failures include repository and PR identity where available; GraphQL
 errors count even with HTTP 200.
+
+Event checks log `automerge event finished` with `repository`, `duration`, and
+an error on failure. These outcomes are separate from scheduled `job finished`
+records. Event failures do not affect readiness or liveness and are not
+automatically requeued; later events and scheduled sweeps reconcile fresh state.
+An event check can succeed without a rebase while waiting for final CI evidence.
 
 Collect logs and alert on repeated failures, overruns, and missing completed runs.
 For repeated throttling, increase the [auto-merge interval](#-auto-merge-schedule).
@@ -483,7 +582,8 @@ are never logged.
 Run the standard service container as one long-lived active instance; scheduling
 limits are per process, while head guards protect against concurrent updates.
 Use liveness for restarts to avoid outage-driven restart loops. Shutdown cancels
-all jobs, waits for active work, then closes outbound connection pools.
+all scheduled jobs, stops the automerge coordinator, then closes outbound
+connection pools.
 
 ### 🧯 Recovery
 
@@ -492,12 +592,17 @@ all jobs, waits for active work, then closes outbound connection pools.
 No checkpoint or database is needed. After crashes, timeouts, or ambiguous
 responses, the next sweep reconciles fresh GitHub state. An accepted update can
 finish after the caller stops waiting; inspect remote state before acting manually.
+If event rebasing is waiting, inspect the configured completion signal on the
+current head. Failed workflows that never emit their final signal and GitHub
+permission failures when reading CI evidence leave repair to the scheduled sweep.
 
 #### 💬 Webhook recovery
 
 GitHub does not automatically redeliver failures. Inspect App delivery results
-and redeliver after recovery; current state is re-read. Ambiguous label responses
-are not automatically retried.
+and redeliver after recovery; current state is re-read. Scheduled sweeps recover
+automation state after missed, rejected, or lost repository notifications, but
+they do not replay comment commands. Ambiguous label responses are not
+automatically retried.
 
 #### 📝 Summary recovery
 
@@ -526,10 +631,12 @@ The diagram shows an eligible action; policies can also return no-op or error.
 ```mermaid
 sequenceDiagram
     participant S as scheduler
+    participant C as automerge.Coordinator
     participant R as automerge.Reconciler
     participant P as Selected strategy
     participant G as github.Service
-    S->>R: Reconcile
+    S->>C: Reconcile
+    C->>R: Reconcile exclusively
     R->>G: Discover all repository pages
     loop Each repository
         R->>G: Read full repository settings
@@ -544,13 +651,20 @@ sequenceDiagram
             end
         end
     end
-    R-->>S: Aggregated outcome
+    R-->>C: Aggregated outcome
+    C-->>S: Complete outcome
 ```
 
 [Strategies](internal/automerge/internal/strategy/doc.go) run in
 **Dependabot → label → rebase** order; the first match owns the PR, including
 no-op and error outcomes. [`automerge`](internal/automerge/doc.go) also provides
 read-only assessments for status. See [Server](#-server) for mutation safeguards.
+
+Repository webhooks queue work in `automerge.Coordinator`. The coordinator
+resolves the notified name through complete installation discovery, then
+reconciles only that repository. It finishes active work before starting another
+sweep or event check. See [event-triggered checks](#-event-triggered-checks) for
+queue behavior.
 
 ### 💬 Comment commands
 

@@ -1,5 +1,11 @@
 # frozen_string_literal: true
 
+Given('the CI completion check is configured as a list') do
+  config = YAML.safe_load_file('.config/server.yaml')
+  config['automerge'] = { 'completion_check' => ['ci/workflow'] }
+  File.write('.config/server.yaml', YAML.dump(config))
+end
+
 Given('the App private key is {string}') do |state|
   Abgleich.prepare_github_key(state)
 end

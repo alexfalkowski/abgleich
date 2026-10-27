@@ -175,10 +175,10 @@ Feature: Maintainer-requested summaries
 
     Examples:
       | changes                        | evidence                       |
-      | more than twenty changed files | File: file21.go                 |
-      | large combined changes         | test.go-patch-end               |
-      | an oversized individual change | main.go-patch-end               |
-      | a change without a text diff   | Patch unavailable from GitHub.  |
+      | more than twenty changed files | File: file21.go                |
+      | large combined changes         | test.go-patch-end              |
+      | an oversized individual change | main.go-patch-end              |
+      | a change without a text diff   | Patch unavailable from GitHub. |
 
   Scenario: Read the outcome and changes before choosing a file
     Given a pull request from "the repository" for branch "contribution" is "waiting for checks"

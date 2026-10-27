@@ -40,6 +40,7 @@ module Abgleich
       options = { sort: 'created', direction: 'desc', state: 'open' }
       options.merge!(params.to_h.slice('sort', 'direction', 'state', 'head').transform_keys(&:to_sym))
       pulls, more = Abgleich.github.list(page, repository, **options)
+      Abgleich.github.wait_for_pull_listing
       [cleanup_pull_snapshots(pulls), more]
     end
 
