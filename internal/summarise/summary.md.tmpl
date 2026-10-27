@@ -25,6 +25,11 @@
 
 **🔖 Commit:** `{{.HeadSHA}}`
 
+**🧠 Model:** {{.Completion.Model | markdown}}
+
+{{with .Completion.Usage}}**📊 Tokens:** {{.InputTokens}} input ({{.CachedInputTokens}} cached, {{.CacheWriteTokens}} cache writes), {{.OutputTokens}} output including reasoning.
+{{else}}**📊 Tokens:** Unavailable.
+{{end}}
 [💬 Summary request](#issuecomment-{{.CommandCommentID}})
 
 **🔎 Scope:** PR metadata and changed-file patches returned by GitHub. Complete files were not retrieved; code and tests were not executed.

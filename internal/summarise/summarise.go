@@ -1,6 +1,9 @@
 package summarise
 
-import "github.com/alexfalkowski/abgleich/internal/github"
+import (
+	"github.com/alexfalkowski/abgleich/internal/ai"
+	"github.com/alexfalkowski/abgleich/internal/github"
+)
 
 // summaryTask groups a command comment with repository and PR snapshots for
 // authorisation and revision checks throughout queued summary generation.
@@ -32,6 +35,7 @@ type changedFile struct {
 // summaryComment ties generated text to the analysed head and command comment.
 // The reply template escapes generated text and links CommandCommentID to the request.
 type summaryComment struct {
+	Completion       *ai.Completion
 	HeadSHA          string
 	Text             string
 	Limits           string

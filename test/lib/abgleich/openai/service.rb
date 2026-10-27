@@ -48,13 +48,21 @@ module Abgleich
       Limits: image.png has no patch. @everyone [details](https://untrusted.invalid)
     TEXT
 
+    CACHE_USAGE = {
+      'cached usage' => { cached_tokens: 20, cache_write_tokens: 0 },
+      'cache writes' => { cached_tokens: 20, cache_write_tokens: 30 },
+      'invalid usage' => { cached_tokens: 101, cache_write_tokens: 0 },
+      'overlapping writes' => { cached_tokens: 80, cache_write_tokens: 30 }
+    }.freeze
+
     before do
       content_type :json
       halt 401 unless request.env['HTTP_AUTHORIZATION'] == 'Bearer nonnative-summary-key'
     end
 
     post '/v1/responses' do
-      Abgleich.openai.record_request(JSON.parse(request.body.read))
+      payload = JSON.parse(request.body.read)
+      Abgleich.openai.record_request(payload)
       mode = Abgleich.openai.mode
       sleep 0.8 if mode == 'slow'
       # The 3s test job allows at most 1.5s for inference.
@@ -76,8 +84,21 @@ module Abgleich
       content = [{ type: 'output_text', text: output, annotations: [] }]
       content = [{ type: 'refusal', refusal: 'I cannot provide this summary.' }] if mode == 'refusal'
       { id: 'resp_summary', object: 'response', status: mode == 'incomplete' ? 'incomplete' : 'completed',
+        model: mode == 'different response model' ? 'other-model' : payload.fetch('model'),
         output: [{ id: 'msg_summary', type: 'message', role: 'assistant', status: 'completed', content: }],
-        usage: { input_tokens: 100, output_tokens: 40, total_tokens: 140 } }.to_json
+        usage: token_usage(mode) }.to_json
+    end
+
+    private
+
+    # Usage fixtures distinguish ordinary input, cache reads/writes, and absent metadata.
+    def token_usage(mode)
+      return nil if mode == 'missing usage'
+
+      usage = { input_tokens: 100, input_tokens_details: CACHE_USAGE.fetch(mode, { cached_tokens: 0, cache_write_tokens: 0 }),
+                output_tokens: mode == 'negative usage' ? -1 : 40, output_tokens_details: { reasoning_tokens: 10 }, total_tokens: 140 }
+      usage.delete(:input_tokens_details) if mode == 'missing cache breakdown'
+      usage
     end
   end
 end

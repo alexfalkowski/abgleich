@@ -80,6 +80,7 @@ func (p *provider) Generate(ctx context.Context, prompt Prompt) (*Completion, er
 			OfToolChoiceMode: openai.Opt(responses.ToolChoiceOptionsNone),
 		},
 	})
+
 	if ctx.Err() != nil {
 		return nil, errors.New("ai: cancelled or timed out")
 	}
@@ -88,7 +89,16 @@ func (p *provider) Generate(ctx context.Context, prompt Prompt) (*Completion, er
 		return nil, errors.New("ai: request failed")
 	}
 
-	return completedText(response)
+	completion, err := completedText(response)
+	if err != nil {
+		return nil, err
+	}
+
+	if strings.IsEmpty(completion.Model) {
+		completion.Model = prompt.Model
+	}
+
+	return completion, nil
 }
 
 func completedText(response *responses.Response) (*Completion, error) {
@@ -110,8 +120,32 @@ func completedText(response *responses.Response) (*Completion, error) {
 	}
 
 	return &Completion{
-		Text:         text,
-		InputTokens:  response.Usage.InputTokens,
-		OutputTokens: response.Usage.OutputTokens,
+		Text:  text,
+		Model: response.Model,
+		Usage: responseUsage(response),
 	}, nil
+}
+
+// Missing or inconsistent usage metadata must not suppress a valid summary.
+func responseUsage(response *responses.Response) *Usage {
+	usage := response.Usage
+
+	if !usage.JSON.InputTokens.Valid() || !usage.JSON.OutputTokens.Valid() ||
+		!usage.InputTokensDetails.JSON.CachedTokens.Valid() {
+		return nil
+	}
+
+	cached, written := usage.InputTokensDetails.CachedTokens, usage.InputTokensDetails.CacheWriteTokens
+
+	if usage.InputTokens < 0 || usage.OutputTokens < 0 || cached < 0 || cached > usage.InputTokens ||
+		written < 0 || written > usage.InputTokens-cached {
+		return nil
+	}
+
+	return &Usage{
+		InputTokens:       usage.InputTokens,
+		CachedInputTokens: cached,
+		CacheWriteTokens:  written,
+		OutputTokens:      usage.OutputTokens,
+	}
 }

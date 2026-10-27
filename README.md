@@ -197,8 +197,12 @@ The prompt requests fewer than 120 words: an outcome, up to three **What changes
 bullets, and up to three **Where to look** bullets explaining what to inspect and
 why. File links target the analyzed revision, excluding deleted files and files
 without patches. **Missing context** identifies omissions; a collapsed
-**Summary details** footer records commit, request, and source scope. Output has
-a 2,048-token budget; length and quality depend on the model. Malformed sections
+**Summary details** footer records commit, request, source scope, model, and token
+usage, including cached input and cache writes when reported. Missing or
+inconsistent usage is shown as unavailable without preventing a summary. These
+are provider-reported token counts; the worker does not estimate dollar costs
+or request billing access. Output has a 2,048-token budget; length and quality
+depend on the model. Malformed sections
 remain escaped plain text; per-line citations are neither generated nor validated.
 Inspect the diff and evaluate the model on approved PRs before widening use;
 summaries cannot establish whole-PR accuracy.
