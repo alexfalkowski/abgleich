@@ -8,7 +8,7 @@ require (
 	github.com/alexfalkowski/go-sync v1.36.0
 	github.com/bradleyfalzon/ghinstallation/v2 v2.19.0
 	github.com/google/go-github/v93 v93.0.0
-	github.com/openai/openai-go/v3 v3.86.0
+	github.com/openai/openai-go/v3 v3.88.0
 )
 
 require (
