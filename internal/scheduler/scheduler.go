@@ -59,6 +59,7 @@ func (s *Scheduler) Register(name string, cfg Schedule, handler sync.Handler) er
 
 		return err
 	}
+
 	s.jobs = append(s.jobs, job)
 	return nil
 }
@@ -85,11 +86,13 @@ func (s *Scheduler) Stop(ctx context.Context) error {
 	}
 
 	group := sync.ErrorsGroup{}
+
 	for _, job := range s.jobs {
 		group.Go(func() error {
 			if err := job.Stop(ctx); err != nil {
 				return fmt.Errorf("scheduler: stop job %q: %w", job.name, err)
 			}
+
 			return nil
 		})
 	}

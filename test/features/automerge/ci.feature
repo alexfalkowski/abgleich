@@ -12,7 +12,7 @@ Feature: Let CI synchronize branches before event-driven rebasing
     And CI for branch "feature" is "<phase>"
     When GitHub delivers a "push" notification with action ""
     Then the event delivery should return HTTP 204
-    And exactly 1 event checks should finish
+    And exactly 1 event check should finish
     And no event mutations should reach GitHub
 
     Examples:
@@ -35,7 +35,7 @@ Feature: Let CI synchronize branches before event-driven rebasing
     When GitHub reports the final CI result for branch "feature"
     Then the event delivery should return HTTP 204
     And branch "feature" should be rebased
-    And exactly 1 event checks should finish
+    And exactly 1 event check should finish
     And only one mutation request should have been sent
 
     Examples:
@@ -52,7 +52,7 @@ Feature: Let CI synchronize branches before event-driven rebasing
     And CI for branch "feature" is "between validation and sync"
     When GitHub reports a successful validation job for branch "feature"
     Then the event delivery should return HTTP 204
-    And exactly 1 event checks should finish
+    And exactly 1 event check should finish
     And no event mutations should reach GitHub
 
   Scenario: Reconsider a branch when its final CI result arrives
@@ -80,12 +80,12 @@ Feature: Let CI synchronize branches before event-driven rebasing
     Given GitHub has a stale auto-merge branch "feature"
     And CI pushed a new stale head for branch "feature" without starting checks
     When GitHub reports the final CI result for branch "feature"
-    Then exactly 1 event checks should finish
+    Then exactly 1 event check should finish
     And no event mutations should reach GitHub
 
   Scenario: Respect CI pushing while completion evidence is being read
     Given GitHub has a stale auto-merge branch "feature"
-    And the labeled operation fails with "CI push during observation"
+    And GitHub reports "CI push during observation"
     When GitHub reports the final CI result for branch "feature"
     Then the event check should fail
     And CI's pushed head for branch "feature" should remain untouched
@@ -93,9 +93,9 @@ Feature: Let CI synchronize branches before event-driven rebasing
 
   Scenario: Respect a hold applied while completion evidence is being read
     Given GitHub has a stale auto-merge branch "feature"
-    And the labeled operation fails with "hold during CI observation"
+    And GitHub reports "hold during CI observation"
     When GitHub reports the final CI result for branch "feature"
-    Then exactly 1 event checks should finish
+    Then exactly 1 event check should finish
     And no event mutations should reach GitHub
     And branch "feature" should retain the "hold" label
 
@@ -111,7 +111,7 @@ Feature: Let CI synchronize branches before event-driven rebasing
     Given GitHub has a stale auto-merge branch "feature"
     And CI for branch "feature" is "multiple checks finished"
     And the CI observations span multiple pages
-    And the labeled operation fails with "<failure>"
+    And GitHub reports "<failure>"
     When GitHub reports the final CI result for branch "feature"
     Then the event check should fail
     And no event mutations should reach GitHub
@@ -135,7 +135,7 @@ Feature: Let CI synchronize branches before event-driven rebasing
     Given the event completion check is "<configuration>"
     And GitHub has a stale auto-merge branch "feature"
     When GitHub reports the final CI result for branch "feature"
-    Then exactly 1 event checks should finish
+    Then exactly 1 event check should finish
     And no event mutations should reach GitHub
 
     Examples:

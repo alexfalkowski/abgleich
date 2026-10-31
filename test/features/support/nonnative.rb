@@ -2,6 +2,10 @@
 
 Nonnative.configure do |config|
   config.load_file('nonnative.yml')
+
+  # Each scenario waits for graceful worker shutdown before starting another process.
+  server = config.process_by_name('server')
+  server.environment = server.environment.to_h.merge('GORACE' => "#{ENV.fetch('GORACE', '')} atexit_sleep_ms=0".strip)
 end
 
 Around do |_scenario, run|

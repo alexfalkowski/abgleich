@@ -38,7 +38,7 @@ module Abgleich
         @raced_sha = Digest::SHA1.hexdigest('concurrent author change')
         pull[:head][:sha] = raced_sha
         @state[:behind][raced_sha] = 1
-        @state[:failure] = 'mutation'
+        @state[:failure] = 'a rejected change'
       end
 
       def mutation_result(input, pull)

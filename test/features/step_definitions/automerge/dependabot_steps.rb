@@ -76,10 +76,6 @@ Given('its {string} changes before Dependabot automation') do |field|
   Abgleich.github.fail_with("before mutation:#{path}")
 end
 
-Given('the Dependabot operation fails with {string}') do |failure|
-  Abgleich.github.fail_with(failure)
-end
-
 Given('GitHub rejects Dependabot changes on branch {string}') do |branch|
   Abgleich.github.fail_with("conflict:#{branch}")
 end

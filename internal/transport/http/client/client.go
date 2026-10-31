@@ -31,6 +31,7 @@ type Factory struct {
 // Each client has its own pool and rejects redirects to a different origin.
 func (f *Factory) NewClient(cfg *client.Config, timeout time.Duration, opts ...transporthttp.ClientOption) (*http.Client, error) {
 	var tlsConfig *tls.Config
+
 	if cfg.IsEnabled() && cfg.TLS.IsEnabled() {
 		var err error
 		tlsConfig, err = client.NewConfig(f.fs, cfg.TLS)
@@ -45,9 +46,11 @@ func (f *Factory) NewClient(cfg *client.Config, timeout time.Duration, opts ...t
 		transporthttp.WithClientTimeout(timeout),
 		transporthttp.WithClientRoundTripper(pool),
 	}
+
 	if cfg.IsEnabled() {
 		options = append(options, transporthttp.WithClientBreaker(breaker.NewConfig(cfg.Breaker)))
 	}
+
 	options = append(options, opts...)
 
 	connection, err := transporthttp.NewClient(options...)

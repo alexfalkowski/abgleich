@@ -1,11 +1,10 @@
 @startup
-Feature: Observability
+Feature: Monitor worker health
+  Operators can check whether the worker is healthy and collect monitoring metrics.
 
-  Observability is a measure of how well internal states of a system can be inferred by knowledge of its external outputs.
-
-  Scenario Outline: <endpoint> with HTTP
-    When the system requests the "<endpoint>" with HTTP
-    Then the system should respond with a healthy status with HTTP
+  Scenario Outline: Check the worker's <endpoint>
+    When an operator checks worker "<endpoint>"
+    Then the worker should report healthy
 
     Examples:
       | endpoint  |
@@ -13,6 +12,6 @@ Feature: Observability
       | liveness  |
       | readiness |
 
-  Scenario: Metrics
-    When the system requests the "metrics" with HTTP
-    Then the system should respond with metrics
+  Scenario: Collect monitoring metrics
+    When an operator checks worker "metrics"
+    Then the operator should receive monitoring metrics

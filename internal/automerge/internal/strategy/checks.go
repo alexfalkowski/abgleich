@@ -44,6 +44,7 @@ func completedCheckNames(statuses []*github.CommitStatus, checks []*github.Check
 		if check.GetStatus() != "completed" || strings.IsEmpty(check.GetConclusion()) {
 			return nil
 		}
+
 		completed[check.GetName()] = true
 	}
 

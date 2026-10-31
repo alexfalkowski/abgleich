@@ -7,17 +7,18 @@ import (
 	"github.com/alexfalkowski/go-service/v2/os"
 	"github.com/alexfalkowski/go-service/v2/strings"
 	"github.com/alexfalkowski/go-service/v2/telemetry/logger"
-	"github.com/alexfalkowski/go-service/v2/time"
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
 	"github.com/openai/openai-go/v3/responses"
+	"github.com/openai/openai-go/v3/shared"
 )
 
 // Provider generates text using configuration resolved once at startup. Features
 // own source authorization, instructions, and generation budgets.
 type Provider interface {
-	// Generate submits one prompt without tools, response storage, or automatic
-	// retries. It observes cancellation and a one-minute limit. Refused, failed,
+	// Generate runs one conversation with optional caller-owned tools, without
+	// response storage or automatic retries. It observes cancellation and the prompt's
+	// conversation deadline (one minute when omitted). Refused, failed,
 	// incomplete, and empty responses return a nil completion and an error.
 	Generate(ctx context.Context, prompt Prompt) (*Completion, error)
 }
@@ -40,7 +41,7 @@ func NewProvider(cfg *Config, fs *os.FS, log *logger.Logger, connections *client
 	// retry settings are present. The SDK's retries are also disabled below.
 	connection, err := connections.NewClient(cfg.Client, cfg.GetTimeout())
 	if err != nil {
-		return nil, err
+		return nil, errors.Prefix("ai: client", err)
 	}
 
 	// Construct the Responses service directly: NewClient inherits OPENAI_* values,
@@ -51,7 +52,6 @@ func NewProvider(cfg *Config, fs *os.FS, log *logger.Logger, connections *client
 		option.WithHTTPClient(connection),
 		option.WithMaxRetries(0),
 	)
-
 	return &loggingProvider{
 		Provider: &provider{
 			service: &service,
@@ -66,13 +66,12 @@ type provider struct {
 	key     string
 }
 
-// Generate performs one cancellable provider request and rejects partial,
+// Generate performs one cancellable conversation and rejects partial,
 // refused, failed, empty, or unexpected output.
 // Task configuration and request budgets belong to the calling feature.
 func (p *provider) Generate(ctx context.Context, prompt Prompt) (*Completion, error) {
-	ctx, cancel := context.WithTimeout(ctx, time.Minute)
+	ctx, cancel := context.WithTimeout(ctx, prompt.GetTimeout())
 	defer cancel()
-
 	params := responses.ResponseNewParams{
 		Model:        prompt.Model,
 		Instructions: openai.String(prompt.Instructions),
@@ -88,16 +87,11 @@ func (p *provider) Generate(ctx context.Context, prompt Prompt) (*Completion, er
 		params.MaxOutputTokens = openai.Int(prompt.MaxOutputTokens)
 	}
 
-	response, err := p.service.New(ctx, params)
-	if ctx.Err() != nil {
-		return nil, errors.New("ai: cancelled or timed out")
+	if !strings.IsEmpty(prompt.ReasoningEffort) {
+		params.Reasoning.Effort = shared.ReasoningEffort(prompt.ReasoningEffort)
 	}
 
-	if err != nil {
-		return nil, errors.New("ai: request failed")
-	}
-
-	completion, err := completedText(response)
+	completion, err := p.generate(ctx, prompt, params)
 	if err != nil {
 		return nil, err
 	}
@@ -105,77 +99,24 @@ func (p *provider) Generate(ctx context.Context, prompt Prompt) (*Completion, er
 	if strings.IsEmpty(completion.Model) {
 		completion.Model = prompt.Model
 	}
-
 	completion.Text = strings.ReplaceAll(completion.Text, p.key, "[REDACTED]")
 	completion.Model = strings.ReplaceAll(completion.Model, p.key, "[REDACTED]")
-
 	return completion, nil
-}
-
-func completedText(response *responses.Response) (*Completion, error) {
-	if response == nil {
-		return nil, errors.New("ai: empty response")
-	}
-
-	if !strings.IsEmpty(string(response.Error.Code)) || !strings.IsEmpty(response.Error.Message) {
-		return nil, errors.New("ai: generation failed")
-	}
-
-	if response.Status != responses.ResponseStatusCompleted {
-		return nil, errors.New("ai: incomplete response")
-	}
-
-	if !validOutput(response) {
-		return nil, errors.New("ai: refused or unexpected response")
-	}
-
-	text := response.OutputText()
-	if strings.IsEmpty(strings.TrimSpace(text)) {
-		return nil, errors.New("ai: empty response")
-	}
-
-	return &Completion{
-		Text:  text,
-		Model: response.Model,
-		Usage: responseUsage(response),
-	}, nil
-}
-
-func validOutput(response *responses.Response) bool {
-	for _, output := range response.Output {
-		switch output.Type {
-		case "reasoning":
-			continue
-		case "message":
-			for _, content := range output.AsMessage().Content {
-				if content.Type != "output_text" {
-					return false
-				}
-			}
-		default:
-			return false
-		}
-	}
-
-	return true
 }
 
 // Missing or inconsistent usage metadata must not suppress a valid summary.
 func responseUsage(response *responses.Response) *Usage {
 	usage := response.Usage
-
 	if !usage.JSON.InputTokens.Valid() || !usage.JSON.OutputTokens.Valid() ||
 		!usage.InputTokensDetails.JSON.CachedTokens.Valid() {
 		return nil
 	}
 
 	cached, written := usage.InputTokensDetails.CachedTokens, usage.InputTokensDetails.CacheWriteTokens
-
 	if usage.InputTokens < 0 || usage.OutputTokens < 0 || cached < 0 || cached > usage.InputTokens ||
 		written < 0 || written > usage.InputTokens-cached {
 		return nil
 	}
-
 	return &Usage{
 		InputTokens:       usage.InputTokens,
 		CachedInputTokens: cached,

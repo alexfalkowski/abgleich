@@ -36,7 +36,8 @@ transport:
     address: tcp://:11000
     timeout: 5s
     max_receive_size: 1048576B
-code_review:
-  model: test-review
-  interval: 100ms
-  timeout: 3s
+review:
+  code:
+    model: test-review
+    interval: 100ms
+    timeout: 3s

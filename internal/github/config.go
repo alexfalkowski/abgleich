@@ -53,6 +53,7 @@ func (c *WebhookConfig) GetTimeout() time.Duration {
 	if c.Timeout == 0 {
 		return defaultWebhookTimeout
 	}
+
 	return c.Timeout
 }
 

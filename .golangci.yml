@@ -25,7 +25,7 @@ linters:
     - wsl_v5
   settings:
     lll:
-      line-length: 160
+      line-length: 165
     tagliatelle:
       case:
         rules:

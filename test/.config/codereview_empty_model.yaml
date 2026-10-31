@@ -41,7 +41,8 @@ ai:
   openai:
     api_key: file:secrets/openai-api-key
     url: http://localhost:11001/openai/v1/
-code_review:
-  model: ''
-  interval: 100ms
-  timeout: 3s
+review:
+  code:
+    model: ''
+    interval: 100ms
+    timeout: 3s

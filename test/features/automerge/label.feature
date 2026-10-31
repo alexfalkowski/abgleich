@@ -1,5 +1,5 @@
 @github @manual @merges @labels
-Feature: Labeled pull request automation
+Feature: Request squash merging with the automerge label
   Maintainers opt pull requests into squash merging with the automerge label.
   Fork branches remain under their authors' control.
 
@@ -153,7 +153,7 @@ Feature: Labeled pull request automation
   Scenario Outline: Guard labeled actions against a concurrent push
     Given a pull request from "a fork" for branch "contribution" is "<condition>"
     And branch "contribution" has the "automerge" label
-    And the labeled operation fails with "concurrent push"
+    And GitHub reports "concurrent push"
     When the worker checks auto-merge branches
     Then the branch check should fail without affecting worker health
     And no merge actions should be accepted
@@ -212,35 +212,35 @@ Feature: Labeled pull request automation
     And branch "contribution" has the "automerge" label
     And GitHub disabled auto-merge for branch "contribution" "and the label is reapplied"
     And the automation events span multiple pages
-    And the labeled operation fails with "<failure>"
+    And GitHub reports "<failure>"
     When the worker checks auto-merge branches
     Then the branch check should fail without affecting worker health
     And no pull request mutations should be requested
 
     Examples:
-      | failure                   |
-      | history HTTP              |
-      | history page              |
-      | history GraphQL           |
-      | history rate limit        |
-      | malformed history         |
-      | mismatched history        |
-      | incomplete history        |
-      | missing history events    |
-      | missing history timestamp |
-      | missing history label     |
-      | unknown history event     |
-      | invalid history cursor    |
+      | failure                                     |
+      | unavailable automation history              |
+      | unavailable later automation history        |
+      | rejected automation history                 |
+      | rate-limited automation history             |
+      | unreadable automation history               |
+      | automation history for another pull request |
+      | incomplete automation history               |
+      | missing automation events                   |
+      | an automation event without a time          |
+      | an automation event without a label         |
+      | an unrecognized automation event            |
+      | repeated automation history                 |
 
   Scenario: Require evidence that the label was applied
     Given a pull request from "a fork" for branch "contribution" is "ready to merge"
     And branch "contribution" has the "automerge" label
-    And the labeled operation fails with "empty history"
+    And GitHub reports "no recorded label authorization"
     When the worker checks auto-merge branches
     Then no pull request mutations should be requested
     And the branch check should succeed
 
-  Scenario: Finish pull request pagination before labeled mutations
+  Scenario: Read every contribution before acting on labels
     Given a pull request from "a fork" for branch "first" is "waiting for checks"
     And branch "first" has the "automerge" label
     And a pull request from "the repository" for branch "second" is "ready to merge"
@@ -264,7 +264,7 @@ Feature: Labeled pull request automation
   Scenario: Preserve the automatic Dependabot policy on a labeled pull request
     Given the Dependabot pull request for branch "dependencies" is "waiting for checks"
     And branch "dependencies" has the "automerge" label
-    And the labeled operation fails with "history GraphQL"
+    And GitHub reports "rejected automation history"
     When the worker checks auto-merge branches
     Then branch "dependencies" should have squash auto-merge enabled
     And only one merge action should occur for branch "dependencies"
@@ -273,7 +273,7 @@ Feature: Labeled pull request automation
   Scenario Outline: Refuse a fork contribution with incomplete pull request metadata
     Given a pull request from "a fork" for branch "contribution" is "waiting for checks"
     And branch "contribution" has the "automerge" label
-    And the labeled operation fails with "<metadata>"
+    And GitHub reports "<metadata>"
     When the worker checks auto-merge branches
     Then the branch check should fail without affecting worker health
     And no pull request mutations should be requested

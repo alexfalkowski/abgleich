@@ -4,11 +4,11 @@ import (
 	"github.com/alexfalkowski/abgleich/internal/ai"
 	"github.com/alexfalkowski/abgleich/internal/automerge"
 	"github.com/alexfalkowski/abgleich/internal/cleanup"
-	"github.com/alexfalkowski/abgleich/internal/codereview"
 	"github.com/alexfalkowski/abgleich/internal/commands"
 	"github.com/alexfalkowski/abgleich/internal/config"
 	"github.com/alexfalkowski/abgleich/internal/github"
 	"github.com/alexfalkowski/abgleich/internal/health"
+	"github.com/alexfalkowski/abgleich/internal/review"
 	"github.com/alexfalkowski/abgleich/internal/scheduler"
 	"github.com/alexfalkowski/abgleich/internal/status"
 	"github.com/alexfalkowski/abgleich/internal/summarise"
@@ -29,8 +29,8 @@ var Module = di.Module(
 	cleanup.Module,
 	status.Module,
 	ai.Module,
+	review.Module,
 	summarise.Module,
-	codereview.Module,
 	http.Module,
 	scheduler.Module,
 	health.Module,

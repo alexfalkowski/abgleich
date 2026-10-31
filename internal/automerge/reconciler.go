@@ -82,6 +82,7 @@ func (r *Reconciler) reconcileRepository(ctx context.Context, repository *github
 	}
 
 	var failures error
+
 	for _, pull := range pulls {
 		if ctx.Err() != nil {
 			return errors.Join(failures, context.Cause(ctx))

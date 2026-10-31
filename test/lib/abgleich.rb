@@ -14,10 +14,12 @@ require 'abgleich/github/service'
 require 'abgleich/github/pull_request_service'
 require 'abgleich/github/check_service'
 require 'abgleich/github/app_service'
+require 'abgleich/github/source_service'
 require 'abgleich/github/branch_service'
 require 'abgleich/openai/responses'
 require 'abgleich/openai/service'
 require 'abgleich/openai/reviews'
+require 'abgleich/review/module_service'
 require 'abgleich/api/server'
 
 module Abgleich

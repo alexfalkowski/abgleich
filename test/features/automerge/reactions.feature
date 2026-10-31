@@ -8,7 +8,7 @@ Feature: Feedback on auto-merge command comments
 
   Scenario: Show receipt while the command is still processing
     Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
-    And the labeled operation fails with "slow label"
+    And GitHub reports "a delayed label update"
     When a maintainer requests auto-merge while GitHub is still applying the label
     Then receipt should have been visible before the command completed
     And the comment delivery should return HTTP 204
@@ -26,7 +26,7 @@ Feature: Feedback on auto-merge command comments
   Scenario: Confirm an existing label without requesting it again
     Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
     And branch "contribution" has the "automerge" label
-    And the labeled operation fails with "history HTTP"
+    And GitHub reports "unavailable automation history"
     When a maintainer with "write" access comments "/ab automerge"
     Then the comment delivery should return HTTP 204
     And the command comment should show "receipt and acceptance" feedback
@@ -93,7 +93,7 @@ Feature: Feedback on auto-merge command comments
 
   Scenario: Reject a command whose authorization was revoked
     Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
-    And the comment for branch "contribution" was created "before" a "UnlabeledEvent" event
+    And the comment for branch "contribution" was created "before" "the automerge label was removed"
     When GitHub delivers that comment
     Then the comment delivery should return HTTP 204
     And the command comment should show "receipt and rejection" feedback
@@ -101,7 +101,7 @@ Feature: Feedback on auto-merge command comments
 
   Scenario: Show a failed label request without claiming acceptance
     Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
-    And the labeled operation fails with "label HTTP"
+    And GitHub reports "an unavailable label update"
     When a maintainer with "write" access comments "/ab automerge"
     Then the comment delivery should return HTTP 503
     And the command comment should show "receipt and rejection" feedback

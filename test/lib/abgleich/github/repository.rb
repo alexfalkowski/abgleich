@@ -82,10 +82,10 @@ module Abgleich
       case failure
       when 'graphql rate limit' then { errors: [{ type: 'RATE_LIMITED', message: 'Quota exhausted' }] }
       when 'graphql secondary limit' then { errors: [{ message: 'You have exceeded a secondary rate limit' }] }
-      when 'partial mutation'
+      when 'a partially rejected change'
         { data: { operation => { pullRequest: { id: pull[:node_id] } } }, errors: [{ message: 'Mutation failed' }] }
-      when 'mismatched mutation' then { data: { operation => { pullRequest: { id: 'another-pull-request' } } } }
-      when 'mutation', "conflict:#{pull.dig(:head, :ref)}" then { errors: [{ message: 'Cannot mutate pull request' }] }
+      when 'a change confirmation for another pull request' then { data: { operation => { pullRequest: { id: 'another-pull-request' } } } }
+      when 'a rejected change', "conflict:#{pull.dig(:head, :ref)}" then { errors: [{ message: 'Cannot mutate pull request' }] }
       end
     end
   end

@@ -19,6 +19,7 @@ func (c *Command) context(ctx context.Context, task *summaryTask) (string, []cha
 		HeadSHA:     task.pullRequest.GetHead().GetSHA(),
 		BaseSHA:     task.pullRequest.GetBase().GetSHA(),
 	}
+
 	available := make([]changedFile, 0, len(files))
 
 	for _, file := range files {

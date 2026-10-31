@@ -1,0 +1,33 @@
+### 🤖 Abgleich {{.Title | lower}}
+
+{{.Completion.Text | markdown}}
+
+<details>
+<summary>{{.Title}} details</summary>
+
+**Head:** `{{.HeadSHA}}`
+
+**Base:** `{{.BaseSHA}}`
+
+[💬 {{.Title}} request](#issuecomment-{{.RequestID}})
+
+**Model:** {{.Completion.Model | markdown}}
+
+{{with .Completion.Usage}}**Tokens:** {{.InputTokens}} input ({{.CachedInputTokens}} cached, {{.CacheWriteTokens}} cache writes), {{.OutputTokens}} output including reasoning.
+{{else}}**Tokens:** Unavailable.
+{{end}}
+
+**Scope:** Pull request metadata, all available changed-file patches, complete changed-file text where available, and source retrieved through read-only lookups. Missing patches and unavailable source limit the review. Code and tests were not executed. Findings are advisory, do not grant approval, and do not certify security or constitute a complete audit.
+
+{{with .Sources}}**Inspected source:**
+{{range .}}
+- {{. | markdown}}
+{{end}}{{end}}
+{{with .Missing}}**Unavailable source:**
+{{range .}}
+- {{. | markdown}}
+{{end}}{{end}}
+
+</details>
+
+{{.Marker}}

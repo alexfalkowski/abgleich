@@ -143,7 +143,7 @@ Then('every repository notification should return HTTP 204') do
   expect(@event_responses.map(&:code)).to all(eq(204)), 'expected every notification to be queued without waiting for GitHub'
 end
 
-Then('exactly {int} event checks should finish') do |count|
+Then('exactly {int} event check(s) should finish') do |count|
   @expected_event_checks = count
   wait_for { Abgleich.logs.count { |record| record['msg'] == 'automerge event finished' } }.to eq(count)
 end

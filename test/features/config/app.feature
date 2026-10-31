@@ -1,9 +1,9 @@
 @github @manual @reconciliation
 Feature: Shared App installation access
-  The worker and comment handler use the same App installation.
+  Scheduled automation and maintainer requests use the same authorized App installation.
   Installation tokens renew without restarting the worker.
 
-  Scenario: Discover installation repositories across every page
+  Scenario: Automate all repositories available to the installed App
     Given GitHub has repositories with stale auto-merge branches:
       | repository             | branch  | state  |
       | alexfalkowski/infraops | feature | active |
@@ -15,7 +15,7 @@ Feature: Shared App installation access
     And the branch check should succeed
     And GitHub should receive one installation check per sweep and 0 for comment commands
 
-  Scenario: Check installation access once per comment command
+  Scenario: Recheck App access for every maintainer request
     Given GitHub App comment commands are configured
     And a pull request from "the repository" for branch "contribution" is "waiting for checks"
     When GitHub delivers the same automerge comment twice
@@ -90,7 +90,7 @@ Feature: Shared App installation access
   Scenario Outline: Block automation when installation access fails
     Given GitHub App comment commands are configured
     And a pull request from "the repository" for branch "contribution" is "waiting for checks"
-    And the labeled operation fails with "<failure>"
+    And GitHub reports "<failure>"
     When a maintainer with "write" access comments "/ab automerge"
     Then the comment delivery should return HTTP 503
     And exactly 0 label requests should reach GitHub
@@ -98,14 +98,14 @@ Feature: Shared App installation access
     And the branch check should fail without affecting worker health
 
     Examples:
-      | failure                 |
-      | installation token HTTP |
-      | authentication          |
-      | mismatched installation |
-      | mismatched app          |
-      | suspended installation  |
-      | empty installation      |
-      | null installation       |
+      | failure                           |
+      | an unavailable installation token |
+      | authentication                    |
+      | mismatched installation           |
+      | mismatched app                    |
+      | suspended installation            |
+      | empty installation                |
+      | missing installation details      |
 
   Scenario: Reject an installation whose owner changed after a successful sweep
     Given GitHub App comment commands are configured
@@ -119,7 +119,7 @@ Feature: Shared App installation access
     And the branch check should fail without affecting worker health
 
   Scenario: Reject an incomplete installation repository page
-    Given the labeled operation fails with "incomplete discovery"
+    Given GitHub reports "incomplete discovery"
     When the worker checks auto-merge branches
     Then the branch check should fail without affecting worker health
     And no repositories should have been checked

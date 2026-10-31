@@ -71,7 +71,10 @@ module Abgleich
       halt 400, { error: { message: 'Context window exceeded', code: 'context_length_exceeded' } }.to_json if mode == 'context limit'
       halt 200, 'null' if mode == 'null response'
 
+      halt 200, source_review_response(payload, mode).to_json if mode&.start_with?('review source')
+
       output = payload.fetch('model') == 'test-review' ? review_output(payload, mode) : SUMMARY
+      output = security_review_output(payload, mode) if payload.fetch('model') == 'test-security'
       case mode
       when 'hostile prose'
         output = "The worker now processes requests predictably.\n\nChanges:\n" \
@@ -82,10 +85,9 @@ module Abgleich
       when 'limits note' then output = SUMMARY_WITH_LIMITS
       when 'removed pointer' then output = "The old entry point was removed.\n\nWhere to look:\nmain.go: deleted entry point."
       end
-      content = response_content(output, mode)
       { id: 'resp_summary', object: 'response', status: mode == 'incomplete' ? 'incomplete' : 'completed',
         model: mode == 'different response model' ? 'other-model' : payload.fetch('model'),
-        output: response_output(content, mode),
+        output: response_output(response_content(output, mode), mode),
         usage: token_usage(mode) }.to_json
     end
 
@@ -94,7 +96,7 @@ module Abgleich
     def response_output(content, mode)
       messages = [{ id: 'msg_summary', type: 'message', role: 'assistant', status: 'completed', content: }]
 
-      if mode == 'review unexpected tool output'
+      if mode == 'review a request outside the approved capabilities'
         messages << { id: 'call_review', type: 'function_call', call_id: 'call_review', name: 'mutate', arguments: '{}' }
       end
 
@@ -106,7 +108,7 @@ module Abgleich
       refusal = { type: 'refusal', refusal: 'I cannot provide this answer.' }
       return [refusal] if mode == 'refusal'
 
-      content << refusal if mode == 'review mixed refusal'
+      content << refusal if mode == 'review a refusal alongside an answer'
       content
     end
 

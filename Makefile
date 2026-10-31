@@ -18,7 +18,15 @@ features-labels:
 
 # Run automerge and status comment command features.
 features-commands:
-	@$(MAKE) features tags="@commands and not (@summaries or @reactions)"
+	@$(MAKE) features tags="@commands and not (@summaries or @reactions or @codereview or @secreview)"
+
+# Run code-review and shared review workflow features, including source access.
+features-codereview:
+	@$(MAKE) features tags="@codereview"
+
+# Run security-review configuration, prompt, and independent queue features.
+features-secreview:
+	@$(MAKE) features tags="@secreview and not @codereview"
 
 # Run summary and comment reaction features.
 features-summaries:

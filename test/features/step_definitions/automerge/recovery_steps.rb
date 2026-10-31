@@ -16,10 +16,10 @@ Given('the worker could not rebase branch {string} because {string}') do |branch
     'the comparison was incomplete' => 'missing comparison',
     'the pull request identity was missing' => 'missing node ID',
     'the branch update request failed' => 'mutation HTTP',
-    'GitHub rejected the rebase' => 'mutation',
-    'GitHub reported a partial rebase failure' => 'partial mutation',
-    'the rebase response was empty' => 'empty mutation',
-    'the rebase response was malformed' => 'malformed mutation'
+    'GitHub rejected the rebase' => 'a rejected change',
+    'GitHub reported a partial rebase failure' => 'a partially rejected change',
+    'the rebase response was empty' => 'no confirmation of the requested change',
+    'the rebase response was malformed' => 'an unreadable change confirmation'
   }.fetch(reason)
   Abgleich.github.add_pull(branch)
   Abgleich.github.fail_with(failure_mode)

@@ -13,14 +13,15 @@ const autoMergeCommand = "automerge"
 var _ commands.Handler = (*Command)(nil)
 
 // NewCommand constructs the automerge comment command's authorization and action.
-func NewCommand(service github.Service) *Command {
-	return &Command{github: service}
+func NewCommand(service github.Service, authorizer *commands.Authorizer) *Command {
+	return &Command{github: service, authorizer: authorizer}
 }
 
 // Command requests the automerge label and leaves merge decisions to scheduled
 // reconciliation. Remote PR history handles stale requests across restarts.
 type Command struct {
-	github github.Service
+	github     github.Service
+	authorizer *commands.Authorizer
 }
 
 // Handle re-reads the comment, permissions, and PR state before requesting a
@@ -41,28 +42,9 @@ func (c *Command) Handle(ctx context.Context, event *github.IssueCommentEvent) (
 		return false, nil
 	}
 
-	comment, err := c.github.GetComment(ctx, repo, pull.GetNumber(), event.GetComment())
-	if err != nil {
+	comment, err := c.authorizer.Authorize(ctx, autoMergeCommand, repo, pull.GetNumber(), event.GetComment())
+	if err != nil || comment == nil {
 		return false, err
-	}
-
-	return c.authorize(ctx, repo, pull, comment)
-}
-
-func (c *Command) authorize(ctx context.Context, repo *github.Repository, pull *github.PullRequest, comment *github.IssueComment) (bool, error) {
-	if commands.Parse(comment.GetBody()) != autoMergeCommand || comment.GetUser().GetType() != "User" ||
-		!github.HasCommentMetadata(comment) ||
-		comment.GetUpdatedAt().After(comment.GetCreatedAt().Time) {
-		return false, nil
-	}
-
-	allowed, err := c.github.HasWritePermission(ctx, repo, comment.GetUser())
-	if err != nil {
-		return false, err
-	}
-
-	if !allowed {
-		return false, commands.ErrWriteAccessRequired
 	}
 
 	if automationAlreadyRequested(pull) {

@@ -81,6 +81,7 @@ func (r *Reconciler) SamePolicyState(currentRepo, expectedRepo *github.Repositor
 
 func explainDecision(decision strategy.Decision) Assessment {
 	assessment := Assessment{Policy: decision.Policy, Action: decision.Action}
+
 	switch decision.Reason {
 	case strategy.ReasonDependabotExcluded:
 		assessment.Decision = "Dependabot automation disabled"
@@ -121,6 +122,7 @@ func explainDecision(decision strategy.Decision) Assessment {
 		assessment.Reason = "Auto-merge is enabled and the same-repository branch is missing base commits."
 		assessment.NextStep = "No new request is needed. A sweep would request a guarded server-side rebase; GitHub may still reject it."
 	}
+
 	return assessment
 }
 

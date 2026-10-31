@@ -1,5 +1,5 @@
 @github @manual @commands @summaries
-Feature: Provider-reported usage in pull request summaries
+Feature: Understand AI usage in pull request summaries
   Maintainers can see which model produced a summary and how many tokens it used.
   Unavailable usage does not prevent an advisory summary.
 
@@ -23,13 +23,13 @@ Feature: Provider-reported usage in pull request summaries
     Given the AI service identifies a different model in its response
     When a maintainer with "write" access comments "/ab summarise"
     Then the summary should identify the request and the pull request revision
-    And the summary details should include "Model:** other\-model" without a dollar estimate
+    And the summary details should include "the model returned by the service" without a dollar estimate
 
   Scenario Outline: Publish a summary without inventing missing or inconsistent usage
     Given the AI service reports "<information>" token usage
     When a maintainer with "write" access comments "/ab summarise"
     Then the summary should identify the request and the pull request revision
-    And the summary details should include "Tokens:** Unavailable" without a dollar estimate
+    And the summary details should include "unavailable usage" without a dollar estimate
 
     Examples:
       | information              |

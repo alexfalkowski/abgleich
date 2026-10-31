@@ -9,7 +9,7 @@ module Abgleich
       installation = { id: INSTALLATION_ID, app_id: APP_ID, account: { login: Abgleich.github.authenticated_owner } }
       case Abgleich.github.failure
       when 'empty installation' then halt 200, ''
-      when 'null installation' then halt 200, 'null'
+      when 'missing installation details' then halt 200, 'null'
       when 'mismatched installation' then installation[:id] += 1
       when 'mismatched app' then installation[:app_id] += 1
       when 'suspended installation' then installation[:suspended_at] = '2026-01-01T00:00:00Z'
@@ -29,7 +29,7 @@ module Abgleich
           halt 503
         end
       end
-      halt 503 if Abgleich.github.failure == 'installation token HTTP'
+      halt 503 if Abgleich.github.failure == 'an unavailable installation token'
       sleep 3 if Abgleich.github.failure == 'installation token timeout'
       Abgleich.github.create_installation_token.to_json
     end
@@ -47,7 +47,7 @@ module Abgleich
 
     get '/repos/:owner/:repository/issues/comments/:id' do
       halt 404 if Abgleich.github.failure == 'review deleted comment'
-      halt 503 if Abgleich.github.failure == 'comment HTTP'
+      halt 503 if Abgleich.github.failure == 'an unavailable command comment'
       sleep 3 if Abgleich.github.failure == 'comment timeout'
       comment = Abgleich.github.comment(params.fetch('id').to_i)
       comment['updated_at'] = '2026-01-01T00:00:06Z' if Abgleich.github.failure == 'final authorization:an edited comment'
@@ -55,7 +55,7 @@ module Abgleich
     end
 
     get '/repos/:owner/:repository/collaborators/:user/permission' do
-      halt 503 if Abgleich.github.failure == 'permission HTTP'
+      halt 503 if Abgleich.github.failure == 'unavailable contributor permissions'
       permission = Abgleich.github.comment_permission
       permission[:permission] = 'read' if Abgleich.github.failure == 'final authorization:revoked write access'
       permission.to_json
@@ -81,7 +81,7 @@ module Abgleich
     post '/repos/:owner/:repository/issues/:number/comments' do
       Abgleich.github.record_reply_request
       failure = Abgleich.github.failure
-      halt 503 if failure == 'reply HTTP'
+      halt 503 if failure == 'an unavailable comment publication'
       halt 201, '{' if failure == 'malformed reply'
       halt 201, '{}' if failure == 'incomplete reply'
       sleep 3 if failure == 'reply timeout'
@@ -121,6 +121,10 @@ module Abgleich
       repository = "#{params.fetch('owner')}/#{params.fetch('repository')}"
       files = Abgleich.github.summary_files
       files.each { |file| file[:patch] = GitHubRepository::Reviews::PATCH } if Abgleich.github.file_mode == 'code review'
+      files.each { |file| file[:patch] = GitHubRepository::Reviews::SECURITY_PATCH } if Abgleich.github.file_mode == 'security review'
+      if Abgleich.github.file_mode == 'safe security change'
+        files.each { |file| file[:patch] = GitHubRepository::Reviews::SECURITY_SAFE_PATCH }
+      end
       Abgleich.github.apply_collection_change
       number = params.fetch('number')
       if page * 2 < files.length
@@ -130,8 +134,8 @@ module Abgleich
     end
 
     post '/repos/:owner/:repository/issues/:number/labels' do
-      halt 503 if Abgleich.github.failure == 'label HTTP'
-      sleep 1 if Abgleich.github.failure == 'slow label'
+      halt 503 if Abgleich.github.failure == 'an unavailable label update'
+      sleep 1 if Abgleich.github.failure == 'a delayed label update'
       repository = "#{params.fetch('owner')}/#{params.fetch('repository')}"
       labels = JSON.parse(request.body.read)
       result = Abgleich.github.request_labels(repository, params.fetch('number').to_i, labels)

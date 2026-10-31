@@ -10,8 +10,8 @@ Abgleich is a background worker that enables auto-merge or merges ready Dependab
 and labeled pull requests and keeps eligible auto-merge branches current.
 Repositories opt in to that automation through their auto-merge setting.
 Comment commands also provide automation status, optional AI PR summaries, and
-advisory code reviews enabled through worker configuration. GitHub performs all
-repository mutations; the worker does not clone repositories or execute Git. Each auto-merge
+advisory code and security reviews enabled through worker configuration. GitHub
+performs all repository mutations; the worker does not clone repositories or execute Git. Each auto-merge
 run reconciles fresh remote state; pending summary and review requests are held in memory.
 
 ## Package ownership
@@ -19,13 +19,16 @@ run reconciles fresh remote state; pending summary and review requests are held 
 | Package | Owns |
 | --- | --- |
 | `internal/cmd` | CLI command registration and composition of package modules. |
-| `internal/commands` | PR comment parsing, named handler dispatch, installation validation, overlap prevention, background queues, and reaction feedback. |
+| `internal/commands` | PR comment parsing, named handler dispatch, installation validation, shared human-comment authorization, overlap prevention, background queues, and reaction feedback. |
 | `internal/github` | Service, API client, SDK aliases, owner-wide discovery, repository identity, remote access, and response validation. |
 | `internal/automerge` | Repository opt-in, PR eligibility, merge and rebase decisions, automerge comment authorization and action, and registration of its own job and command. |
 | `internal/cleanup` | Optional merged and inactive branch cleanup policy, pre-deletion rechecks, exclusions, and registration of its own job. |
 | `internal/status` | Status comment authorization, snapshot rechecks, reply rendering and publication, and registration of its own command. |
 | `internal/summarise` | Summary authorization, all changed-file patches returned by GitHub, queued processing, reply publication, and registration of its own job and command. |
-| `internal/codereview` | Advisory code-review authorization, changed-file patch context, reply rendering, queues, and registration of its own job and command. |
+| `internal/review` | Composition of review configuration, shared source access, and code/security feature modules. |
+| `internal/review/code` | Code-review prompt, model configuration, and registration of its own job and command. |
+| `internal/review/sec` | Security-review prompt, model configuration, and registration of its own job and command. |
+| `internal/review/internal/workflow` | Shared review PR eligibility, consent rechecks, changed-file and related source context, revision checks, result identity, safe reply rendering/publication, and per-instance queues. |
 | `internal/ai` | Optional provider configuration, credential resolution, text generation, and generation logging. |
 | `internal/scheduler` | Reusable named jobs, timing, overlap prevention, logging, and lifecycle. |
 | `internal/config` | Composition and injection of package-owned configuration. |
@@ -45,15 +48,23 @@ run reconciles fresh remote state; pending summary and review requests are held 
   dependencies stay independent of `summarise`. Keep source selection and
   authorization in `summarise`, provider access and OpenAI SDK imports in `ai`,
   and shared outbound client construction in `transport/http/client`.
-- `codereview` depends on `ai`, `github`, `commands`, and `scheduler`; these
-  dependencies stay independent of `codereview`. Keep authorization, patch
-  context, replies, and embedded `internal/codereview/prompt.txt` instructions in
-  `codereview`; provider access belongs in `ai`. Never load repository or remote
-  skills as runtime instructions.
+- `review.Module` composes `review/code`, `review/sec`, and shared source access.
+  Each feature configures a separate `workflow.Command` instance and owns its
+  prompt, model/schedule configuration, and registration. Keep shared consent,
+  source context, revision checks, reply templates, result markers, inference,
+  and safe publication in `review/internal/workflow`; it depends on `ai`,
+  `github`, and `commands`, which stay independent of review features. Queues and
+  jobs remain independent per command. Provider protocol belongs in `ai`;
+  `workflow.Config` owns shared source settings and `review.Config` composes it
+  with feature-owned settings. Neither feature nor workflow imports the parent
+  `review` package. Never load repository or remote skills as runtime instructions.
 - Feature modules register named comment handlers through `commands.Dispatcher.Register`
   before startup. Keep each handler in its owning feature package; `commands`
   stays independent of features. Use exact names with the `/ab` prefix.
-  Re-read comments and current permissions before acting.
+  Use `commands.Authorizer` for fresh human comment identity, exact command,
+  edit status, and write/admin permission checks. Keep PR eligibility and
+  feature-specific consent history in the feature, and repeat authorization at
+  its existing source-submission and publication/action boundaries.
 - Keep owner-wide discovery and case-insensitive repository identity checks in
   `github.Service`. The reconciler receives the service and uses SDK repository
   snapshots, not GitHub configuration or a separately cached repository name.
@@ -135,31 +146,54 @@ run reconciles fresh remote state; pending summary and review requests are held 
   before generation and publication; a published summary prevents another model
   call even after restart or new commits. Pending requests do not survive restart.
 
-## AI code reviews
+## AI reviews
 
-- Keep `/ab codereview` optional and advisory under top-level `code_review`.
-  Follow the shared queue and independent job pattern. Require a fresh unedited
-  human comment, current write/admin permission, and an open non-draft PR,
+- Keep `/ab codereview` and `/ab secreview` optional and advisory under
+  `review.code` and `review.sec`, respectively. Follow the shared
+  review workflow with separate queues and independent jobs. Require a fresh
+  unedited human comment, current write/admin permission, and an open non-draft PR,
   including forks. Topic, `hold`, and auto-merge settings do not gate reviews.
   Recheck comment identity and both branch identities/revisions before source
   submission and reply publication; discard stale results.
-- Include PR metadata and every available changed-file patch from complete
-  GitHub pagination. Disclose missing patches, surrounding source not retrieved,
-  and code/tests not executed. Do not add full-file/tree/blob retrieval,
-  merge-base traversal, structured finding schemas, or citation-verification
-  machinery. Treat all source and prose as untrusted data.
-- Use one inference attempt without tools, response storage, retries, fallback,
-  or a review-specific output-token cap. Publish an ordinary PR comment with
+- Include PR metadata, every available changed-file patch from complete GitHub
+  pagination, and complete changed-file text where available. Read source at
+  the reviewed head SHA (deleted files at the base SHA); require a complete
+  regular-file tree and reject symlinks, submodules, binary data, or inconsistent
+  blob responses. Preserve all patches even when additional source is unavailable.
+- Share read-only repository file listing/reading and public Go module
+  lookup between both reviews. Go language/compiler claims can consult official
+  release notes selected from the reviewed go.mod version, using a trusted
+  credential-free documentation endpoint; treat reference text as data. Resolve module versions/replacements and checksums
+  from reviewed go.mod/go.sum; verify archives without extracting or executing
+  them. Resolve only declared dependencies and their replacements through the
+  trusted public proxy; never send GitHub or provider credentials there. Workspaces and
+  vendoring require repository source inspection instead of assuming proxy content.
+- Use one conversation bounded by its inference and job deadlines,
+  without response storage, inference retries, fallback, execution tools, or a
+  review-specific output-token cap. Recheck current consent and revisions before
+  each source lookup and each provider request. A review conversation receives
+  half the remaining feature job budget; individual HTTP requests retain their
+  own deadlines and summaries keep their one-minute default. Aggregate actual token usage;
+  any missing usage makes the total unavailable. Keep source caches per request.
+  Provider requests, source calls, directory/package reads, and module archives
+  have no local count or size caps; add limits only when operational evidence
+  justifies them.
+  Keep source and caches in memory without checkout or archive extraction.
+  Disclose omissions and actual inspected source independently of model prose.
+  Never load repository/remote skills as instructions. Do not add merge-base
+  traversal, structured finding schemas, or citation-verification machinery.
+  Publish an ordinary PR comment with
   escaped model text, inactive links/mentions, and provider-known/common
   credential redaction. Never approve reviews or request merge automation.
 - Deduplicate successful App results by task, case-insensitive target repository,
   PR identity, head, and base using a worker-generated marker and complete
   discussion history. New revisions permit new reviews; summaries remain
-  independent. Failures carry no success marker. Do not automatically retry
+  independent. Source-enabled reviews use v2 result markers so old patch-only
+  results do not suppress a new request. Failures carry no success marker. Do not automatically retry
   ambiguous publication; later human requests first check existing results.
 - Report request, head/base SHAs, model, and provider token usage; missing usage
   stays explicit. Do not estimate dollar costs or request billing credentials.
-  Model accuracy remains unevaluated; evaluate approved data before broad use.
+  Model accuracy remains unestablished; evaluate approved data before broad use.
   Automated scenarios use fake providers only.
 
 ## Configuration and documentation
@@ -170,8 +204,11 @@ run reconciles fresh remote state; pending summary and review requests are held 
   AI requests never retry.
   Auto-merge job timing belongs under `scheduler`; the summary model and its job
   timing belong under `summarise`; the code-review model and its independent job
-  timing belong under `code_review`. Keep HTTP request, inference, complete job,
-  webhook, and health-check timeouts independent.
+  timing belong under `review.code`; security-review settings belong under
+  `review.sec`. Shared source settings stay alongside these sections under
+  `review`; `review.Config` composes the feature-owned types and shared
+  `workflow.Config`. Summaries remain patch-only. Keep HTTP request, inference,
+  complete job, webhook, and health-check timeouts independent.
 - Credentials are resolved once at startup through go-service sources. Missing
   or empty configured credentials prevent startup; replacement requires a
   process restart.
@@ -204,7 +241,10 @@ run reconciles fresh remote state; pending summary and review requests are held 
   checked-in configuration, merge YAML at runtime, generate temporary configs,
   or encode configuration in environment variables.
 - Write features in natural domain language with one Given/When/Then
-  progression. Avoid interleaving setup, actions, and assertions as a procedural
+  progression, from the maintainer's or operator's perspective. Keep fixture
+  modes, source markers, and payload formatting in step definitions. Retain
+  protocol details when they express a public delivery or safety contract.
+  Avoid interleaving setup, actions, and assertions as a procedural
   script. A Given may establish relevant history, such as a successful check
   followed by repeated failures, and wait for that history to occur.
 - Make asynchronous expectations explain the required behavior. For repeated

@@ -8,7 +8,7 @@
 Abgleich enables auto-merge or merges ready Dependabot and labeled pull requests,
 and rebases stale auto-merge branches across a GitHub account's opted-in repositories.
 Optional features provide branch cleanup, automation status, AI PR summaries,
-and advisory code reviews.
+and advisory code and security reviews.
 GitHub performs all repository mutations; the worker never clones repositories or
 executes Git.
 
@@ -70,7 +70,7 @@ running sweep.
 
 Startup and [scheduled sweeps](#-auto-merge-schedule) still reconcile all opted-in
 repositories, recovering missed events, failures, and pending work lost on restart.
-Cleanup, summary, and code-review jobs retain their independent schedules.
+Cleanup, summary, code-review, and security-review jobs retain independent schedules.
 
 ### 🏷️ Labeled pull requests
 
@@ -96,7 +96,8 @@ disable that separately to stop it.
 Provision and apply the exact, case-sensitive `hold` label to pause auto-merge
 enablement, immediate merges, rebases, and `/ab automerge` requests on that PR.
 It covers Dependabot and fork PRs, survives restarts, and leaves status, summary,
-and code-review commands available. Rejected commands still receive reaction feedback.
+code-review, and security-review commands available. Rejected commands still
+receive reaction feedback.
 
 Removing `hold` resumes normal policy without renewing revoked label consent.
 A hold does not cancel existing GitHub auto-merge or accepted requests; disable
@@ -125,8 +126,8 @@ Failed branches do not block others. See [cleanup recovery](#-cleanup-recovery).
 ### 💬 Comment requests
 
 With [webhooks configured](#-comment-webhooks), post a new PR comment containing
-exactly `/ab automerge`, `/ab status`, `/ab summarise`, or `/ab codereview`. Commands
-are case-sensitive and allow surrounding whitespace. Extra text and unknown commands
+exactly `/ab automerge`, `/ab status`, `/ab summarise`, `/ab codereview`, or
+`/ab secreview`. Commands are case-sensitive and allow surrounding whitespace. Extra text and unknown commands
 are ignored without reactions. Edited comments and bot authors do not authorize
 requests. Mention-based commands are unsupported. The worker re-reads the comment
 and PR and checks the author's current write or admin permission. The App reacts
@@ -223,14 +224,16 @@ explicit credentials, `store: false`, and no automatic inference retries.
 With [code reviews configured](#-code-review-settings), post `/ab codereview` to
 request an advisory review of an open, non-draft PR, including fork contributions.
 A new, unedited human comment from a current writer or administrator authorizes
-sharing PR metadata and every available changed-file patch with OpenAI, including
-private source. No topic, auto-merge setting, label, or removal of `hold` is needed.
+sharing PR metadata, patches, whole changed-file text, and relevant repository
+source with OpenAI, including private source. No topic, auto-merge setting, label, or removal of `hold` is needed.
 Approve provider data handling and billing before enabling reviews.
 
 The independent `codereview` job processes at most four queued requests serially;
-a full queue returns HTTP 503. Inference uses at most one minute and half the
-remaining job budget. Source is untrusted data; the model receives no tools or
-GitHub credentials. Each attempt makes one inference call with no
+a full queue returns HTTP 503. The complete source-lookup conversation uses
+half the remaining job budget, reserving time for final checks and publication.
+With the default two-minute job, that is at most one minute. Increase the feature
+`timeout` for deeper reviews; individual HTTP timeouts remain independent. Source is untrusted data; the model receives read-only
+source tools without GitHub credentials. Each review uses one conversation bounded by its deadline, with no
 response storage or automatic retries, and no review-specific output-token cap.
 Large changes can exceed provider context limits or worker deadlines.
 
@@ -238,8 +241,8 @@ The App publishes one ordinary comment containing escaped model text, with links
 and mentions inactive and known provider credentials/common credential forms
 redacted. Details identify the request, head/base SHAs, model, and actual token
 usage, or unavailable usage; no dollar costs are estimated. Missing patches are
-disclosed. Full files and surrounding source are not retrieved, citations are not
-verified, and code/tests are not executed. Findings may be incorrect or incomplete
+disclosed, along with the source actually inspected and any unavailable reads.
+Citations are not verified, and code/tests are not executed. Findings may be incorrect or incomplete
 and never approve, label, merge, or rebase. Evaluate approved data before
 [broad use](#-code-review-evaluation).
 
@@ -247,8 +250,37 @@ Authorization, comment identity, PR eligibility, and both branch identities and
 revisions are rechecked before submission and publication. Changes discard stale
 results and require a new request; already transmitted source cannot be recalled.
 A matching successful App result prevents another model call across restarts.
-New head or base revisions permit a fresh review; summaries remain independent.
+New head or base revisions permit a fresh review; summaries and security reviews
+remain independent.
 See [review recovery](#-code-review-recovery).
+
+### 🛡️ AI security reviews
+
+With [security reviews configured](#-security-review-settings), post `/ab secreview`
+to request a focused advisory security review, including on fork PRs and private
+repositories. A new, unedited human comment from a current writer or administrator
+consents to sharing PR metadata, patches, whole changed files, and relevant
+repository source with OpenAI.
+Approve provider data handling and billing before enabling it. The PR must be open
+and non-draft; topics, labels, `hold`, and auto-merge settings do not gate review.
+
+The security prompt asks for bugs introduced or materially worsened by the change,
+with attacker-controlled input, prerequisites, impact, and practical mitigation
+supported by the diff and inspected source. It excludes speculation and unrelated
+existing issues. Both review commands use the [shared source lookup](#-review-source-access).
+Missing patches and unavailable source are disclosed; citations are not verified
+and code/tests are not executed. A reply
+with no supported findings does not certify security or constitute a complete audit.
+Evaluate real examples before [broad use](#-security-review-evaluation).
+
+The independent `secreview` job uses its own bounded queue and releases the webhook
+slot before inference. It follows the [code-review safeguards](#-ai-code-reviews)
+for source handling, inference budgets, escaped and redacted replies, token usage,
+and consent/branch rechecks. It uses the same source-lookup conversation bounded by its deadline,
+without response storage, inference retries, fallback, or a review-specific output-token cap. It never approves, labels,
+merges, rebases, or executes code. Successful results are identified separately
+from summaries and code reviews for each PR head/base pair; all three can run for
+the same revision. See [security-review recovery](#-security-review-recovery).
 
 ## 🚀 Quickstart
 
@@ -329,8 +361,9 @@ Repository notifications queue without waiting for GitHub; 204 confirms queue
 acceptance, not a completed check. Monitor event-check logs for the later outcome.
 
 Each process handles one command at a time; concurrent commands receive 503.
-Automerge and status finish within the request; summaries and code reviews queue
-in memory and release the command slot before inference. The deadline also bounds waiting for
+Automerge and status finish within the request; summaries, code reviews, and
+security reviews queue in memory and release the command slot before inference.
+The deadline also bounds waiting for
 installation requests or token renewal. Polling continues without webhooks;
 App API failures can block both. See [webhook recovery](#-webhook-recovery).
 
@@ -380,10 +413,9 @@ follow below.
 
 Register one App with **Contents**, **Pull requests**, and **Issues** permissions
 set to **read and write**; metadata read is automatic. These cover commands,
-scheduled automation, cleanup, summaries, and code reviews, including reactions,
+scheduled automation, cleanup, summaries, and both review commands, including reactions,
 which require Issues write. For event-driven rebasing, also grant **Commit statuses: read** and
-**Checks: read** to inspect completion evidence. Approve installation permission
-changes when upgrading.
+**Checks: read** to inspect completion evidence.
 
 Install on all owned repositories to include future repositories automatically,
 or select them explicitly. Enable **Allow auto-merge** for merge automation and
@@ -395,9 +427,6 @@ are validated before repository access on each sweep, event check, and command.
 REST and GraphQL share installation credentials; `ghinstallation` signs requests and
 renews tokens. Redirects to other API origins are rejected; personal tokens are
 not used.
-
-To migrate, replace `github.token` with `github.app` in runtime configuration.
-Remove any unused token secret after a successful rollout.
 
 ### 💬 Comment webhooks
 
@@ -465,9 +494,7 @@ reported check runs and commit statuses must also be terminal. Completion can be
 successful or failed.
 
 Omitting `automerge` or leaving `completion_check` empty leaves rebasing to scheduled
-recovery; events still apply the configured merge policies. Replace any existing
-`automerge.completion_checks` list with the singular `automerge.completion_check`
-string shown above.
+recovery; events still apply the configured merge policies.
 Configure the [App permissions](#-github-app-setup) and
 [webhook subscriptions](#-comment-webhooks) to read evidence and receive later
 results. No CircleCI API credentials are used.
@@ -516,22 +543,88 @@ it receives the key and source. Existing App permissions cover summaries.
 
 ### 🔬 Code-review settings
 
+Review commands and shared source options live under one `review` mapping.
+Merge the `code`, `sec`, and source settings below into that mapping as needed.
+
 Configure `ai` using the [provider settings](#-summary-settings), configure
 [webhooks](#-comment-webhooks), and add this independent block for `/ab codereview`:
 
 ```yaml
-code_review:
-  model: gpt-6.1-sol
-  interval: 30s
-  timeout: 2m
+review:
+  code:
+    model: gpt-6-astra
+    reasoning_effort: xhigh
+    interval: 30s
+    timeout: 10m
 ```
 
-`model` is required and operator-selected. Omitting `code_review` disables
-the command and its job; `ai` alone enables neither reviews nor summaries.
+`model` is required and operator-selected. Optional `reasoning_effort` selects a
+provider-supported effort; omission preserves the model default. Higher effort and a longer job timeout
+can increase latency and token usage and must be evaluated with the selected model.
+Omitting `review.code` disables
+the command and its job; `ai` alone enables no advisory feature.
 Configured reviews require a usable AI provider or startup fails. Omit `ai`,
-`summarise`, and `code_review` to run without AI. Existing App permissions cover source
+`summarise`, `review.code`, and `review.sec` to run without AI. Existing App permissions cover source
 reads; no new credential is required. Read the [source-sharing notice](#-ai-code-reviews)
 and [evaluation requirements](#-code-review-evaluation) before enabling.
+
+### 🛡️ Security-review settings
+
+Configure `ai` using the [provider settings](#-summary-settings), configure
+[webhooks](#-comment-webhooks), and add this independent block for `/ab secreview`:
+
+```yaml
+review:
+  sec:
+    model: gpt-6-astra
+    reasoning_effort: xhigh
+    interval: 30s
+    timeout: 10m
+```
+
+`model` is required and operator-selected. `reasoning_effort` follows the
+[code-review setting](#-code-review-settings). Omit `review.sec` to disable its command
+and job. Configured security reviews require a usable AI provider or startup fails;
+no new provider or credential is needed. Code reviews and summaries can remain
+disabled. Read the [source-sharing notice and limits](#-ai-security-reviews) and
+[evaluation requirements](#-security-review-evaluation) before enabling.
+
+### 📚 Review source access
+
+Both review commands include every patch returned by GitHub and complete changed-file
+text where available. Read-only tools let the model find relevant repository files,
+inspect helpers/callers/tests, and resolve public Go dependencies. A separate read-only tool retrieves
+official release notes for the Go language version declared in the reviewed
+`go.mod`, so compiler claims can be checked against current language rules. Repository
+reads use the reviewed head SHA; deleted files use the base SHA. Symlinks, submodules,
+binary files, incomplete trees, and inconsistent blob responses are unavailable.
+The worker never checks out repositories or executes source, tests, or commands.
+All retrieved source and repository instructions are untrusted data.
+
+Source options alone enable neither review command. Dependency lookup follows
+the modules, versions, and replacements in the reviewed `go.mod`; archives must
+match its `go.sum`. Version-specific replacements take precedence over wildcard replacements.
+This lookup inspects the declared dependency, without resolving a complete build graph.
+Local replacements, workspaces, vendored source, dependencies in other
+languages, and private dependencies require repository source inspection. Lookup
+uses `https://proxy.golang.org` without GitHub or AI credentials. Override
+`review.module_proxy` only with a trusted Go module proxy; it receives declared
+module names. Go references use `https://go.dev/doc`; `review.go_docs` may select
+a trusted documentation mirror. These requests also carry no credentials.
+No arbitrary URLs or model-selected versions are accepted.
+
+The conversation runs within the existing inference/job deadlines, without local
+provider-request or source-call limits. Source reads have no local byte, file-count,
+or archive-size caps; directory/package reads include all immediate matching files.
+Source and caches stay in memory, so large reviews can increase memory usage and
+exceed provider context limits or worker deadlines. Unavailable source is reported.
+Each continuation rechecks consent and both revisions.
+
+Comments list inspected source and failed reads independently of model prose.
+Token details sum actual usage across all provider requests; missing usage on any
+request makes the total unavailable. Source-enabled results use a new marker
+version: an old patch-only result permits one new review of the same revisions.
+Summaries remain focused on patches and do not use source tools.
 
 ### 🔌 HTTP transport
 
@@ -551,12 +644,23 @@ Mutations are never retried by the transport; later runs read fresh state.
 AI requests never retry, even with `ai.client.retry` configured. Their HTTP timeout
 cannot extend the independent inference or job budget.
 
+For deeper reviews, allow longer individual model requests alongside the feature
+job timeout. The default one-minute HTTP timeout can interrupt high-effort reasoning:
+
+```yaml
+ai:
+  client:
+    timeout: 3m
+```
+
+This setting is shared by AI features; summaries retain their separate inference limit.
+
 ### 🗓️ Auto-merge schedule
 
 `scheduler.interval` controls owner-wide sweeps. `scheduler.timeout` bounds a
 complete sweep, including waiting for the automerge coordinator, and each event
 check once it begins. Event checks start as the coordinator becomes available.
-Cleanup, summaries, and code reviews use their own blocks.
+Cleanup, summaries, code reviews, and security reviews use their own blocks.
 
 ```yaml
 scheduler:
@@ -579,9 +683,16 @@ scheduler:
 | `summarise.model` | None | Required model when `summarise` is configured. |
 | `summarise.interval` | `30s` | Time between summary queue processing runs. |
 | `summarise.timeout` | `2m` | Deadline for a complete summary job run. |
-| `code_review.model` | None | Required model when code reviews are configured. |
-| `code_review.interval` | `30s` | Time between code-review queue processing runs. |
-| `code_review.timeout` | `2m` | Deadline for a complete code-review job run. |
+| `review.code.model` | None | Required model when code reviews are configured. |
+| `review.code.reasoning_effort` | Provider default | Optional model-supported reasoning effort. |
+| `review.code.interval` | `30s` | Time between code-review queue processing runs. |
+| `review.code.timeout` | `2m` | Deadline for a complete code-review job run. |
+| `review.sec.model` | None | Required model when security reviews are configured. |
+| `review.sec.reasoning_effort` | Provider default | Optional model-supported reasoning effort. |
+| `review.sec.interval` | `30s` | Time between security-review queue processing runs. |
+| `review.sec.timeout` | `2m` | Deadline for a complete security-review job run. |
+| `review.module_proxy` | `https://proxy.golang.org` | Trusted credential-free Go module source endpoint. |
+| `review.go_docs` | `https://go.dev/doc` | Trusted versioned Go release-note source or mirror. |
 | `github.client.timeout` | `1m` | Deadline for an individual GitHub HTTP request. |
 | `github.url` | `https://api.github.com/` | REST API base URL, shared with GraphQL. |
 | `github.webhook.timeout` | `5s` | Complete synchronous delivery budget; must be positive and below `10s`. |
@@ -589,10 +700,11 @@ scheduler:
 | `ai.openai.url` | `https://api.openai.com/v1/` | Trusted provider API base URL. |
 | `transport.http.max_receive_size` | `4MB` | Incoming request body limit for all HTTP routes. |
 
-Omitted or zero auto-merge, cleanup, summary, and code-review job durations, inactivity
+Omitted or zero auto-merge, cleanup, summary, code-review, and security-review job durations, inactivity
 thresholds, webhook budgets, and GitHub and AI client timeouts use the defaults
 above. Negative schedule durations, inactivity thresholds, and HTTP client
-timeouts are invalid. Excluded branch and repository names must be nonempty.
+timeouts are invalid. Review reasoning effort must be omitted or one of `none`,
+`minimal`, `low`, `medium`, `high`, `xhigh`, or `max`; the chosen model must support it. Excluded branch and repository names must be nonempty.
 
 ### 🔐 Credentials
 
@@ -624,7 +736,7 @@ or Ingress.
 
 ### 📊 Telemetry
 
-Each completed job logs `job` (`automerge`, `cleanup`, `summarise`, or `codereview`), `duration`,
+Each completed job logs `job` (`automerge`, `cleanup`, `summarise`, `codereview`, or `secreview`), `duration`,
 `interval`, and `overrun`:
 
 | Outcome | Log level | Details |
@@ -656,7 +768,7 @@ or `merged pull request` with repository, PR, and branch. `deleted branch` inclu
 repository, branch, and SHA. Retain these for recovery; ambiguous responses can
 leave successful actions without acceptance logs.
 
-Monitor `ai generation` for task (including `codereview`), model, duration, and successful token usage.
+Monitor `ai generation` for task (including `codereview` and `secreview`), model, duration, and successful token usage.
 Success logs at info and failure at error; source, responses, and credentials
 are never logged.
 
@@ -701,11 +813,20 @@ Failures carry no successful-result marker. Before generation and publication,
 the worker reads complete discussion history for matching App results; human or
 other-App lookalikes do not count. Deduplication includes task, case-insensitive
 target repository, PR identity, head, and base. A matching result reuses its
-original usage; new revisions permit another review. Inference may repeat when
+original usage; new revisions permit another review. To compare models on the
+same revisions, delete the matching App result and post a fresh request. Inference may repeat when
 an earlier attempt generated without publishing. Ambiguous publication is never
 automatically retried; a later human request first discovers any published result.
 Inspect job and generation errors for incomplete API responses, provider failures,
 context-size failures, and deadlines before retrying.
+
+#### 🛡️ Security-review recovery
+
+Post a new `/ab secreview` after pending work is lost on restart or an attempt
+fails. The [code-review recovery rules](#-code-review-recovery) also apply here:
+complete discussion lookup, authenticated App results, revision-specific reuse,
+and no automatic retry of ambiguous publication. Security results use their own
+`secreview` marker, so other advisory tasks do not suppress a security review.
 
 #### 🧹 Cleanup recovery
 
@@ -718,8 +839,18 @@ response can mean deletion succeeded without an acceptance log.
 Feature packages own policy; [`github`](internal/github/doc.go) owns discovery,
 remote access, and response validation. [`cmd`](internal/cmd/module.go) composes
 modules. Package docs describe [cleanup](internal/cleanup/doc.go),
-[status](internal/status/doc.go), [summaries](internal/summarise/doc.go), and
-[code reviews](internal/codereview/doc.go).
+[status](internal/status/doc.go), [summaries](internal/summarise/doc.go),
+[code reviews](internal/review/code/doc.go), and
+[security reviews](internal/review/sec/doc.go).
+
+[`review`](internal/review/doc.go) composes the code and security feature modules
+and their configuration. Each feature configures a separate instance of the shared
+[`workflow`](internal/review/internal/workflow/doc.go), which owns PR eligibility,
+patch and related-source collection, revision checks, deduplication, inference,
+safe publication, and the common reply template. Feature packages retain prompts,
+model settings, schedules, and registration. Reviews, summaries, status, and automerge use `commands.Authorizer`
+to re-read human commands and current permissions at their own consent boundaries;
+PR eligibility and automation history remain with their owning feature.
 
 ### 🔄 Auto-merge sweep
 
@@ -783,7 +914,7 @@ sequenceDiagram
     F->>G: Re-read comment and PR<br/>Check permissions
     alt /ab automerge or /ab status
         F->>G: Add automerge label or publish status reply
-    else /ab summarise or /ab codereview
+    else /ab summarise, /ab codereview, or /ab secreview
         F->>F: Queue request in memory
     end
     F-->>D: Command outcome
@@ -803,8 +934,9 @@ sequenceDiagram
 ```
 
 [`transport/http`](internal/transport/http/doc.go) verifies webhooks;
-[`commands`](internal/commands/doc.go) dispatches to feature-owned authorization
-and actions. SDK imports stay inside `github` and [`ai`](internal/ai/doc.go),
+[`commands`](internal/commands/doc.go) dispatches to feature handlers and provides
+shared human-command authorization; review handlers use the workflow above. SDK imports stay
+inside `github` and [`ai`](internal/ai/doc.go),
 using shared [client construction](internal/transport/http/client/doc.go).
 
 ### 🗓️ Job registration
@@ -854,9 +986,21 @@ and restarts read the selected file directly. Logs and results go to
 
 Fake-provider scenarios verify integration, not model accuracy. Before broad use,
 evaluate operator-approved PRs with known bugs and clean changes, recording useful
-findings, misses, false positives, latency, and token usage. Diff-only review can
-miss bugs requiring unchanged context. Live calls require separate authorization
-and never run in CI; no live quality evaluation is claimed here.
+findings, misses, false positives, latency, and token usage. Validate source
+selection as well as final answers: useful context must be found automatically. Live calls require separate authorization
+and never run in CI. Retain the complete inputs, lookup transcripts, raw answers,
+and grading notes so the results can be inspected and reproduced.
+
+### 🛡️ Security-review evaluation
+
+Fake-provider scenarios verify integration only. Before broad use, evaluate the
+unchanged security prompt on approved real vulnerable changes and safe controls.
+Record expected outcomes before calls, keep grading notes out of model input, and
+retain raw answers, confirmed findings, misses, false positives, latency, and
+actual token usage. Use fresh cases beyond prompt/source development examples,
+including vulnerabilities requiring helpers or dependencies. A small evaluation
+cannot establish comprehensive security accuracy.
+Live calls need separate authorization and never run in CI.
 
 ### 📝 Changes
 

@@ -69,7 +69,7 @@ Given('its original command comment now has {string}') do |change|
   Abgleich.github.change_comment(@comment_event.fetch(:comment).fetch('id'), field, value)
 end
 
-Given('the comment for branch {string} was created {string} a {string} event') do |branch, timing, event|
+Given('the comment for branch {string} was created {string} {string}') do |branch, timing, event|
   @comment_event = Abgleich.github.add_comment(branch, body: '/ab automerge')
   Abgleich.github.label_pull(branch, 'bug')
   occurred_at = {
@@ -77,7 +77,8 @@ Given('the comment for branch {string} was created {string} a {string} event') d
     'at the same time' => '2026-01-01T00:00:05Z',
     'after' => '2026-01-01T00:00:04Z'
   }.fetch(timing)
-  Abgleich.github.revoke_comment_request(branch, event, occurred_at:)
+  events = { 'the automerge label was removed' => 'UnlabeledEvent', 'auto-merge was disabled' => 'AutoMergeDisabledEvent' }
+  Abgleich.github.revoke_comment_request(branch, events.fetch(event), occurred_at:)
 end
 
 Given('an earlier comment labeled branch {string} before its label was removed') do |branch|

@@ -68,6 +68,7 @@ func (s *service) ListPullRequestAutomationEvents(ctx context.Context, pull *Pul
 	body.Variables.ID = pull.GetNodeID()
 
 	var events []*IssueEvent
+
 	for {
 		request, err := s.client.installation.NewRequest(ctx, http.MethodPost, "graphql", body)
 		if err != nil {
@@ -80,7 +81,6 @@ func (s *service) ListPullRequestAutomationEvents(ctx context.Context, pull *Pul
 		if _, err := s.client.installation.Do(request, &response); err != nil {
 			return nil, err
 		}
-
 		if err := response.Validate(pull.GetNodeID()); err != nil {
 			return nil, err
 		}

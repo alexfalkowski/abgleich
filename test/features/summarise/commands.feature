@@ -35,7 +35,7 @@ Feature: Maintainer-requested summaries
 
   Scenario: Keep a posted summary when GitHub reports a publication error
     Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
-    And GitHub reports an error after publishing the summary
+    And GitHub reports an error after publishing the reply
     And the pull request has already been summarised
     And the worker has restarted
     When a maintainer with "write" access comments "/ab summarise"
@@ -140,7 +140,7 @@ Feature: Maintainer-requested summaries
 
   Scenario Outline: Respect withdrawn permission before posting an answer
     Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
-    And summary permission is withdrawn through "<change>" while the answer is prepared
+    And permission for the summary is withdrawn through "<change>" while the answer is prepared
     When a maintainer with "write" access comments "/ab summarise"
     Then no summary should be posted after permission is withdrawn
 
@@ -171,14 +171,14 @@ Feature: Maintainer-requested summaries
     Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
     And the contribution contains "<changes>"
     When a maintainer with "write" access comments "/ab summarise"
-    Then all changed-file context should be shared with the AI service and include "<evidence>"
+    Then the summary service should receive "<evidence>"
 
     Examples:
-      | changes                        | evidence                       |
-      | more than twenty changed files | File: file21.go                |
-      | large combined changes         | test.go-patch-end              |
-      | an oversized individual change | main.go-patch-end              |
-      | a change without a text diff   | Patch unavailable from GitHub. |
+      | changes                        | evidence                        |
+      | more than twenty changed files | the final changed file          |
+      | large combined changes         | the end of the combined changes |
+      | an oversized individual change | the end of the large change     |
+      | a change without a text diff   | the missing patch notice        |
 
   Scenario: Read the outcome and changes before choosing a file
     Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
