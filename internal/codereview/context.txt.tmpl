@@ -1,0 +1,15 @@
+Pull request: {{.Title}}
+Description: {{.Description}}
+Head: {{.HeadSHA}}
+Base: {{.BaseSHA}}
+{{range .Files}}
+File: {{.GetFilename}} ({{.GetStatus}})
+{{if .GetPreviousFilename -}}
+Previously: {{.GetPreviousFilename}}
+{{end -}}
+{{if .GetPatch -}}
+{{.GetPatch}}
+{{else -}}
+Patch unavailable from GitHub.
+{{end -}}
+{{end -}}

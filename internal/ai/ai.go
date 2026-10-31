@@ -2,7 +2,7 @@ package ai
 
 // Prompt supplies text and generation limits for one task. Instructions and Input
 // are sent to the model; Task identifies the feature in logs. MaxOutputTokens
-// includes reasoning tokens as well as visible output.
+// includes reasoning tokens as well as visible output; zero omits the API limit.
 type Prompt struct {
 	Model           string
 	Instructions    string

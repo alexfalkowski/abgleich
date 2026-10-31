@@ -19,6 +19,12 @@ module Abgleich
       wait_for { Abgleich.job_logs('summarise').length }.to be >= next_check, 'expected a completed summary check after the request'
     end
 
+    # Observe queued review work before checking an absent result or inference request.
+    def expect_review_check
+      next_check = Abgleich.job_logs('codereview').length + 1
+      wait_for { Abgleich.job_logs('codereview').length }.to be >= next_check, 'expected a completed code review check'
+    end
+
     # Advisory requests must leave labels, reviews, and branches untouched.
     def expect_no_automation_mutations
       activity = { mutation_requests: Abgleich::GitHubService.request_counts.fetch(:mutation_requests),

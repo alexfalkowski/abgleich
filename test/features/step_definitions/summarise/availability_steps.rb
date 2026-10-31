@@ -1,22 +1,18 @@
 # frozen_string_literal: true
 
 Given('the operator configures {string} for the AI service') do |setting|
-  settings = {
-    'a 50ms request limit' => { 'timeout' => '50ms' },
-    'three retry attempts' => { 'retry' => { 'attempts' => 3, 'backoff' => '10ms' } },
-    'a pause after one failed request' => { 'breaker' => { 'consecutive_failures' => 1, 'timeout' => '1m' } },
-    'an invalid trusted certificate' => { 'tls' => { 'ca' => 'invalid-ca' } }
+  fixtures = {
+    'a 50ms request limit' => 'ai_timeout',
+    'three retry attempts' => 'ai_retry',
+    'a pause after one failed request' => 'ai_breaker',
+    'an invalid trusted certificate' => 'ai_invalid_certificate'
   }
-  config = YAML.safe_load_file('.config/server.yaml')
-  config['ai']['client'] = settings.fetch(setting)
-  File.write('.config/server.yaml', YAML.dump(config))
+
+  Abgleich.use_config(fixtures.fetch(setting))
 end
 
 Given('the operator uses the default summary schedule') do
-  config = YAML.safe_load_file('.config/server.yaml')
-  config['summarise'].delete('interval')
-  config['summarise'].delete('timeout')
-  File.write('.config/server.yaml', YAML.dump(config))
+  Abgleich.use_config('summarise_default_schedule')
 end
 
 Then('the maintainer should receive a summary within {int} seconds') do |seconds|

@@ -53,13 +53,17 @@ func NewProvider(cfg *Config, fs *os.FS, log *logger.Logger, connections *client
 	)
 
 	return &loggingProvider{
-		Provider: &provider{service: &service},
-		logger:   log,
+		Provider: &provider{
+			service: &service,
+			key:     strings.TrimSpace(string(key)),
+		},
+		logger: log,
 	}, nil
 }
 
 type provider struct {
 	service *responses.ResponseService
+	key     string
 }
 
 // Generate performs one cancellable provider request and rejects partial,
@@ -69,18 +73,22 @@ func (p *provider) Generate(ctx context.Context, prompt Prompt) (*Completion, er
 	ctx, cancel := context.WithTimeout(ctx, time.Minute)
 	defer cancel()
 
-	response, err := p.service.New(ctx, responses.ResponseNewParams{
-		Model:           prompt.Model,
-		Instructions:    openai.String(prompt.Instructions),
-		Input:           responses.ResponseNewParamsInputUnion{OfString: openai.String(prompt.Input)},
-		MaxOutputTokens: openai.Int(prompt.MaxOutputTokens),
-		Store:           openai.Bool(false),
-		Background:      openai.Bool(false),
+	params := responses.ResponseNewParams{
+		Model:        prompt.Model,
+		Instructions: openai.String(prompt.Instructions),
+		Input:        responses.ResponseNewParamsInputUnion{OfString: openai.String(prompt.Input)},
+		Store:        openai.Bool(false),
+		Background:   openai.Bool(false),
 		ToolChoice: responses.ResponseNewParamsToolChoiceUnion{
 			OfToolChoiceMode: openai.Opt(responses.ToolChoiceOptionsNone),
 		},
-	})
+	}
 
+	if prompt.MaxOutputTokens > 0 {
+		params.MaxOutputTokens = openai.Int(prompt.MaxOutputTokens)
+	}
+
+	response, err := p.service.New(ctx, params)
 	if ctx.Err() != nil {
 		return nil, errors.New("ai: cancelled or timed out")
 	}
@@ -98,6 +106,9 @@ func (p *provider) Generate(ctx context.Context, prompt Prompt) (*Completion, er
 		completion.Model = prompt.Model
 	}
 
+	completion.Text = strings.ReplaceAll(completion.Text, p.key, "[REDACTED]")
+	completion.Model = strings.ReplaceAll(completion.Model, p.key, "[REDACTED]")
+
 	return completion, nil
 }
 
@@ -114,6 +125,10 @@ func completedText(response *responses.Response) (*Completion, error) {
 		return nil, errors.New("ai: incomplete response")
 	}
 
+	if !validOutput(response) {
+		return nil, errors.New("ai: refused or unexpected response")
+	}
+
 	text := response.OutputText()
 	if strings.IsEmpty(strings.TrimSpace(text)) {
 		return nil, errors.New("ai: empty response")
@@ -124,6 +139,25 @@ func completedText(response *responses.Response) (*Completion, error) {
 		Model: response.Model,
 		Usage: responseUsage(response),
 	}, nil
+}
+
+func validOutput(response *responses.Response) bool {
+	for _, output := range response.Output {
+		switch output.Type {
+		case "reasoning":
+			continue
+		case "message":
+			for _, content := range output.AsMessage().Content {
+				if content.Type != "output_text" {
+					return false
+				}
+			}
+		default:
+			return false
+		}
+	}
+
+	return true
 }
 
 // Missing or inconsistent usage metadata must not suppress a valid summary.

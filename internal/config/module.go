@@ -9,5 +9,5 @@ import (
 var Module = di.Module(
 	di.Constructor(config.NewConfig[Config]),
 	di.Decorate(decorateConfig),
-	di.Constructor(healthConfig, githubConfig, schedulerConfig, aiConfig, summariseConfig, cleanupConfig, automergeConfig),
+	di.Constructor(healthConfig, githubConfig, schedulerConfig, aiConfig, summariseConfig, cleanupConfig, automergeConfig, codereviewConfig),
 )

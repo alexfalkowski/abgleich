@@ -14,23 +14,16 @@ Given('an earlier command completed before its installation token approached exp
 end
 
 Given('comment deliveries are disabled') do
-  config = YAML.safe_load_file('.config/server.yaml')
-  config['github'].delete('webhook')
-  File.write('.config/server.yaml', YAML.dump(config))
+  Abgleich.use_config('server')
 end
 
 Given('installation token acquisition exceeds the command deadline') do
-  config = YAML.safe_load_file('.config/server.yaml')
-  config['github']['webhook']['timeout'] = '200ms'
-  File.write('.config/server.yaml', YAML.dump(config))
+  Abgleich.use_config('webhook_short_deadline')
   Abgleich.github.fail_with('installation token timeout')
 end
 
 Given('installation token acquisition is still running when a command arrives') do
-  config = YAML.safe_load_file('.config/server.yaml')
-  config['scheduler']['timeout'] = '10s'
-  config['github']['webhook']['timeout'] = '200ms'
-  File.write('.config/server.yaml', YAML.dump(config))
+  Abgleich.use_config('webhook_token_wait')
   Abgleich.github.fail_with('installation token timeout')
   Nonnative.start
   wait_for { Abgleich::GitHubService.request_counts.fetch(:installation_requests) }.to be >= 1, 'expected token acquisition to be running'

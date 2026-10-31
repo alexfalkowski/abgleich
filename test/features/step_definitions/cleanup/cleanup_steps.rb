@@ -1,9 +1,7 @@
 # frozen_string_literal: true
 
 Given('branch cleanup is configured') do
-  config = YAML.safe_load_file('.config/server.yaml')
-  config['cleanup'] = { 'interval' => '1h', 'timeout' => '3s' }
-  File.write('.config/server.yaml', YAML.dump(config))
+  Abgleich.use_config('cleanup')
 end
 
 Given('GitHub has cleanup branches:') do |table|
@@ -17,9 +15,7 @@ Given('GitHub has cleanup branches:') do |table|
 end
 
 Given('the operator uses the default cleanup settings') do
-  config = YAML.safe_load_file('.config/server.yaml')
-  config['cleanup'] = {}
-  File.write('.config/server.yaml', YAML.dump(config))
+  Abgleich.use_config('cleanup_defaults')
 end
 
 Given('branch {string} is protected from cleanup') do |branch|
@@ -27,9 +23,7 @@ Given('branch {string} is protected from cleanup') do |branch|
 end
 
 Given('cleanup excludes branch {string}') do |branch|
-  config = YAML.safe_load_file('.config/server.yaml')
-  config['cleanup']['exclude'] = [branch]
-  File.write('.config/server.yaml', YAML.dump(config))
+  Abgleich.use_config({ 'develop' => 'cleanup_exclude_develop' }.fetch(branch))
 end
 
 Given('an open pull request targets branch {string}') do |branch|
@@ -41,15 +35,11 @@ Given('branch {string} received new commits after merging') do |branch|
 end
 
 Given('branch cleanup is not configured') do
-  config = YAML.safe_load_file('.config/server.yaml')
-  config.delete('cleanup')
-  File.write('.config/server.yaml', YAML.dump(config))
+  Abgleich.use_config('server')
 end
 
 Given('cleanup waits for {int} inactive days') do |days|
-  config = YAML.safe_load_file('.config/server.yaml')
-  config['cleanup']['inactive_after'] = "#{days * 24}h"
-  File.write('.config/server.yaml', YAML.dump(config))
+  Abgleich.use_config({ 60 => 'cleanup_inactive_60_days' }.fetch(days))
 end
 
 Given('the cleanup repository is {string}') do |state|
@@ -117,16 +107,12 @@ Given('an author pushes while GitHub is listing the repository') do
 end
 
 Given('the operator\'s cleanup deadline expires while GitHub is slow') do
-  config = YAML.safe_load_file('.config/server.yaml')
-  config['cleanup']['timeout'] = '100ms'
-  File.write('.config/server.yaml', YAML.dump(config))
+  Abgleich.use_config('cleanup_deadline')
   Abgleich.github.cleanup_mode = 'slow commit'
 end
 
 Given('GitHub takes longer than the request timeout to recheck a branch') do
-  config = YAML.safe_load_file('.config/server.yaml')
-  config['github']['client']['timeout'] = '100ms'
-  File.write('.config/server.yaml', YAML.dump(config))
+  Abgleich.use_config('cleanup_request_timeout')
   Abgleich.github.cleanup_mode = 'slow branch'
 end
 
@@ -152,9 +138,7 @@ Given('GitHub deleted branch {string} without confirming the deletion') do |bran
 end
 
 Given('cleanup has failed to delete branch {string} repeatedly') do |branch|
-  config = YAML.safe_load_file('.config/server.yaml')
-  config['cleanup']['interval'] = '100ms'
-  File.write('.config/server.yaml', YAML.dump(config))
+  Abgleich.use_config('cleanup_recovery')
   Abgleich.github.cleanup_mode = "reject:#{branch}"
   Nonnative.start
   wait_for do
@@ -184,7 +168,7 @@ Then('cleanup should delete exactly {string}') do |branches|
 end
 
 Then('cleanup should preserve exactly {string}') do |branches|
-  wait_for { Abgleich.job_logs('cleanup') }.not_to be_empty if YAML.safe_load_file('.config/server.yaml').key?('cleanup')
+  wait_for { Abgleich.job_logs('cleanup') }.not_to be_empty if File.basename(Abgleich.server_config_path).start_with?('cleanup')
   expect(Abgleich.github.remaining_cleanup_branches).to match_array(branches.split(', ')), "expected cleanup to preserve #{branches}"
 end
 

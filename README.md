@@ -7,7 +7,8 @@
 
 Abgleich enables auto-merge or merges ready Dependabot and labeled pull requests,
 and rebases stale auto-merge branches across a GitHub account's opted-in repositories.
-Optional features provide branch cleanup, automation status, and AI PR summaries.
+Optional features provide branch cleanup, automation status, AI PR summaries,
+and advisory code reviews.
 GitHub performs all repository mutations; the worker never clones repositories or
 executes Git.
 
@@ -69,7 +70,7 @@ running sweep.
 
 Startup and [scheduled sweeps](#-auto-merge-schedule) still reconcile all opted-in
 repositories, recovering missed events, failures, and pending work lost on restart.
-Cleanup and summary jobs retain their independent schedules.
+Cleanup, summary, and code-review jobs retain their independent schedules.
 
 ### 🏷️ Labeled pull requests
 
@@ -94,8 +95,8 @@ disable that separately to stop it.
 
 Provision and apply the exact, case-sensitive `hold` label to pause auto-merge
 enablement, immediate merges, rebases, and `/ab automerge` requests on that PR.
-It covers Dependabot and fork PRs, survives restarts, and leaves status and summary
-commands available. Rejected commands still receive reaction feedback.
+It covers Dependabot and fork PRs, survives restarts, and leaves status, summary,
+and code-review commands available. Rejected commands still receive reaction feedback.
 
 Removing `hold` resumes normal policy without renewing revoked label consent.
 A hold does not cancel existing GitHub auto-merge or accepted requests; disable
@@ -124,8 +125,8 @@ Failed branches do not block others. See [cleanup recovery](#-cleanup-recovery).
 ### 💬 Comment requests
 
 With [webhooks configured](#-comment-webhooks), post a new PR comment containing
-exactly `/ab automerge`, `/ab status`, or `/ab summarise`. Commands are
-case-sensitive and allow surrounding whitespace. Extra text and unknown commands
+exactly `/ab automerge`, `/ab status`, `/ab summarise`, or `/ab codereview`. Commands
+are case-sensitive and allow surrounding whitespace. Extra text and unknown commands
 are ignored without reactions. Edited comments and bot authors do not authorize
 requests. Mention-based commands are unsupported. The worker re-reads the comment
 and PR and checks the author's current write or admin permission. The App reacts
@@ -134,7 +135,7 @@ on the original comment:
 | Reaction | Meaning |
 | --- | --- |
 | 👀 | The signed command was received and processing started. |
-| 👍 | Accepted: automerge labeled or already enabled, status published, or summary queued or already present. |
+| 👍 | Accepted: automerge labeled or already enabled, status published, or summary/review queued or already present. |
 | 😕 | The request was ineligible, rejected, or failed. |
 
 `/ab automerge` adds the durable `automerge` label for the next automation check,
@@ -217,6 +218,38 @@ feedback when still authorized.
 The adapter uses the official [OpenAI Go SDK](https://developers.openai.com/api/docs/libraries),
 explicit credentials, `store: false`, and no automatic inference retries.
 
+### 🔬 AI code reviews
+
+With [code reviews configured](#-code-review-settings), post `/ab codereview` to
+request an advisory review of an open, non-draft PR, including fork contributions.
+A new, unedited human comment from a current writer or administrator authorizes
+sharing PR metadata and every available changed-file patch with OpenAI, including
+private source. No topic, auto-merge setting, label, or removal of `hold` is needed.
+Approve provider data handling and billing before enabling reviews.
+
+The independent `codereview` job processes at most four queued requests serially;
+a full queue returns HTTP 503. Inference uses at most one minute and half the
+remaining job budget. Source is untrusted data; the model receives no tools or
+GitHub credentials. Each attempt makes one inference call with no
+response storage or automatic retries, and no review-specific output-token cap.
+Large changes can exceed provider context limits or worker deadlines.
+
+The App publishes one ordinary comment containing escaped model text, with links
+and mentions inactive and known provider credentials/common credential forms
+redacted. Details identify the request, head/base SHAs, model, and actual token
+usage, or unavailable usage; no dollar costs are estimated. Missing patches are
+disclosed. Full files and surrounding source are not retrieved, citations are not
+verified, and code/tests are not executed. Findings may be incorrect or incomplete
+and never approve, label, merge, or rebase. Evaluate approved data before
+[broad use](#-code-review-evaluation).
+
+Authorization, comment identity, PR eligibility, and both branch identities and
+revisions are rechecked before submission and publication. Changes discard stale
+results and require a new request; already transmitted source cannot be recalled.
+A matching successful App result prevents another model call across restarts.
+New head or base revisions permit a fresh review; summaries remain independent.
+See [review recovery](#-code-review-recovery).
+
 ## 🚀 Quickstart
 
 Run these steps from the repository root.
@@ -296,8 +329,8 @@ Repository notifications queue without waiting for GitHub; 204 confirms queue
 acceptance, not a completed check. Monitor event-check logs for the later outcome.
 
 Each process handles one command at a time; concurrent commands receive 503.
-Automerge and status finish within the request; summaries queue in memory and
-release the command slot before inference. The deadline also bounds waiting for
+Automerge and status finish within the request; summaries and code reviews queue
+in memory and release the command slot before inference. The deadline also bounds waiting for
 installation requests or token renewal. Polling continues without webhooks;
 App API failures can block both. See [webhook recovery](#-webhook-recovery).
 
@@ -347,8 +380,8 @@ follow below.
 
 Register one App with **Contents**, **Pull requests**, and **Issues** permissions
 set to **read and write**; metadata read is automatic. These cover commands,
-scheduled automation, cleanup, and summaries, including reactions, which require
-Issues write. For event-driven rebasing, also grant **Commit statuses: read** and
+scheduled automation, cleanup, summaries, and code reviews, including reactions,
+which require Issues write. For event-driven rebasing, also grant **Commit statuses: read** and
 **Checks: read** to inspect completion evidence. Approve installation permission
 changes when upgrading.
 
@@ -478,9 +511,27 @@ summarise:
   timeout: 2m
 ```
 
-Omit both blocks to run without AI. Omitting `summarise` disables summary work and
-its job even if `ai` remains. Only override `ai.openai.url` with a trusted endpoint:
+Omitting `summarise` disables summary work and its job even if `ai` remains. Only override `ai.openai.url` with a trusted endpoint:
 it receives the key and source. Existing App permissions cover summaries.
+
+### 🔬 Code-review settings
+
+Configure `ai` using the [provider settings](#-summary-settings), configure
+[webhooks](#-comment-webhooks), and add this independent block for `/ab codereview`:
+
+```yaml
+code_review:
+  model: gpt-6.1-sol
+  interval: 30s
+  timeout: 2m
+```
+
+`model` is required and operator-selected. Omitting `code_review` disables
+the command and its job; `ai` alone enables neither reviews nor summaries.
+Configured reviews require a usable AI provider or startup fails. Omit `ai`,
+`summarise`, and `code_review` to run without AI. Existing App permissions cover source
+reads; no new credential is required. Read the [source-sharing notice](#-ai-code-reviews)
+and [evaluation requirements](#-code-review-evaluation) before enabling.
 
 ### 🔌 HTTP transport
 
@@ -505,7 +556,7 @@ cannot extend the independent inference or job budget.
 `scheduler.interval` controls owner-wide sweeps. `scheduler.timeout` bounds a
 complete sweep, including waiting for the automerge coordinator, and each event
 check once it begins. Event checks start as the coordinator becomes available.
-Cleanup and summaries use their own blocks.
+Cleanup, summaries, and code reviews use their own blocks.
 
 ```yaml
 scheduler:
@@ -528,6 +579,9 @@ scheduler:
 | `summarise.model` | None | Required model when `summarise` is configured. |
 | `summarise.interval` | `30s` | Time between summary queue processing runs. |
 | `summarise.timeout` | `2m` | Deadline for a complete summary job run. |
+| `code_review.model` | None | Required model when code reviews are configured. |
+| `code_review.interval` | `30s` | Time between code-review queue processing runs. |
+| `code_review.timeout` | `2m` | Deadline for a complete code-review job run. |
 | `github.client.timeout` | `1m` | Deadline for an individual GitHub HTTP request. |
 | `github.url` | `https://api.github.com/` | REST API base URL, shared with GraphQL. |
 | `github.webhook.timeout` | `5s` | Complete synchronous delivery budget; must be positive and below `10s`. |
@@ -535,7 +589,7 @@ scheduler:
 | `ai.openai.url` | `https://api.openai.com/v1/` | Trusted provider API base URL. |
 | `transport.http.max_receive_size` | `4MB` | Incoming request body limit for all HTTP routes. |
 
-Omitted or zero auto-merge, cleanup, and summary job durations, inactivity
+Omitted or zero auto-merge, cleanup, summary, and code-review job durations, inactivity
 thresholds, webhook budgets, and GitHub and AI client timeouts use the defaults
 above. Negative schedule durations, inactivity thresholds, and HTTP client
 timeouts are invalid. Excluded branch and repository names must be nonempty.
@@ -570,7 +624,7 @@ or Ingress.
 
 ### 📊 Telemetry
 
-Each completed job logs `job` (`automerge`, `cleanup`, or `summarise`), `duration`,
+Each completed job logs `job` (`automerge`, `cleanup`, `summarise`, or `codereview`), `duration`,
 `interval`, and `overrun`:
 
 | Outcome | Log level | Details |
@@ -602,7 +656,7 @@ or `merged pull request` with repository, PR, and branch. `deleted branch` inclu
 repository, branch, and SHA. Retain these for recovery; ambiguous responses can
 leave successful actions without acceptance logs.
 
-Monitor `ai generation` for task, model, duration, and successful token usage.
+Monitor `ai generation` for task (including `codereview`), model, duration, and successful token usage.
 Success logs at info and failure at error; source, responses, and credentials
 are never logged.
 
@@ -640,6 +694,19 @@ summary, delete the existing App summary first. Failure replies permit retrying.
 App comments are checked before generation and publication, including after
 ambiguous responses. Inference can repeat if generation finishes without publication.
 
+#### 🔬 Code-review recovery
+
+Post a new `/ab codereview` after a restart loses pending work or an attempt fails.
+Failures carry no successful-result marker. Before generation and publication,
+the worker reads complete discussion history for matching App results; human or
+other-App lookalikes do not count. Deduplication includes task, case-insensitive
+target repository, PR identity, head, and base. A matching result reuses its
+original usage; new revisions permit another review. Inference may repeat when
+an earlier attempt generated without publishing. Ambiguous publication is never
+automatically retried; a later human request first discovers any published result.
+Inspect job and generation errors for incomplete API responses, provider failures,
+context-size failures, and deadlines before retrying.
+
 #### 🧹 Cleanup recovery
 
 Recreate an unintended deletion from the logged SHA while GitHub retains the
@@ -651,7 +718,8 @@ response can mean deletion succeeded without an acceptance log.
 Feature packages own policy; [`github`](internal/github/doc.go) owns discovery,
 remote access, and response validation. [`cmd`](internal/cmd/module.go) composes
 modules. Package docs describe [cleanup](internal/cleanup/doc.go),
-[status](internal/status/doc.go), and [summaries](internal/summarise/doc.go).
+[status](internal/status/doc.go), [summaries](internal/summarise/doc.go), and
+[code reviews](internal/codereview/doc.go).
 
 ### 🔄 Auto-merge sweep
 
@@ -697,7 +765,7 @@ queue behavior.
 
 ### 💬 Comment commands
 
-Accepted commands share `github.Service`; summary processing runs independently.
+Accepted commands share `github.Service`; summary and review processing run independently.
 
 ```mermaid
 sequenceDiagram
@@ -715,21 +783,21 @@ sequenceDiagram
     F->>G: Re-read comment and PR<br/>Check permissions
     alt /ab automerge or /ab status
         F->>G: Add automerge label or publish status reply
-    else /ab summarise
-        F->>F: Queue summary in memory
+    else /ab summarise or /ab codereview
+        F->>F: Queue request in memory
     end
     F-->>D: Command outcome
     par Webhook completion
         D->>G: Add outcome reaction
         D-->>H: Command outcome
         H-->>G: HTTP response
-    and Independent summary job
-        opt Summary queued
+    and Independent feature job
+        opt Request queued
             S->>F: Process queued request
-            F->>G: Fetch changed files and available patches<br/>Recheck authorization, revisions, and existing summaries
-            F->>A: Generate summary
-            A-->>F: Summary text
-            F->>G: Recheck state and existing summaries<br/>Publish reply if still eligible
+            F->>G: Collect feature context<br/>Recheck authorization, revisions, and existing results
+            F->>A: Generate advisory result
+            A-->>F: Generated result
+            F->>G: Validate output and recheck state/results<br/>Publish reply if still eligible
         end
     end
 ```
@@ -767,16 +835,28 @@ make features feature=features/automerge
 
 Use `make help` for commands and CI feature groups, such as
 `make features-dependabot` and `make features-summaries`. Run groups one at a time:
-the harness shares ports and configuration. Untagged features belong to the
+the harness shares ports. Untagged features belong to the
 worker group; group definitions live in [Makefile](Makefile).
 
 The Ruby Cucumber/Nonnative harness runs the worker against independent fake
 GitHub REST/GraphQL and OpenAI APIs on one local listener, with accelerated
 schedules and disposable credentials. It never mutates real repositories or calls
 a live model. Keep committed fixtures in `test/secrets/` unchanged; failure
-scenarios select separate invalid or missing paths. Logs and results go to
+scenarios select separate invalid or missing paths. Every existing and new
+Cucumber or benchmark scenario selects a complete, immutable checked-in YAML
+configuration from `test/.config/` through `Abgleich.use_config`. Steps never
+rewrite configuration files or generate runtime configurations; worker startup
+and restarts read the selected file directly. Logs and results go to
 `test/reports/`. Browse [features](test/features) for behavior coverage and
 [CI](.circleci/config.yml) for build and release workflows.
+
+### 🔬 Code-review evaluation
+
+Fake-provider scenarios verify integration, not model accuracy. Before broad use,
+evaluate operator-approved PRs with known bugs and clean changes, recording useful
+findings, misses, false positives, latency, and token usage. Diff-only review can
+miss bugs requiring unchanged context. Live calls require separate authorization
+and never run in CI; no live quality evaluation is claimed here.
 
 ### 📝 Changes
 

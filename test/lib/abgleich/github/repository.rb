@@ -10,6 +10,7 @@ require 'abgleich/github/repository/dependabot'
 require 'abgleich/github/repository/automation'
 require 'abgleich/github/repository/commands'
 require 'abgleich/github/repository/summaries'
+require 'abgleich/github/repository/reviews'
 require 'abgleich/github/repository/cleanup'
 require 'abgleich/github/repository/branches'
 require 'abgleich/github/repository/checks'
@@ -26,6 +27,7 @@ module Abgleich
     include Automation
     include Commands
     include Summaries
+    include Reviews
     include Cleanup
     include Branches
     include Checks

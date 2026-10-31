@@ -1,9 +1,7 @@
 # frozen_string_literal: true
 
 Given('the CI completion check is configured as a list') do
-  config = YAML.safe_load_file('.config/server.yaml')
-  config['automerge'] = { 'completion_check' => ['ci/workflow'] }
-  File.write('.config/server.yaml', YAML.dump(config))
+  Abgleich.use_config('events_invalid_completion')
 end
 
 Given('the App private key is {string}') do |state|
@@ -20,9 +18,7 @@ Given('the worker could not start with a {string} App private key') do |state|
 end
 
 Given('the App installation is not configured') do
-  config = YAML.safe_load_file('.config/server.yaml')
-  config['github'].delete('app')
-  File.write('.config/server.yaml', YAML.dump(config))
+  Abgleich.use_config('app_missing')
 end
 
 Given('the installation token approaches expiry after one second') do
@@ -34,9 +30,7 @@ Given('installation-token renewal becomes {string} during a check') do |conditio
               'unavailable' => 'installation token renewal HTTP' }.fetch(condition)
   Abgleich.github.token_lifetime = 61
   Abgleich.github.fail_with(failure)
-  config = YAML.safe_load_file('.config/server.yaml')
-  config['scheduler']['interval'] = '3s'
-  File.write('.config/server.yaml', YAML.dump(config))
+  Abgleich.use_config('renewal')
 end
 
 Given('the first check stopped at throttled installation-token renewal') do

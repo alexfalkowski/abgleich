@@ -7,9 +7,7 @@ Given('GitHub cannot add comment reactions because of {string}') do |problem|
 end
 
 Given('the command has a short processing deadline') do
-  config = YAML.safe_load_file('.config/server.yaml')
-  config['github']['webhook']['timeout'] = '200ms'
-  File.write('.config/server.yaml', YAML.dump(config))
+  Abgleich.use_config('webhook_short_deadline')
 end
 
 Given('GitHub takes longer than one second to acknowledge the command outcome') do

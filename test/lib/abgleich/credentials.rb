@@ -15,16 +15,17 @@ module Abgleich
   class << self
     # Both source types use the same committed webhook fixtures.
     def prepare_github_webhook(content: 'valid', source: 'file')
-      path = WEBHOOK_SECRET_PATHS.fetch(content)
-      if source == 'file'
-        secret_source = "file:#{path}"
-      else
+      if source == 'environment'
+        path = WEBHOOK_SECRET_PATHS.fetch(content)
         Nonnative.configuration.process_by_name('server').environment = { 'ABGLEICH_TEST_WEBHOOK_SECRET' => File.read(path) }
-        secret_source = 'env:ABGLEICH_TEST_WEBHOOK_SECRET'
       end
-      config = YAML.safe_load_file('.config/server.yaml')
-      config['github']['webhook'] = { 'secret' => secret_source, 'timeout' => '2s' }
-      File.write('.config/server.yaml', YAML.dump(config))
+
+      profiles = { %w[file valid] => 'webhook',
+                   %w[file empty] => 'webhook_empty',
+                   %w[file whitespace] => 'webhook_whitespace',
+                   %w[environment empty] => 'webhook_environment_empty' }
+
+      use_config(profiles.fetch([source, content]))
     end
 
     def app_public_key
@@ -33,16 +34,15 @@ module Abgleich
 
     # Select fixtures without modifying them; the missing-key path has no file.
     def prepare_github_key(state)
-      path = {
-        'valid' => APP_KEY_PATH,
-        'unavailable' => 'secrets/github-app-missing-private-key.pem',
-        'empty' => 'secrets/github-app-empty-private-key.pem',
-        'invalid' => 'secrets/github-app-invalid-private-key.pem',
-        'unrecognized' => 'secrets/github-app-unrecognized-private-key.pem'
-      }.fetch(state)
-      config = YAML.safe_load_file('.config/server.yaml')
-      config['github']['app']['private_key'] = "file:#{path}"
-      File.write('.config/server.yaml', YAML.dump(config))
+      profiles = {
+        'valid' => 'server',
+        'unavailable' => 'app_key_unavailable',
+        'empty' => 'app_key_empty',
+        'invalid' => 'app_key_invalid',
+        'unrecognized' => 'app_key_unrecognized'
+      }
+
+      use_config(profiles.fetch(state))
     end
   end
 end
