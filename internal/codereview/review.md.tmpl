@@ -1,0 +1,24 @@
+### 🤖 Abgleich code review
+
+{{.Completion.Text | markdown}}
+
+<details>
+<summary>Code review details</summary>
+
+**Head:** `{{.HeadSHA}}`
+
+**Base:** `{{.BaseSHA}}`
+
+[💬 Code review request](#issuecomment-{{.RequestID}})
+
+**Model:** {{.Completion.Model | markdown}}
+
+{{with .Completion.Usage}}**Tokens:** {{.InputTokens}} input ({{.CachedInputTokens}} cached, {{.CacheWriteTokens}} cache writes), {{.OutputTokens}} output including reasoning.
+{{else}}**Tokens:** Unavailable.
+{{end}}
+
+**Scope:** Pull request metadata and all changed-file patches available from GitHub. Full files and unchanged callers were not reviewed. Missing patches limit the review. Code and tests were not executed. Findings are advisory and do not grant approval.
+
+</details>
+
+{{.Marker}}

@@ -1,0 +1,39 @@
+---
+environment: development
+github:
+  client:
+    timeout: 1m
+    retry:
+      attempts: 2
+      backoff: 10ms
+  owner: alexfalkowski
+  app:
+    id: 42
+    installation_id: 99
+    private_key: file:secrets/github-app-private-key.pem
+  url: http://localhost:11001/github/
+scheduler:
+  interval: 1s
+  timeout: 2s
+health:
+  duration: 50ms
+  timeout: 1s
+id:
+  kind: uuid
+telemetry:
+  logger:
+    kind: json
+    level: debug
+  metrics:
+    kind: prometheus
+  tracer:
+    kind: otlp
+    url: http://localhost:4318/v1/traces
+transport:
+  http:
+    address: tcp://:11000
+    timeout: 5s
+    max_receive_size: 1048576B
+cleanup:
+  interval: 1h
+  timeout: 3s

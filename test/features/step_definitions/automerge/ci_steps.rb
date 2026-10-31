@@ -41,14 +41,14 @@ end
 Given('the event completion check is {string}') do |configuration|
   completed = Abgleich.job_logs('automerge').length
   Abgleich.restart do
-    config = YAML.safe_load_file('.config/server.yaml')
-    case configuration
-    when 'omitted' then config.delete('automerge')
-    when 'empty' then config['automerge']['completion_check'] = ''
-    when 'unreported' then config['automerge']['completion_check'] = 'another/workflow'
-    when 'differently cased' then config['automerge']['completion_check'] = 'CI/workflow'
-    end
-    File.write('.config/server.yaml', YAML.dump(config))
+    profiles = {
+      'omitted' => 'events_without_completion',
+      'empty' => 'events_empty_completion',
+      'unreported' => 'events_unknown_completion',
+      'differently cased' => 'events_cased_completion'
+    }
+
+    Abgleich.use_config(profiles.fetch(configuration))
   end
   wait_for { Abgleich.job_logs('automerge').length }.to be > completed, 'expected the startup sweep to finish before adding a new branch'
 end

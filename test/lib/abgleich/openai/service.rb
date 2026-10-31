@@ -68,9 +68,10 @@ module Abgleich
       # The 3s test job allows at most 1.5s for inference.
       sleep 2 if mode == 'timeout'
       halt 429, { error: { message: 'Rate limited', type: 'rate_limit_error' } }.to_json if mode == 'rate limit'
+      halt 400, { error: { message: 'Context window exceeded', code: 'context_length_exceeded' } }.to_json if mode == 'context limit'
       halt 200, 'null' if mode == 'null response'
 
-      output = SUMMARY
+      output = payload.fetch('model') == 'test-review' ? review_output(payload, mode) : SUMMARY
       case mode
       when 'hostile prose'
         output = "The worker now processes requests predictably.\n\nChanges:\n" \
@@ -81,15 +82,33 @@ module Abgleich
       when 'limits note' then output = SUMMARY_WITH_LIMITS
       when 'removed pointer' then output = "The old entry point was removed.\n\nWhere to look:\nmain.go: deleted entry point."
       end
-      content = [{ type: 'output_text', text: output, annotations: [] }]
-      content = [{ type: 'refusal', refusal: 'I cannot provide this summary.' }] if mode == 'refusal'
+      content = response_content(output, mode)
       { id: 'resp_summary', object: 'response', status: mode == 'incomplete' ? 'incomplete' : 'completed',
         model: mode == 'different response model' ? 'other-model' : payload.fetch('model'),
-        output: [{ id: 'msg_summary', type: 'message', role: 'assistant', status: 'completed', content: }],
+        output: response_output(content, mode),
         usage: token_usage(mode) }.to_json
     end
 
     private
+
+    def response_output(content, mode)
+      messages = [{ id: 'msg_summary', type: 'message', role: 'assistant', status: 'completed', content: }]
+
+      if mode == 'review unexpected tool output'
+        messages << { id: 'call_review', type: 'function_call', call_id: 'call_review', name: 'mutate', arguments: '{}' }
+      end
+
+      messages
+    end
+
+    def response_content(output, mode)
+      content = [{ type: 'output_text', text: output, annotations: [] }]
+      refusal = { type: 'refusal', refusal: 'I cannot provide this answer.' }
+      return [refusal] if mode == 'refusal'
+
+      content << refusal if mode == 'review mixed refusal'
+      content
+    end
 
     # Usage fixtures distinguish ordinary input, cache reads/writes, and absent metadata.
     def token_usage(mode)

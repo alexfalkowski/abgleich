@@ -17,10 +17,21 @@ require 'abgleich/github/app_service'
 require 'abgleich/github/branch_service'
 require 'abgleich/openai/responses'
 require 'abgleich/openai/service'
+require 'abgleich/openai/reviews'
 require 'abgleich/api/server'
 
 module Abgleich
   class << self
+    attr_accessor :server_config_path
+
+    # Select an existing worker fixture for the next startup or restart.
+    def use_config(name)
+      path = ".config/#{name}.yaml"
+      raise ArgumentError, "Missing worker configuration fixture: #{path}" unless File.file?(path)
+
+      self.server_config_path = path
+    end
+
     # Send a signed delivery to the actual worker HTTP boundary.
     def deliver_comment(event, signature: nil)
       deliver_event('issue_comment', event, signature:)
@@ -72,7 +83,7 @@ module Abgleich
     end
 
     def config
-      @config ||= Nonnative::ConfigurationFile.load('.config/server.yaml')
+      Nonnative::ConfigurationFile.load(server_config_path)
     end
 
     def health_grpc

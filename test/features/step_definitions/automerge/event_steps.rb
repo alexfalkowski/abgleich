@@ -1,11 +1,7 @@
 # frozen_string_literal: true
 
 Given('GitHub event checks are configured between hourly sweeps') do
-  Abgleich.prepare_github_webhook
-  config = YAML.safe_load_file('.config/server.yaml')
-  config['scheduler']['interval'] = '1h'
-  config['automerge'] = { 'completion_check' => 'ci/workflow' }
-  File.write('.config/server.yaml', YAML.dump(config))
+  Abgleich.use_config('events_hourly')
 end
 
 Given('the worker restarted with the current configuration') do
@@ -64,11 +60,7 @@ end
 
 Given('event checks and sweeps are both enabled on the regular schedule') do
   completed = Abgleich.job_logs('automerge').length
-  Abgleich.restart do
-    config = YAML.safe_load_file('.config/server.yaml')
-    config['scheduler']['interval'] = '1s'
-    File.write('.config/server.yaml', YAML.dump(config))
-  end
+  Abgleich.restart { Abgleich.use_config('events_regular') }
   wait_for { Abgleich.job_logs('automerge').length }.to be > completed, 'expected the regular schedule to finish its startup sweep'
   expect_successful_check('automerge')
 end

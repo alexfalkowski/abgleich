@@ -1,10 +1,28 @@
 # frozen_string_literal: true
 
 Given('Dependabot automation excludes repositories:') do |table|
-  config = YAML.safe_load_file('.config/server.yaml')
-  config['automerge'] ||= {}
-  config['automerge']['dependabot'] = { 'exclude_repositories' => table.hashes.map { |row| row.fetch('repository') } }
-  File.write('.config/server.yaml', YAML.dump(config))
+  profiles = {
+    ['alexfalkowski/infraops'] => 'excluded',
+    %w[alexfalkowski/unrelated alexfalkowski/infraops] => 'excluded_with_unrelated',
+    %w[alexfalkowski/unrelated ALEXFALKOWSKI/INFRAOPS] => 'excluded_uppercase_with_unrelated',
+    ['alexfalkowski/docker'] => 'docker',
+    ['someone/infraops'] => 'other_owner',
+    ['alexfalkowski/infraops-extra'] => 'longer_name',
+    ['alexfalkowski/infra'] => 'shorter_name',
+    [] => 'empty',
+    [''] => 'invalid'
+  }
+
+  context = {
+    'server' => 'dependabot',
+    'webhook' => 'webhook_dependabot',
+    'events_hourly' => 'events_dependabot'
+  }
+
+  prefix = context.fetch(File.basename(Abgleich.server_config_path, '.yaml'))
+  profile = profiles.fetch(table.hashes.map { |row| row.fetch('repository') })
+
+  Abgleich.use_config("#{prefix}_#{profile}")
 end
 
 Given('repository {string} has a ready Dependabot pull request for branch {string}') do |repository, branch|

@@ -3,10 +3,7 @@
 Given('AI summaries are configured for this repository') do
   Abgleich.prepare_github_webhook
   Abgleich.github.add_repository(Abgleich::GitHubRepository::DEFAULT_REPOSITORY)
-  config = YAML.safe_load_file('.config/server.yaml')
-  config['ai'] = { 'provider' => 'openai', 'openai' => { 'api_key' => 'nonnative-summary-key', 'url' => 'http://localhost:11001/openai/v1/' } }
-  config['summarise'] = { 'model' => 'test-summary', 'interval' => '100ms', 'timeout' => '3s' }
-  File.write('.config/server.yaml', YAML.dump(config))
+  Abgleich.use_config('summarise')
 end
 
 Given('the repository topics are {string}') do |topics|
@@ -204,17 +201,14 @@ Then('no summary should be posted after permission is withdrawn') do
 end
 
 Given('a summary request was interrupted by a worker restart') do
-  config = YAML.safe_load_file('.config/server.yaml')
-  config['summarise']['interval'] = '10s'
-  File.write('.config/server.yaml', YAML.dump(config))
+  Abgleich.use_config('summarise_queue')
   Nonnative.start
   wait_for { Abgleich.job_logs('summarise') }.not_to be_empty
   @comment_event = Abgleich.github.add_comment('contribution', body: '/ab summarise')
   expect(Abgleich.deliver_comment(@comment_event).code).to eq(204)
   expect(Abgleich.openai.requests).to be_empty, 'expected the interrupted request to be waiting'
   Abgleich.restart do
-    config['summarise']['interval'] = '100ms'
-    File.write('.config/server.yaml', YAML.dump(config))
+    Abgleich.use_config('summarise')
   end
   expect_summary_check
   expect(Abgleich.openai.requests).to be_empty, 'expected a restart to discard pending work until reissue'
@@ -361,35 +355,28 @@ Given('the repository allows summaries but has automatic merging disabled') do
 end
 
 Given('the AI service credential is {string}') do |state|
-  sources = { 'unavailable' => 'file:secrets/missing-ai-key', 'blank' => 'file:secrets/github-webhook-whitespace-secret' }
-  config = YAML.safe_load_file('.config/server.yaml')
-  config['ai']['openai']['api_key'] = sources.fetch(state)
-  File.write('.config/server.yaml', YAML.dump(config))
+  fixtures = {
+    'unavailable' => 'ai_missing_key',
+    'blank' => 'ai_blank_key'
+  }
+
+  Abgleich.use_config(fixtures.fetch(state))
 end
 
 Given('the operator selects an unsupported AI service') do
-  config = YAML.safe_load_file('.config/server.yaml')
-  config['ai']['provider'] = 'unsupported'
-  File.write('.config/server.yaml', YAML.dump(config))
+  Abgleich.use_config('ai_unsupported')
 end
 
 Given('AI summaries are disabled') do
-  config = YAML.safe_load_file('.config/server.yaml')
-  config.delete('ai')
-  config.delete('summarise')
-  File.write('.config/server.yaml', YAML.dump(config))
+  Abgleich.use_config('server')
 end
 
 Given('the operator enables summaries without an AI service') do
-  config = YAML.safe_load_file('.config/server.yaml')
-  config.delete('ai')
-  File.write('.config/server.yaml', YAML.dump(config))
+  Abgleich.use_config('summarise_without_ai')
 end
 
 Given('a maintainer is waiting for a summary') do
-  config = YAML.safe_load_file('.config/server.yaml')
-  config['summarise']['interval'] = '1s'
-  File.write('.config/server.yaml', YAML.dump(config))
+  Abgleich.use_config('summarise_pending')
   Nonnative.start
   wait_for { Abgleich.job_logs('summarise') }.not_to be_empty
   @comment_event = Abgleich.github.add_comment('contribution', body: '/ab summarise')
@@ -423,9 +410,7 @@ Then('the existing App summary should remain the only summary') do
 end
 
 Given('four maintainers are waiting for their summaries') do
-  config = YAML.safe_load_file('.config/server.yaml')
-  config['summarise']['interval'] = '10s'
-  File.write('.config/server.yaml', YAML.dump(config))
+  Abgleich.use_config('summarise_queue')
   Nonnative.start
   wait_for { Abgleich.job_logs('summarise') }.not_to be_empty
   4.times do |index|

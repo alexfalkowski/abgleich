@@ -46,6 +46,7 @@ module Abgleich
     end
 
     get '/repos/:owner/:repository/issues/comments/:id' do
+      halt 404 if Abgleich.github.failure == 'review deleted comment'
       halt 503 if Abgleich.github.failure == 'comment HTTP'
       sleep 3 if Abgleich.github.failure == 'comment timeout'
       comment = Abgleich.github.comment(params.fetch('id').to_i)
@@ -119,6 +120,7 @@ module Abgleich
 
       repository = "#{params.fetch('owner')}/#{params.fetch('repository')}"
       files = Abgleich.github.summary_files
+      files.each { |file| file[:patch] = GitHubRepository::Reviews::PATCH } if Abgleich.github.file_mode == 'code review'
       Abgleich.github.apply_collection_change
       number = params.fetch('number')
       if page * 2 < files.length
