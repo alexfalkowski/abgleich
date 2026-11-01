@@ -1,24 +1,24 @@
 @github @manual
-Feature: GitHub App credentials
+Feature: Start with a usable worker configuration
   A readable RSA private key is required at startup.
   Restored or replaced credentials take effect after restarting the worker.
 
   Scenario: Reject a CI completion check configured as a list
     Given the CI completion check is configured as a list
-    When I attempt to start the system
-    Then starting the system should raise an error
+    When the operator starts the worker
+    Then the worker should refuse to start
 
   Scenario: Reject an empty Dependabot repository exclusion
     Given Dependabot automation excludes repositories:
       | repository |
       |            |
-    When I attempt to start the system
-    Then starting the system should raise an error
+    When the operator starts the worker
+    Then the worker should refuse to start
 
   Scenario Outline: Reject a <state> App private key at startup
     Given the App private key is "<state>"
-    When I attempt to start the system
-    Then starting the system should raise an error
+    When the operator starts the worker
+    Then the worker should refuse to start
 
     Examples:
       | state       |
@@ -46,13 +46,13 @@ Feature: GitHub App credentials
 
   Scenario: Require an App installation in configuration
     Given the App installation is not configured
-    When I attempt to start the system
-    Then starting the system should raise an error
+    When the operator starts the worker
+    Then the worker should refuse to start
 
   Scenario Outline: Reject an empty resolved webhook secret at startup
     Given the webhook secret comes from "<source>" with "<content>" content
-    When I attempt to start the system
-    Then starting the system should raise an error
+    When the operator starts the worker
+    Then the worker should refuse to start
 
     Examples:
       | source      | content    |

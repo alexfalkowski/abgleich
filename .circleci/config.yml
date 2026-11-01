@@ -72,8 +72,13 @@ jobs:
           paths:
             - ~/.cache/golangci-lint
       - run: make sec
+    resource_class: arm.large
+  build-features:
+    executor: go
+    working_directory: ~/abgleich
+    steps:
+      - prepare-service
       - run: make build-test
-      - run: make analyse
       - save_cache:
           name: save go build cache
           key: abgleich-go-build-cache-{{ checksum "go.sum" }}-{{ checksum "~/.go-version" }}-{{ checksum ".source-key" }}
@@ -128,6 +133,38 @@ jobs:
           paths:
             - commands
     resource_class: arm.large
+  features-codereview:
+    executor: go
+    working_directory: ~/abgleich
+    steps:
+      - prepare-service
+      - run: make features-codereview
+      - store_test_results:
+          path: test/reports
+      - store_artifacts:
+          path: test/reports
+      - run: make coverage-workspace-stage partition=codereview
+      - persist_to_workspace:
+          root: /tmp/abgleich-reports
+          paths:
+            - codereview
+    resource_class: arm.large
+  features-secreview:
+    executor: go
+    working_directory: ~/abgleich
+    steps:
+      - prepare-service
+      - run: make features-secreview
+      - store_test_results:
+          path: test/reports
+      - store_artifacts:
+          path: test/reports
+      - run: make coverage-workspace-stage partition=secreview
+      - persist_to_workspace:
+          root: /tmp/abgleich-reports
+          paths:
+            - secreview
+    resource_class: arm.large
   features-summaries:
     executor: go
     working_directory: ~/abgleich
@@ -166,6 +203,7 @@ jobs:
     steps:
       - prepare-service
       - run: make features-worker
+      - run: make analyse
       - store_test_results:
           path: test/reports
       - store_artifacts:
@@ -308,29 +346,39 @@ workflows:
   abgleich:
     jobs:
       - build-service
+      - build-features
       - features-dependabot:
           requires:
-            - build-service
+            - build-features
       - features-labels:
           requires:
-            - build-service
+            - build-features
       - features-commands:
           requires:
-            - build-service
+            - build-features
+      - features-codereview:
+          requires:
+            - build-features
+      - features-secreview:
+          requires:
+            - build-features
       - features-summaries:
           requires:
-            - build-service
+            - build-features
       - features-reconciliation:
           requires:
-            - build-service
+            - build-features
       - features-worker:
           requires:
-            - build-service
+            - build-features
       - coverage:
           requires:
+            - build-service
             - features-dependabot
             - features-labels
             - features-commands
+            - features-codereview
+            - features-secreview
             - features-summaries
             - features-reconciliation
             - features-worker
@@ -403,6 +451,8 @@ workflows:
             - features-dependabot
             - features-labels
             - features-commands
+            - features-codereview
+            - features-secreview
             - features-summaries
             - features-reconciliation
             - features-worker

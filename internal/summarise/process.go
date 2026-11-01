@@ -34,15 +34,13 @@ func (c *Command) process(ctx context.Context, task *summaryTask) error {
 		budget = min(budget, time.Until(deadline)/inferenceBudgetDivisor)
 	}
 
-	inference, cancel := context.WithTimeout(ctx, budget)
-	defer cancel()
-
-	completion, err := c.provider.Generate(inference, ai.Prompt{
+	completion, err := c.provider.Generate(ctx, ai.Prompt{
 		Task:            summaryCommand,
 		Model:           c.config.Model,
 		Instructions:    instructions,
 		Input:           input,
 		MaxOutputTokens: summaryOutputTokens,
+		Timeout:         budget,
 	})
 	if err != nil {
 		return c.reportFailure(ctx, task, err)

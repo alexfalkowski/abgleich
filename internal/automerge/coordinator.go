@@ -67,6 +67,7 @@ func (c *Coordinator) Stop(ctx context.Context) error {
 // outcome. The caller's deadline includes waiting behind webhook work.
 func (c *Coordinator) Reconcile(ctx context.Context) error {
 	request := reconcileRequest{context: ctx, result: make(chan error, 1)}
+
 	select {
 	case <-ctx.Done():
 		return context.Cause(ctx)
@@ -99,6 +100,7 @@ func (c *Coordinator) loop(ctx context.Context) {
 		if ctx.Err() != nil {
 			return
 		}
+
 		select {
 		case <-ctx.Done():
 			return

@@ -23,7 +23,7 @@ Given('branch {string} has the {string} label') do |branch, label|
   Abgleich.github.label_pull(branch, label)
 end
 
-Given('the labeled operation fails with {string}') do |failure|
+Given('GitHub reports {string}') do |failure|
   Abgleich.github.fail_with(failure)
 end
 

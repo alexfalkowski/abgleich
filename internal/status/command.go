@@ -17,15 +17,16 @@ const statusCommand = "status"
 var _ commands.Handler = (*Command)(nil)
 
 // NewCommand constructs authorized status reporting using automerge policy assessments.
-func NewCommand(service github.Service, reconciler *automerge.Reconciler) *Command {
-	return &Command{github: service, automerge: reconciler}
+func NewCommand(service github.Service, reconciler *automerge.Reconciler, authorizer *commands.Authorizer) *Command {
+	return &Command{github: service, automerge: reconciler, authorizer: authorizer}
 }
 
 // Command publishes one bounded policy explanation within the delivery
 // deadline. It never requests automation; redelivery can publish another reply.
 type Command struct {
-	github    github.Service
-	automerge *automerge.Reconciler
+	github     github.Service
+	automerge  *automerge.Reconciler
+	authorizer *commands.Authorizer
 }
 
 // Handle revalidates the requester and observed state before publishing. A
@@ -45,7 +46,7 @@ func (c *Command) Handle(ctx context.Context, event *github.IssueCommentEvent) (
 		return false, commands.ErrPullRequestChanged
 	}
 
-	if allowed, err := c.authorize(ctx, repo, pull, event.GetComment()); err != nil || !allowed {
+	if comment, err := c.authorizer.Authorize(ctx, statusCommand, repo, pull.GetNumber(), event.GetComment()); err != nil || comment == nil {
 		return false, err
 	}
 
@@ -67,7 +68,7 @@ func (c *Command) Handle(ctx context.Context, event *github.IssueCommentEvent) (
 }
 
 func (c *Command) publish(ctx context.Context, repo *github.Repository, pull *github.PullRequest, comment *github.IssueComment, message Reply) (bool, error) {
-	if allowed, err := c.authorize(ctx, repo, pull, comment); err != nil || !allowed {
+	if current, err := c.authorizer.Authorize(ctx, statusCommand, repo, pull.GetNumber(), comment); err != nil || current == nil {
 		return false, err
 	}
 
@@ -84,27 +85,6 @@ func (c *Command) publish(ctx context.Context, repo *github.Repository, pull *gi
 		return false, err
 	}
 
-	return true, nil
-}
-
-func (c *Command) authorize(ctx context.Context, repo *github.Repository, pull *github.PullRequest, expected *github.IssueComment) (bool, error) {
-	comment, err := c.github.GetComment(ctx, repo, pull.GetNumber(), expected)
-	if err != nil {
-		return false, err
-	}
-
-	if commands.Parse(comment.GetBody()) != statusCommand || comment.GetUser().GetType() != "User" ||
-		!github.HasCommentMetadata(comment) || comment.GetUpdatedAt().After(comment.GetCreatedAt().Time) {
-		return false, nil
-	}
-
-	allowed, err := c.github.HasWritePermission(ctx, repo, comment.GetUser())
-	if err != nil {
-		return false, err
-	}
-	if !allowed {
-		return false, commands.ErrWriteAccessRequired
-	}
 	return true, nil
 }
 

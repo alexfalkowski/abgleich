@@ -13,6 +13,8 @@ Given('the AI service identifies a different model in its response') do
 end
 
 Then('the summary details should include {string} without a dollar estimate') do |expected|
+  expected = { 'the model returned by the service' => 'Model:** other\\-model',
+               'unavailable usage' => 'Tokens:** Unavailable' }.fetch(expected, expected)
   wait_for do
     Abgleich.github.replies.any? { |reply| reply[:body].start_with?("### 🤖 Abgleich summary\n") }
   end.to be(true), 'expected a summary with model and token usage details'

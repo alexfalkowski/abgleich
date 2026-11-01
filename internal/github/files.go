@@ -13,12 +13,12 @@ func (s *service) ListPullRequestFiles(ctx context.Context, repo *Repository, pu
 	var files []*CommitFile
 	seen := make(map[string]bool)
 	opts := &github.ListOptions{PerPage: pageSize}
+
 	for {
 		page, response, err := s.client.installation.PullRequests.ListFiles(ctx, repo.GetOwner().GetLogin(), repo.GetName(), pull.GetNumber(), opts)
 		if err != nil {
 			return nil, err
 		}
-
 		if err := validateFilePage(page, seen); err != nil {
 			return nil, err
 		}

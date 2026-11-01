@@ -6,8 +6,8 @@ Feature: Enable optional pull request summaries
   Scenario Outline: Refuse to start with unusable AI credentials
     Given AI summaries are configured for this repository
     And the AI service credential is "<state>"
-    When I attempt to start the system
-    Then starting the system should raise an error
+    When the operator starts the worker
+    Then the worker should refuse to start
 
     Examples:
       | state       |
@@ -17,20 +17,20 @@ Feature: Enable optional pull request summaries
   Scenario: Refuse an unsupported AI service
     Given AI summaries are configured for this repository
     And the operator selects an unsupported AI service
-    When I attempt to start the system
-    Then starting the system should raise an error
+    When the operator starts the worker
+    Then the worker should refuse to start
 
   Scenario: Require an AI service when summaries are enabled
     Given AI summaries are configured for this repository
     And the operator enables summaries without an AI service
-    When I attempt to start the system
-    Then starting the system should raise an error
+    When the operator starts the worker
+    Then the worker should refuse to start
 
   Scenario: Refuse an invalid trusted certificate for the AI service
     Given AI summaries are configured for this repository
     And the operator configures "an invalid trusted certificate" for the AI service
-    When I attempt to start the system
-    Then starting the system should raise an error
+    When the operator starts the worker
+    Then the worker should refuse to start
 
   Scenario: Continue ordinary automation with summaries disabled
     Given AI summaries are disabled

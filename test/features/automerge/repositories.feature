@@ -1,5 +1,5 @@
 @github @manual @reconciliation
-Feature: Owner-wide auto-merge reconciliation
+Feature: Keep opted-in repositories up to date
   The worker discovers the owner's repositories on every sweep.
   Repository failures are isolated and GitHub throttling stops a sweep.
 

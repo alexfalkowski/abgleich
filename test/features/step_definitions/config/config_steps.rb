@@ -55,8 +55,16 @@ Given('the worker cannot authenticate when checking branch {string}') do |branch
   expect_healthy_worker
 end
 
+When('the operator starts the worker') do
+  step 'I attempt to start the system'
+end
+
 When('the worker restarts with valid App credentials') do
   Abgleich.restart { Abgleich.prepare_github_key('valid') }
+end
+
+Then('the worker should refuse to start') do
+  step 'starting the system should raise an error'
 end
 
 Then('GitHub should receive one installation check per sweep and {int} for comment commands') do |command_checks|

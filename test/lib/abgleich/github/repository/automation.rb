@@ -78,30 +78,30 @@ module Abgleich
       def corrupt_automation_history(result, failure, cursor)
         node = result.dig(:data, :node)
         case failure
-        when 'history GraphQL'
+        when 'rejected automation history'
           result[:errors] = [{ message: 'Cannot read automation events' }]
-        when 'history rate limit'
+        when 'rate-limited automation history'
           result[:errors] = [{ type: 'RATE_LIMITED', message: 'Quota exhausted' }]
-        when 'mismatched history' then node[:id] = 'another-pull-request'
+        when 'automation history for another pull request' then node[:id] = 'another-pull-request'
         else corrupt_history_page(node[:timelineItems], failure, cursor)
         end
       end
 
       def corrupt_history_page(page, failure, cursor)
         case failure
-        when 'incomplete history' then page.delete(:pageInfo)
-        when 'missing history events' then page.delete(:nodes)
-        when 'invalid history cursor' then page[:pageInfo][:endCursor] = cursor
-        when 'empty history' then page[:nodes] = []
+        when 'incomplete automation history' then page.delete(:pageInfo)
+        when 'missing automation events' then page.delete(:nodes)
+        when 'repeated automation history' then page[:pageInfo][:endCursor] = cursor
+        when 'no recorded label authorization' then page[:nodes] = []
         else corrupt_history_event(page[:nodes].first, failure)
         end
       end
 
       def corrupt_history_event(event, failure)
         case failure
-        when 'missing history timestamp' then event.delete(:created_at)
-        when 'missing history label' then event.delete(:label)
-        when 'unknown history event' then event[:event] = 'UnexpectedEvent'
+        when 'an automation event without a time' then event.delete(:created_at)
+        when 'an automation event without a label' then event.delete(:label)
+        when 'an unrecognized automation event' then event[:event] = 'UnexpectedEvent'
         end
       end
     end

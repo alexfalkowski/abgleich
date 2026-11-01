@@ -45,7 +45,9 @@ type Webhook struct {
 }
 
 // GetTimeout returns the independent synchronous processing budget.
-func (w *Webhook) GetTimeout() time.Duration { return w.config.Webhook.GetTimeout() }
+func (w *Webhook) GetTimeout() time.Duration {
+	return w.config.Webhook.GetTimeout()
+}
 
 // Delivery routes a verified comment command or repository notification.
 // Repository is only a discovery hint; current settings and PR state must be read

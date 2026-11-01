@@ -70,7 +70,7 @@ Given('the worker has restarted') do
   Abgleich.restart
 end
 
-Given('GitHub reports an error after publishing the summary') do
+Given('GitHub reports an error after publishing the reply') do
   Abgleich.github.fail_with('lost reply response')
 end
 
@@ -85,6 +85,137 @@ Given('an earlier request failed while the AI service was busy') do
   expect(Abgleich.logs).to include(a_hash_including('msg' => 'ai generation', 'level' => 'error'))
   expect_healthy_worker
   Abgleich.openai.mode = nil
+end
+
+Given('a summary request was interrupted by a worker restart') do
+  Abgleich.use_config('summarise_queue')
+  Nonnative.start
+  wait_for { Abgleich.job_logs('summarise') }.not_to be_empty
+  @comment_event = Abgleich.github.add_comment('contribution', body: '/ab summarise')
+  expect(Abgleich.deliver_comment(@comment_event).code).to eq(204)
+  expect(Abgleich.openai.requests).to be_empty, 'expected the interrupted request to be waiting'
+  Abgleich.restart do
+    Abgleich.use_config('summarise')
+  end
+  expect_summary_check
+  expect(Abgleich.openai.requests).to be_empty, 'expected a restart to discard pending work until reissue'
+  expect(Abgleich.github.replies).to be_empty, 'expected no reply before the maintainer reissues the request'
+end
+
+Given('the contribution contains {string}') do |changes|
+  modes = { 'more than twenty changed files' => 'many files', 'large combined changes' => 'many patches',
+            'an oversized individual change' => 'large patch', 'a change without a text diff' => 'missing patch',
+            'source changes and an image without a text diff' => 'mixed patches', 'a deleted source file' => 'removed file',
+            'a CI workflow change' => 'ci workflow' }
+  Abgleich.github.file_mode = modes.fetch(changes)
+end
+
+Given('the AI service explains missing patches after three reading pointers') do
+  Abgleich.openai.mode = 'limits note'
+end
+
+Given('the AI service explains the CI workflow change') do
+  Abgleich.openai.mode = 'ci workflow'
+end
+
+Given('the AI service points the reader to the deleted file') do
+  Abgleich.openai.mode = 'removed pointer'
+end
+
+Given('a comment resembling an App summary was posted by {string}') do |author|
+  event = Abgleich.github.add_comment('contribution', body: "### 🤖 Abgleich summary\nAn unrelated comment.")
+  id = event.fetch(:comment).fetch('id')
+  if author == 'another App'
+    Abgleich.github.change_comment(id, :user, { id: 9000, login: 'abgleich[bot]', type: 'Bot' })
+    Abgleich.github.change_comment(id, :performed_via_github_app, { id: 123 })
+  end
+end
+
+Given('the AI service includes markup and mentions in its answer') do
+  Abgleich.openai.mode = 'hostile prose'
+end
+
+Given(/^the revision changes through "([^"]*)" while the (?:summary|review) is prepared$/) do |change|
+  modes = { 'a new pull request commit' => 'head changed', 'a new target branch commit' => 'base changed' }
+  Abgleich.openai.on_request = -> { Abgleich.github.change_summary_state(modes.fetch(change)) }
+end
+
+Given(/^permission for the (?:summary|review) is withdrawn through "([^"]*)" while the answer is prepared$/) do |change|
+  modes = { 'loss of write access' => 'permission revoked', 'an edited request' => 'request edited' }
+  Abgleich.openai.on_request = -> { Abgleich.github.change_summary_state(modes.fetch(change)) }
+end
+
+Given('the request changes through {string} before any source is shared') do |change|
+  modes = { 'loss of write access' => 'permission revoked', 'a new pull request commit' => 'head changed' }
+  Abgleich.github.collection_change = modes.fetch(change)
+end
+
+Given('repository topics are removed before any source is shared') do
+  Abgleich.github.collection_change = 'topic removed'
+end
+
+Given('repository topics are removed while the answer is prepared') do
+  Abgleich.openai.on_request = -> { Abgleich.github.change_summary_state('topic removed') }
+end
+
+Given('the repository allows summaries but has automatic merging disabled') do
+  Abgleich.github.add_repository(
+    Abgleich::GitHubRepository::DEFAULT_REPOSITORY,
+    auto_merge: false, squash_merge: false
+  )
+end
+
+Given('the AI service credential is {string}') do |state|
+  fixtures = {
+    'unavailable' => 'ai_missing_key',
+    'blank' => 'ai_blank_key'
+  }
+
+  Abgleich.use_config(fixtures.fetch(state))
+end
+
+Given('the operator selects an unsupported AI service') do
+  Abgleich.use_config('ai_unsupported')
+end
+
+Given('AI summaries are disabled') do
+  Abgleich.use_config('server')
+end
+
+Given('the operator enables summaries without an AI service') do
+  Abgleich.use_config('summarise_without_ai')
+end
+
+Given('a maintainer is waiting for a summary') do
+  Abgleich.use_config('summarise_pending')
+  Nonnative.start
+  wait_for { Abgleich.job_logs('summarise') }.not_to be_empty
+  @comment_event = Abgleich.github.add_comment('contribution', body: '/ab summarise')
+  expect(Abgleich.deliver_comment(@comment_event).code).to eq(204)
+end
+
+Given('an App summary arrives while they wait') do
+  @existing_summary_body = "### 🤖 Abgleich summary\nAlready explained."
+  Abgleich.github.publish_reply(Abgleich::GitHubRepository::DEFAULT_REPOSITORY, 1, @existing_summary_body)
+end
+
+Given('another App summary arrives while the AI service is answering') do
+  @existing_summary_body = "### 🤖 Abgleich summary\nAlready explained."
+  Abgleich.openai.on_request = lambda do
+    Abgleich.github.publish_reply(Abgleich::GitHubRepository::DEFAULT_REPOSITORY, 1, @existing_summary_body)
+  end
+end
+
+Given('four maintainers are waiting for their summaries') do
+  Abgleich.use_config('summarise_queue')
+  Nonnative.start
+  wait_for { Abgleich.job_logs('summarise') }.not_to be_empty
+  4.times do |index|
+    branch = "queued-#{index}"
+    Abgleich.github.add_pull(branch, auto_merge: false, current: true)
+    event = Abgleich.github.add_comment(branch, body: '/ab summarise')
+    expect(Abgleich.deliver_comment(event).code).to eq(204), "expected the summary for #{branch} to be accepted"
+  end
 end
 
 When('two maintainers request a summary before either receives it') do
@@ -113,6 +244,10 @@ When('a maintainer requests status while waiting for a summary') do
   @comment_response = Abgleich.deliver_comment(@comment_event)
   @command_duration = Process.clock_gettime(Process::CLOCK_MONOTONIC) - started
   expect(Abgleich.logs).not_to include(a_hash_including('msg' => 'ai generation')), 'expected status to finish before the summary'
+end
+
+When('Abgleich processes the waiting request') do
+  expect_summary_check
 end
 
 Then('the summary should identify the request and the pull request revision') do
@@ -200,21 +335,6 @@ Then('no summary should be posted after permission is withdrawn') do
   expect(Abgleich.github.replies).to be_empty, 'expected withdrawn permission to prevent publication'
 end
 
-Given('a summary request was interrupted by a worker restart') do
-  Abgleich.use_config('summarise_queue')
-  Nonnative.start
-  wait_for { Abgleich.job_logs('summarise') }.not_to be_empty
-  @comment_event = Abgleich.github.add_comment('contribution', body: '/ab summarise')
-  expect(Abgleich.deliver_comment(@comment_event).code).to eq(204)
-  expect(Abgleich.openai.requests).to be_empty, 'expected the interrupted request to be waiting'
-  Abgleich.restart do
-    Abgleich.use_config('summarise')
-  end
-  expect_summary_check
-  expect(Abgleich.openai.requests).to be_empty, 'expected a restart to discard pending work until reissue'
-  expect(Abgleich.github.replies).to be_empty, 'expected no reply before the maintainer reissues the request'
-end
-
 Then('no summary should be posted') do
   expect(Abgleich.github.replies).to be_empty, 'expected no App reply'
 end
@@ -223,22 +343,10 @@ Then('no completed summary should be posted') do
   expect(Abgleich.github.replies.none? { |reply| reply[:body].start_with?("### 🤖 Abgleich summary\n") }).to be(true)
 end
 
-Given('the contribution contains {string}') do |changes|
-  modes = { 'more than twenty changed files' => 'many files', 'large combined changes' => 'many patches',
-            'an oversized individual change' => 'large patch', 'a change without a text diff' => 'missing patch',
-            'source changes and an image without a text diff' => 'mixed patches', 'a deleted source file' => 'removed file',
-            'a CI workflow change' => 'ci workflow' }
-  Abgleich.github.file_mode = modes.fetch(changes)
-end
-
-Then('all changed-file context should be shared with the AI service and include {string}') do |evidence|
+Then('the summary service should receive {string}') do |evidence|
   wait_for { Abgleich.openai.requests.length }.to eq(1)
   input = Abgleich.openai.requests.first.fetch('input')
-  expect(input).to include(evidence), 'expected every changed-file detail returned by GitHub to reach the AI service'
-end
-
-Given('the AI service explains missing patches after three reading pointers') do
-  Abgleich.openai.mode = 'limits note'
+  expect(input).to include(source_evidence(evidence)), 'expected every changed-file detail returned by GitHub to reach the AI service'
 end
 
 Then('the summary should link the available files before its context note') do
@@ -256,10 +364,6 @@ Then('the summary should link the available files before its context note') do
   expect(body).to include("**Missing context:** image.png has no patch. @\u200beveryone \\[details\\]\\(https://untrusted.invalid\\)")
   expect(body).not_to include('@everyone', '[details](')
   expect(Abgleich.openai.requests.last.fetch('input')).to include('File: image.png', 'Patch unavailable from GitHub.')
-end
-
-Given('the AI service explains the CI workflow change') do
-  Abgleich.openai.mode = 'ci workflow'
 end
 
 Then('the summary should put the outcome and changes before its reading guide') do
@@ -283,10 +387,6 @@ Then('the summary should put the outcome and changes before its reading guide') 
   File.write('reports/summary-preview.md', body)
 end
 
-Given('the AI service points the reader to the deleted file') do
-  Abgleich.openai.mode = 'removed pointer'
-end
-
 Then('the unformatted answer should retain {string}') do |evidence|
   wait_for { Abgleich.github.replies.last&.fetch(:body)&.include?('Requests stay queued.') }.to be(true)
   body = Abgleich.github.replies.last.fetch(:body)
@@ -304,99 +404,11 @@ Then('the summary should retain the deleted patch without linking the removed fi
   expect(input).to include("File: main.go (removed)\n@@ -1,2 +0,0 @@\n-package worker\n-old\n"), 'expected the removed file patch'
 end
 
-Given('a comment resembling an App summary was posted by {string}') do |author|
-  event = Abgleich.github.add_comment('contribution', body: "### 🤖 Abgleich summary\nAn unrelated comment.")
-  id = event.fetch(:comment).fetch('id')
-  if author == 'another App'
-    Abgleich.github.change_comment(id, :user, { id: 9000, login: 'abgleich[bot]', type: 'Bot' })
-    Abgleich.github.change_comment(id, :performed_via_github_app, { id: 123 })
-  end
-end
-
-Given('the AI service includes markup and mentions in its answer') do
-  Abgleich.openai.mode = 'hostile prose'
-end
-
 Then('the summary should show the answer without active markup or mentions') do
   wait_for { Abgleich.github.replies.last&.fetch(:body)&.include?('alert') }.to be(true)
   body = Abgleich.github.replies.last.fetch(:body)
   expect(body).to include('&lt;script&gt;', "@\u200beveryone", '\\[click\\]\\(', '\\!\\[track\\]\\(')
   expect(body).not_to include('<script>', '@everyone', '[click](', '![track](')
-end
-
-Given('the revision changes through {string} while the summary is prepared') do |change|
-  modes = { 'a new pull request commit' => 'head changed', 'a new target branch commit' => 'base changed' }
-  Abgleich.openai.on_request = -> { Abgleich.github.change_summary_state(modes.fetch(change)) }
-end
-
-Given('summary permission is withdrawn through {string} while the answer is prepared') do |change|
-  modes = { 'loss of write access' => 'permission revoked', 'an edited request' => 'request edited' }
-  Abgleich.openai.on_request = -> { Abgleich.github.change_summary_state(modes.fetch(change)) }
-end
-
-Given('the request changes through {string} before any source is shared') do |change|
-  modes = { 'loss of write access' => 'permission revoked', 'a new pull request commit' => 'head changed' }
-  Abgleich.github.collection_change = modes.fetch(change)
-end
-
-Given('repository topics are removed before any source is shared') do
-  Abgleich.github.collection_change = 'topic removed'
-end
-
-Given('repository topics are removed while the answer is prepared') do
-  Abgleich.openai.on_request = -> { Abgleich.github.change_summary_state('topic removed') }
-end
-
-Given('the repository allows summaries but has automatic merging disabled') do
-  Abgleich.github.add_repository(
-    Abgleich::GitHubRepository::DEFAULT_REPOSITORY,
-    auto_merge: false, squash_merge: false
-  )
-end
-
-Given('the AI service credential is {string}') do |state|
-  fixtures = {
-    'unavailable' => 'ai_missing_key',
-    'blank' => 'ai_blank_key'
-  }
-
-  Abgleich.use_config(fixtures.fetch(state))
-end
-
-Given('the operator selects an unsupported AI service') do
-  Abgleich.use_config('ai_unsupported')
-end
-
-Given('AI summaries are disabled') do
-  Abgleich.use_config('server')
-end
-
-Given('the operator enables summaries without an AI service') do
-  Abgleich.use_config('summarise_without_ai')
-end
-
-Given('a maintainer is waiting for a summary') do
-  Abgleich.use_config('summarise_pending')
-  Nonnative.start
-  wait_for { Abgleich.job_logs('summarise') }.not_to be_empty
-  @comment_event = Abgleich.github.add_comment('contribution', body: '/ab summarise')
-  expect(Abgleich.deliver_comment(@comment_event).code).to eq(204)
-end
-
-Given('an App summary arrives while they wait') do
-  @existing_summary_body = "### 🤖 Abgleich summary\nAlready explained."
-  Abgleich.github.publish_reply(Abgleich::GitHubRepository::DEFAULT_REPOSITORY, 1, @existing_summary_body)
-end
-
-Given('another App summary arrives while the AI service is answering') do
-  @existing_summary_body = "### 🤖 Abgleich summary\nAlready explained."
-  Abgleich.openai.on_request = lambda do
-    Abgleich.github.publish_reply(Abgleich::GitHubRepository::DEFAULT_REPOSITORY, 1, @existing_summary_body)
-  end
-end
-
-When('Abgleich processes the waiting request') do
-  expect_summary_check
 end
 
 Then('the existing summary should satisfy the waiting request') do
@@ -407,18 +419,6 @@ end
 Then('the existing App summary should remain the only summary') do
   expect_summary_check
   expect(Abgleich.github.replies.map { |reply| reply[:body] }).to eq([@existing_summary_body])
-end
-
-Given('four maintainers are waiting for their summaries') do
-  Abgleich.use_config('summarise_queue')
-  Nonnative.start
-  wait_for { Abgleich.job_logs('summarise') }.not_to be_empty
-  4.times do |index|
-    branch = "queued-#{index}"
-    Abgleich.github.add_pull(branch, auto_merge: false, current: true)
-    event = Abgleich.github.add_comment(branch, body: '/ab summarise')
-    expect(Abgleich.deliver_comment(event).code).to eq(204), "expected the summary for #{branch} to be accepted"
-  end
 end
 
 Then('ordinary automation should continue while those requests wait') do

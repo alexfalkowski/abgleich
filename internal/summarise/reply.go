@@ -58,6 +58,7 @@ func summaryLocations(text string, files []changedFile, repository, sha string) 
 	}
 
 	available := make(map[string]struct{}, len(files))
+
 	for _, file := range files {
 		available[file.Filename] = struct{}{}
 	}
@@ -68,6 +69,7 @@ func summaryLocations(text string, files []changedFile, repository, sha string) 
 	}
 
 	locations := make([]summaryLocation, 0, len(lines))
+
 	for _, line := range lines {
 		path, description, ok := strings.Cut(strings.TrimSpace(line), ": ")
 		if !ok || strings.IsEmpty(path) || strings.IsEmpty(strings.TrimSpace(description)) {
@@ -83,6 +85,7 @@ func summaryLocations(text string, files []changedFile, repository, sha string) 
 			Host:   "github.com",
 			Path:   "/" + repository + "/blob/" + sha + "/" + path,
 		}
+
 		linkURL := strings.NewReplacer("(", "%28", ")", "%29").Replace(link.String())
 
 		locations = append(locations, summaryLocation{

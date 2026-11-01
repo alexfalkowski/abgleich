@@ -19,10 +19,32 @@ module Abgleich
       wait_for { Abgleich.job_logs('summarise').length }.to be >= next_check, 'expected a completed summary check after the request'
     end
 
-    # Observe queued review work before checking an absent result or inference request.
-    def expect_review_check
-      next_check = Abgleich.job_logs('codereview').length + 1
-      wait_for { Abgleich.job_logs('codereview').length }.to be >= next_check, 'expected a completed code review check'
+    # Review kinds keep their distinct command and result identities in shared steps.
+    def review_command(kind)
+      { 'code' => 'codereview', 'security' => 'secreview' }.fetch(kind)
+    end
+
+    def review_heading(kind)
+      "### 🤖 Abgleich #{kind} review\n"
+    end
+
+    # Translate human source descriptions to the fixture evidence checked by the harness.
+    def source_evidence(description)
+      {
+        'the final changed file' => 'File: file21.go', 'the missing patch notice' => 'Patch unavailable from GitHub.',
+        'the end of the combined changes' => 'test.go-patch-end',
+        'the end of the large change' => 'main.go-patch-end',
+        'the change to main.go' => 'File: main.go', 'the change to test.go' => 'File: test.go',
+        'the updated Worker implementation' => 'func Worker() bool { return false }',
+        'the updated Lookup implementation' => 'func Lookup(query string)'
+      }.fetch(description)
+    end
+
+    # Observe this command's scheduled work before asserting absent results or source.
+    def expect_review_check(kind)
+      command = review_command(kind)
+      next_check = Abgleich.job_logs(command).length + 1
+      wait_for { Abgleich.job_logs(command).length }.to be >= next_check, "expected a completed #{kind} review check"
     end
 
     # Advisory requests must leave labels, reviews, and branches untouched.

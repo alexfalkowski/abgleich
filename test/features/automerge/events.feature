@@ -1,5 +1,5 @@
 @github @manual @reconciliation
-Feature: Event-triggered auto-merge checks
+Feature: Keep pull requests current when GitHub reports changes
   GitHub notifications prompt fresh checks of the affected repository.
   Scheduled sweeps recover missed events and serialize with notification work.
 
@@ -12,7 +12,7 @@ Feature: Event-triggered auto-merge checks
     When GitHub delivers a "<event>" notification with action "<action>"
     Then the event delivery should return HTTP 204
     And branch "feature" should be rebased
-    And exactly 1 event checks should finish
+    And exactly 1 event check should finish
     And no further scheduled sweep should have completed
 
     Examples:
@@ -35,7 +35,7 @@ Feature: Event-triggered auto-merge checks
     When GitHub delivers a "pull_request" notification with action "opened"
     Then the event delivery should return HTTP 204
     And the worker should report "<action>" for branch "feature"
-    And exactly 1 event checks should finish
+    And exactly 1 event check should finish
     And only one mutation request should have been sent
 
     Examples:
@@ -51,7 +51,7 @@ Feature: Event-triggered auto-merge checks
     And the Dependabot pull request for branch "feature" is "<condition>"
     When GitHub delivers a "pull_request" notification with action "opened"
     Then the event delivery should return HTTP 204
-    And exactly 1 event checks should finish
+    And exactly 1 event check should finish
     And no event mutations should reach GitHub
 
     Examples:
@@ -65,7 +65,7 @@ Feature: Event-triggered auto-merge checks
     When GitHub delivers a "pull_request" notification with action "labeled"
     Then the event delivery should return HTTP 204
     And the worker should report "<action>" for branch "feature"
-    And exactly 1 event checks should finish
+    And exactly 1 event check should finish
     And only one mutation request should have been sent
 
     Examples:
@@ -82,7 +82,7 @@ Feature: Event-triggered auto-merge checks
       | alexfalkowski/private  | other   | private |
     When GitHub delivers a "push" notification with action ""
     Then branch "feature" should be rebased
-    And exactly 1 event checks should finish
+    And exactly 1 event check should finish
     And branch "other" should await its next scheduled sweep
 
   Scenario Outline: Ignore unrelated notifications
@@ -125,7 +125,7 @@ Feature: Event-triggered auto-merge checks
     And the event repository is now "<condition>"
     When GitHub delivers a "push" notification with action ""
     Then the event delivery should return HTTP 204
-    And exactly 1 event checks should finish
+    And exactly 1 event check should finish
     And no event mutations should reach GitHub
 
     Examples:
@@ -155,7 +155,7 @@ Feature: Event-triggered auto-merge checks
     Then the event check should fail
     And no event mutations should reach GitHub
 
-  Scenario: Finish PR pagination before acting on a notification
+  Scenario: Wait for the complete contribution list before acting on a notification
     Given GitHub has a stale auto-merge branch "feature"
     And GitHub has a stale auto-merge branch "later"
     And GitHub cannot return a later pull request page
@@ -169,7 +169,7 @@ Feature: Event-triggered auto-merge checks
     When GitHub delivers repeated notifications before the sweep finishes
     Then every repository notification should return HTTP 204
     And branch "feature" should be rebased
-    And exactly 1 event checks should finish
+    And exactly 1 event check should finish
     And no extra event checks should follow
     And event and scheduled checks should not overlap
 
@@ -217,5 +217,5 @@ Feature: Event-triggered auto-merge checks
     And GitHub responds after the schedule interval
     When GitHub delivers a "push" notification with action ""
     Then branch "feature" should be rebased
-    And exactly 1 event checks should finish
+    And exactly 1 event check should finish
     And branch checks should not overlap

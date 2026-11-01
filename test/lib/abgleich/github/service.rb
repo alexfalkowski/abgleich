@@ -56,7 +56,7 @@ module Abgleich
       content_type :json
       halt 403 if request.user_agent.to_s.start_with?('GitHub-Hookshot/')
       authenticate_request
-      if mutation && Abgleich.github.failure == 'one-shot mutation HTTP'
+      if mutation && Abgleich.github.failure == 'a temporary change failure'
         Abgleich.github.fail_with('list')
         halt 503
       end
@@ -129,8 +129,8 @@ module Abgleich
                     halt 400
                   end
       halt 503 if Abgleich.github.failure == 'mutation HTTP'
-      halt 200, '{' if Abgleich.github.failure == 'malformed mutation'
-      halt 200, { data: { updatePullRequestBranch: nil } }.to_json if Abgleich.github.failure == 'empty mutation'
+      halt 200, '{' if Abgleich.github.failure == 'an unreadable change confirmation'
+      halt 200, { data: { updatePullRequestBranch: nil } }.to_json if Abgleich.github.failure == 'no confirmation of the requested change'
       sleep 3 if Abgleich.github.failure == 'mutation timeout'
       result = Abgleich.github.public_send(operation, payload.fetch('variables').fetch('input'))
       if Abgleich.github.failure == 'lost mutation response'
@@ -142,8 +142,8 @@ module Abgleich
 
     put '/repos/:owner/:repository/pulls/:number/merge' do
       halt 503 if Abgleich.github.failure == 'mutation HTTP'
-      halt 200, '{' if Abgleich.github.failure == 'malformed mutation'
-      halt 200, '{}' if Abgleich.github.failure == 'empty mutation'
+      halt 200, '{' if Abgleich.github.failure == 'an unreadable change confirmation'
+      halt 200, '{}' if Abgleich.github.failure == 'no confirmation of the requested change'
       halt 200, { merged: false }.to_json if Abgleich.github.failure == 'unconfirmed merge'
       repository = "#{params.fetch('owner')}/#{params.fetch('repository')}"
       code, result = Abgleich.github.merge(repository, params.fetch('number').to_i, JSON.parse(request.body.read))
@@ -192,8 +192,8 @@ module Abgleich
 
     def automation_events_response(input)
       failure = Abgleich.github.failure
-      halt 503 if failure == 'history HTTP' || (failure == 'history page' && input['after'])
-      halt 200, '{' if failure == 'malformed history'
+      halt 503 if failure == 'unavailable automation history' || (failure == 'unavailable later automation history' && input['after'])
+      halt 200, '{' if failure == 'unreadable automation history'
 
       Abgleich.github.fail_with('hold before mutation') if failure == 'hold before labeling'
       Abgleich.github.automation_events(input)

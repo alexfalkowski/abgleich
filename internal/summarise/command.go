@@ -16,28 +16,30 @@ const (
 	summaryHeading = "### 🤖 Abgleich summary\n"
 )
 
-// Command accepts bounded background work. Pending work is held in memory;
-// completed App comments prevent another summary of the same pull request.
-// Feature registration and lifecycle belong to the existing scheduler.
-type Command struct {
-	config   *Config
-	github   github.Service
-	provider ai.Provider
-	queue    *commands.Queue
-}
-
 // NewCommand constructs optional summaries using the configured provider.
-func NewCommand(cfg *Config, service github.Service, provider ai.Provider) (*Command, error) {
+func NewCommand(cfg *Config, service github.Service, provider ai.Provider, authorizer *commands.Authorizer) (*Command, error) {
 	if cfg != nil && provider == nil {
 		return nil, errors.New("summarise: requires AI configuration")
 	}
 
 	return &Command{
-		config:   cfg,
-		github:   service,
-		provider: provider,
-		queue:    commands.NewQueue(),
+		config:     cfg,
+		github:     service,
+		provider:   provider,
+		queue:      commands.NewQueue(),
+		authorizer: authorizer,
 	}, nil
+}
+
+// Command accepts bounded background work. Pending work is held in memory;
+// completed App comments prevent another summary of the same pull request.
+// Feature registration and lifecycle belong to the existing scheduler.
+type Command struct {
+	config     *Config
+	github     github.Service
+	provider   ai.Provider
+	queue      *commands.Queue
+	authorizer *commands.Authorizer
 }
 
 // Handle authorizes the current comment and queues a summary. Existing summaries
@@ -93,22 +95,9 @@ func (c *Command) authorize(ctx context.Context, task *summaryTask) (*summaryTas
 		return nil, nil
 	}
 
-	comment, err := c.github.GetComment(ctx, repo, pull.GetNumber(), task.commandComment)
-	if err != nil {
+	comment, err := c.authorizer.Authorize(ctx, summaryCommand, repo, pull.GetNumber(), task.commandComment)
+	if err != nil || comment == nil {
 		return nil, err
-	}
-
-	if !validComment(comment) {
-		return nil, nil
-	}
-
-	allowed, err := c.github.HasWritePermission(ctx, repo, comment.GetUser())
-	if err != nil {
-		return nil, err
-	}
-
-	if !allowed {
-		return nil, commands.ErrWriteAccessRequired
 	}
 
 	return &summaryTask{
@@ -123,13 +112,6 @@ func (c *Command) eligible(repo *github.Repository, pull *github.PullRequest) bo
 		!pull.GetDraft() &&
 		c.github.IsBaseRepository(repo, pull) &&
 		github.ValidatePullRequestMetadata(pull) == nil
-}
-
-func validComment(comment *github.IssueComment) bool {
-	return commands.Parse(comment.GetBody()) == summaryCommand &&
-		comment.GetUser().GetType() == "User" &&
-		github.HasCommentMetadata(comment) &&
-		!comment.GetUpdatedAt().After(comment.GetCreatedAt().Time)
 }
 
 func (c *Command) hasSummary(ctx context.Context, task *summaryTask) (bool, error) {

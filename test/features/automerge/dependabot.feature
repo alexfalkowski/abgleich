@@ -229,26 +229,26 @@ Feature: Dependabot merge automation
 
   Scenario Outline: Report rejected or unconfirmed Dependabot actions
     Given the Dependabot pull request for branch "dependencies" is "<condition>"
-    And the Dependabot operation fails with "<failure>"
+    And GitHub reports "<failure>"
     When the worker checks auto-merge branches
     Then the branch check should fail without affecting worker health
     And no Dependabot actions should be accepted
 
     Examples:
-      | condition          | failure             |
-      | waiting for checks | mutation            |
-      | waiting for checks | partial mutation    |
-      | waiting for checks | mismatched mutation |
-      | waiting for checks | empty mutation      |
-      | waiting for checks | malformed mutation  |
-      | ready to merge     | mutation            |
-      | ready to merge     | unconfirmed merge   |
-      | ready to merge     | empty mutation      |
-      | ready to merge     | malformed mutation  |
+      | condition          | failure                                        |
+      | waiting for checks | a rejected change                              |
+      | waiting for checks | a partially rejected change                    |
+      | waiting for checks | a change confirmation for another pull request |
+      | waiting for checks | no confirmation of the requested change        |
+      | waiting for checks | an unreadable change confirmation              |
+      | ready to merge     | a rejected change                              |
+      | ready to merge     | unconfirmed merge                              |
+      | ready to merge     | no confirmation of the requested change        |
+      | ready to merge     | an unreadable change confirmation              |
 
-  Scenario Outline: Never retry a failed mutation through the HTTP transport
+  Scenario Outline: Wait for a later check after GitHub rejects a change
     Given the Dependabot pull request for branch "dependencies" is "<condition>"
-    And the Dependabot operation fails with "one-shot mutation HTTP"
+    And GitHub reports "a temporary change failure"
     When the worker checks auto-merge branches
     Then the branch check should fail without affecting worker health
     And only one mutation request should have been sent
@@ -261,12 +261,12 @@ Feature: Dependabot merge automation
 
   Scenario: Reject a concurrent push during an immediate merge
     Given the Dependabot pull request for branch "dependencies" is "ready to merge"
-    And the Dependabot operation fails with "concurrent push"
+    And GitHub reports "concurrent push"
     When the worker checks auto-merge branches
     Then the branch check should fail without affecting worker health
     And no Dependabot actions should be accepted
 
-  Scenario: Finish pull request pagination before enabling auto-merge
+  Scenario: Read every contribution before enabling auto-merge
     Given the Dependabot pull request for branch "first" is "waiting for checks"
     And the Dependabot pull request for branch "second" is "waiting for checks"
     And the pull requests span multiple pages

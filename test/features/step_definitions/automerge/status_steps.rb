@@ -88,7 +88,7 @@ Then('no status reply should be published') do
   expect(Abgleich.github.reply_requests).to eq(0), 'expected no attempt to publish a status reply'
 end
 
-Then('exactly {int} status publication attempts should reach GitHub') do |count|
+Then('exactly {int} status publication attempt(s) should reach GitHub') do |count|
   expect(Abgleich.github.reply_requests).to eq(count), "expected #{count} status publication attempts without automatic retries"
 end
 

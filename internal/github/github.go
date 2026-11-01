@@ -232,6 +232,7 @@ type Errors []struct {
 // It returns nil when Errors is empty or nil.
 func (e Errors) Validate() error {
 	var failures error
+
 	for _, failure := range e {
 		failures = errors.Join(failures, errors.New("github: "+failure.Message))
 

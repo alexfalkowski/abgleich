@@ -45,7 +45,8 @@ summarise:
   model: test-summary
   interval: 100ms
   timeout: 3s
-code_review:
-  model: test-review
-  interval: 100ms
-  timeout: 3s
+review:
+  code:
+    model: test-review
+    interval: 100ms
+    timeout: 3s

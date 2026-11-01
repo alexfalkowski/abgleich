@@ -1,5 +1,5 @@
 @github @manual @reconciliation
-Feature: Scheduled auto-merge checks
+Feature: Keep checking pull requests through slowdowns and restarts
   Slow or failed checks must not prevent later checks.
   Restarting the worker cancels the active check and resumes checking.
 

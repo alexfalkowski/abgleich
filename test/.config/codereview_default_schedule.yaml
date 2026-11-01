@@ -41,5 +41,6 @@ ai:
   openai:
     api_key: file:secrets/openai-api-key
     url: http://localhost:11001/openai/v1/
-code_review:
-  model: test-review
+review:
+  code:
+    model: test-review

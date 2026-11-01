@@ -55,6 +55,7 @@ func (d *Dispatcher) Handle(ctx context.Context, event *github.IssueCommentEvent
 	if !d.mutex.TryLock() {
 		return ErrCommandInProgress
 	}
+
 	defer d.mutex.Unlock()
 
 	if err := d.github.ValidateInstallation(ctx); err != nil {
@@ -83,6 +84,7 @@ func (d *Dispatcher) acknowledgeReceipt(ctx context.Context, event *github.Issue
 
 func (d *Dispatcher) reportOutcome(ctx context.Context, event *github.IssueCommentEvent, accepted bool) {
 	var reaction string
+
 	if accepted {
 		reaction = "+1"
 	} else {

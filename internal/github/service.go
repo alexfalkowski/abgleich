@@ -39,6 +39,15 @@ func NewService(cfg *Config, client *Client, log *logger.Logger) Service {
 // Service owns repository discovery, identity checks, REST reads, and guarded
 // mutations. Callers own pull request eligibility, rebase, and merge policy.
 type Service interface {
+	// ReadSourceFile returns UTF-8 source at the caller's fixed revision. Callers
+	// must select regular paths from ListSourceFiles to exclude symlink resolution.
+	// Paths, response identity, size, and Git blob digest are validated.
+	ReadSourceFile(ctx context.Context, repo *Repository, revision, filename string) (string, error)
+
+	// ListSourceFiles returns regular file paths from a complete recursive tree.
+	// Truncated trees are errors; symlinks and submodules are excluded.
+	ListSourceFiles(ctx context.Context, repo *Repository, revision string) ([]string, error)
+
 	// ListBranches collects complete, validated branch pagination before cleanup.
 	ListBranches(ctx context.Context, repo *Repository) ([]*Branch, error)
 
@@ -167,6 +176,7 @@ func (s *service) ListRepositories(ctx context.Context) ([]*Repository, error) {
 	opts := &github.ListOptions{PerPage: pageSize}
 
 	var repositories []*Repository
+
 	for {
 		page, response, err := s.client.installation.Apps.ListRepos(ctx, opts)
 		if err != nil {
@@ -248,6 +258,7 @@ func (s *service) ListOpenPullRequests(ctx context.Context, repo *Repository) ([
 		if err != nil {
 			return nil, errors.Prefix("github: list pull requests", err)
 		}
+
 		if page == nil {
 			return nil, errors.New("github: pull requests returned an incomplete page")
 		}
@@ -265,6 +276,7 @@ func (s *service) ListOpenPullRequests(ctx context.Context, repo *Repository) ([
 		if response.NextPage == 0 {
 			break
 		}
+
 		opts.Page = response.NextPage
 	}
 
@@ -316,6 +328,7 @@ func (s *service) Rebase(ctx context.Context, pull *PullRequest) error {
 	request.Header.Set(http.AcceptKey, media.JSON)
 
 	var response UpdatePullRequestBranchResponse
+
 	if _, err := s.client.installation.Do(request, &response); err != nil {
 		return err
 	}
@@ -339,6 +352,7 @@ func (s *service) EnableAutoMerge(ctx context.Context, pull *PullRequest) error 
 	request.Header.Set(http.AcceptKey, media.JSON)
 
 	var response EnablePullRequestAutoMergeResponse
+
 	if _, err := s.client.installation.Do(request, &response); err != nil {
 		return err
 	}

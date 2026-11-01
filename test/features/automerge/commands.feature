@@ -64,9 +64,9 @@ Feature: Comment requests for auto-merge
       | a draft |
       | closed  |
 
-  Scenario: Ignore a pull request without its GraphQL identity
+  Scenario: Ignore a contribution that GitHub cannot identify
     Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
-    And the labeled operation fails with "missing node ID"
+    And GitHub reports "missing node ID"
     When a maintainer with "write" access comments "/ab automerge"
     Then the comment delivery should return HTTP 204
     And exactly 0 label requests should reach GitHub
@@ -79,7 +79,7 @@ Feature: Comment requests for auto-merge
 
   Scenario: Concurrent duplicate deliveries produce one label request
     Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
-    And the labeled operation fails with "slow label"
+    And GitHub reports "a delayed label update"
     When GitHub delivers the same automerge comment concurrently
     Then the comment delivery should return HTTP 204
     And exactly 1 label request should reach GitHub
@@ -87,7 +87,7 @@ Feature: Comment requests for auto-merge
   Scenario: An existing label needs no new authorization request
     Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
     And branch "contribution" has the "automerge" label
-    And the labeled operation fails with "history HTTP"
+    And GitHub reports "unavailable automation history"
     When a maintainer with "write" access comments "/ab automerge"
     Then the comment delivery should return HTTP 204
     And exactly 0 label requests should reach GitHub
@@ -115,19 +115,19 @@ Feature: Comment requests for auto-merge
 
   Scenario Outline: Only fresh commands can renew revoked authorization
     Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
-    And the comment for branch "contribution" was created "<timing>" a "<event>" event
+    And the comment for branch "contribution" was created "<timing>" "<event>"
     And the automation events span multiple pages
     When GitHub delivers that comment
     Then the comment delivery should return HTTP 204
     And exactly <requests> label requests should reach GitHub
 
     Examples:
-      | timing           | event                  | requests |
-      | before           | UnlabeledEvent         | 0        |
-      | at the same time | UnlabeledEvent         | 0        |
-      | before           | AutoMergeDisabledEvent | 0        |
-      | after            | UnlabeledEvent         | 1        |
-      | after            | AutoMergeDisabledEvent | 1        |
+      | timing           | event                           | requests |
+      | before           | the automerge label was removed | 0        |
+      | at the same time | the automerge label was removed | 0        |
+      | before           | auto-merge was disabled         | 0        |
+      | after            | the automerge label was removed | 1        |
+      | after            | auto-merge was disabled         | 1        |
 
   Scenario Outline: Reject untrusted webhook deliveries
     Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
@@ -179,17 +179,17 @@ Feature: Comment requests for auto-merge
 
   Scenario Outline: Fail without labeling when GitHub reads fail
     Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
-    And the labeled operation fails with "<failure>"
+    And GitHub reports "<failure>"
     When a maintainer with "write" access comments "/ab automerge"
     Then the comment delivery should return HTTP 503
     And exactly 0 label requests should reach GitHub
 
     Examples:
-      | failure         |
-      | comment HTTP    |
-      | permission HTTP |
-      | history HTTP    |
-      | comment timeout |
+      | failure                             |
+      | an unavailable command comment      |
+      | unavailable contributor permissions |
+      | unavailable automation history      |
+      | comment timeout                     |
 
   Scenario Outline: Recheck the PR immediately before labeling
     Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
@@ -205,7 +205,7 @@ Feature: Comment requests for auto-merge
 
   Scenario: Recover a lost label response by reading the label on redelivery
     Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
-    And the labeled operation fails with "lost label response"
+    And GitHub reports "lost label response"
     When GitHub redelivers an automerge comment whose first response was lost
     Then the comment delivery should return HTTP 204
     And exactly 1 label request should reach GitHub
@@ -362,7 +362,7 @@ Feature: Comment requests for auto-merge
     Scenario: A label without its authorization history needs renewal
       Given a pull request from "a fork" for branch "contribution" is "waiting for checks"
       And branch "contribution" has the "automerge" label
-      And the labeled operation fails with "empty history"
+      And GitHub reports "no recorded label authorization"
       When a maintainer with "write" access comments "/ab status"
       Then the comment delivery should return HTTP 204
       And the status reply should explain "Waiting for renewed authorization"
@@ -371,7 +371,7 @@ Feature: Comment requests for auto-merge
     Scenario Outline: Disclose unavailable evidence instead of guessing a policy outcome
       Given a pull request from "the repository" for branch "contribution" is "<condition>"
       And branch "contribution" has the "<label>" label
-      And the labeled operation fails with "<failure>"
+      And GitHub reports "<failure>"
       When a maintainer with "write" access comments "/ab status"
       Then the comment delivery should return HTTP 204
       And the status reply should explain "Assessment unavailable"
@@ -379,11 +379,11 @@ Feature: Comment requests for auto-merge
       And the status request should cause no automation mutations
 
       Examples:
-        | condition                       | label     | failure            | evidence   |
-        | waiting for checks              | automerge | history HTTP       | history    |
-        | waiting for checks              | automerge | incomplete history | history    |
-        | waiting with auto-merge enabled | bug       | comparison         | comparison |
-        | waiting with auto-merge enabled | bug       | missing comparison | comparison |
+        | condition                       | label     | failure                        | evidence   |
+        | waiting for checks              | automerge | unavailable automation history | history    |
+        | waiting for checks              | automerge | incomplete automation history  | history    |
+        | waiting with auto-merge enabled | bug       | comparison                     | comparison |
+        | waiting with auto-merge enabled | bug       | missing comparison             | comparison |
 
     Scenario Outline: Do not publish status for unauthorized or unrelated commands
       Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
@@ -468,31 +468,31 @@ Feature: Comment requests for auto-merge
 
     Scenario Outline: Never acknowledge an unconfirmed status publication
       Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
-      And the labeled operation fails with "<failure>"
+      And GitHub reports "<failure>"
       When a maintainer with "write" access comments "/ab status"
       Then the comment delivery should return HTTP 503
-      And exactly 1 status publication attempts should reach GitHub
+      And exactly 1 status publication attempt should reach GitHub
       And status publication should not be reported as accepted
       And the status request should cause no automation mutations
 
       Examples:
-        | failure             |
-        | reply HTTP          |
-        | malformed reply     |
-        | incomplete reply    |
-        | missing reply ID    |
-        | wrong reply body    |
-        | mismatched reply    |
-        | lost reply response |
+        | failure                            |
+        | an unavailable comment publication |
+        | malformed reply                    |
+        | incomplete reply                   |
+        | missing reply ID                   |
+        | wrong reply body                   |
+        | mismatched reply                   |
+        | lost reply response                |
 
     Scenario: The command deadline also bounds publishing a status reply
       Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
       And the command has a short processing deadline
-      And the labeled operation fails with "reply timeout"
+      And GitHub reports "reply timeout"
       When a maintainer requests status while publication is slow
       Then the comment delivery should return HTTP 503
       And the command should finish within one second
-      And exactly 1 status publication attempts should reach GitHub
+      And exactly 1 status publication attempt should reach GitHub
       And status publication should not be reported as accepted
       And the status request should cause no automation mutations
 
