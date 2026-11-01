@@ -36,7 +36,6 @@ func (r *Reconciler) Reconcile(ctx context.Context) error {
 
 	cutoff := time.Now().Add(-r.config.GetInactiveAfter().Duration())
 	var failures error
-
 	for _, repository := range repositories {
 		if ctx.Err() != nil {
 			return errors.Join(failures, context.Cause(ctx))
@@ -70,7 +69,6 @@ func (r *Reconciler) reconcileRepository(ctx context.Context, repository *github
 	}
 
 	var failures error
-
 	for _, branch := range branches {
 		if ctx.Err() != nil {
 			return errors.Join(failures, context.Cause(ctx))

@@ -50,7 +50,6 @@ func (q *Queue) Enqueue(key string, handler sync.Handler) error {
 // cancellation. Each attempted operation is removed, including failed work.
 func (q *Queue) Process(ctx context.Context) error {
 	var failures error
-
 	for range maxQueuedCommands {
 		if err := ctx.Err(); err != nil {
 			return errors.Join(failures, err)

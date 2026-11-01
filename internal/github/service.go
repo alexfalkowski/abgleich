@@ -102,6 +102,15 @@ type Service interface {
 	// installation viewer. Human authors are skipped; bot checks are batched.
 	HasAppReview(ctx context.Context, reviews []*PullRequestReview) (bool, error)
 
+	// ListReviewThreads completes thread pagination with authenticated root and review ownership.
+	ListReviewThreads(ctx context.Context, repo *Repository, pull *PullRequest) ([]*ReviewThread, error)
+
+	// GetReviewThread refreshes one thread and returns nil for a closed parent PR.
+	GetReviewThread(ctx context.Context, repo *Repository, pull *PullRequest, id string) (*ReviewThread, error)
+
+	// ResolveReviewThread resolves once; callers refresh eligibility immediately before it.
+	ResolveReviewThread(ctx context.Context, repo *Repository, pull *PullRequest, thread *ReviewThread) error
+
 	// ListPullRequestFiles rejects incomplete pagination and mismatched file counts.
 	ListPullRequestFiles(ctx context.Context, repo *Repository, pull *PullRequest) ([]*CommitFile, error)
 

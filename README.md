@@ -261,6 +261,16 @@ New head or base revisions permit a fresh review; summaries and security reviews
 remain independent.
 See [review recovery](#-code-review-recovery).
 
+After draining its queue, each enabled review job uses its remaining deadline to
+resolve its own App-authored inline threads that GitHub marks outdated on open
+PRs, including drafts and forks. Current threads stay open; replies do not prevent
+resolution of an outdated App thread. This needs no new command or inference and
+does not depend on topics, `hold`, auto-merge settings, or the original requester's
+continued permission. Outdated means the comment's location became stale; it does
+not establish that the issue was fixed. A fresh AI review still requires the
+corresponding `/ab` command. GitHub provides no expected-state guard for thread
+resolution, so changes after the final state and ownership check can race it.
+
 ### 🛡️ AI security reviews
 
 With [security reviews configured](#-security-review-settings), post `/ab secreview`
@@ -693,11 +703,11 @@ scheduler:
 | `summarise.timeout` | `2m` | Deadline for a complete summary job run. |
 | `review.code.model` | None | Required model when code reviews are configured. |
 | `review.code.reasoning_effort` | Provider default | Optional model-supported reasoning effort. |
-| `review.code.interval` | `30s` | Time between code-review queue processing runs. |
+| `review.code.interval` | `30s` | Time between code-review queue processing and thread maintenance runs. |
 | `review.code.timeout` | `2m` | Deadline for a complete code-review job run. |
 | `review.sec.model` | None | Required model when security reviews are configured. |
 | `review.sec.reasoning_effort` | Provider default | Optional model-supported reasoning effort. |
-| `review.sec.interval` | `30s` | Time between security-review queue processing runs. |
+| `review.sec.interval` | `30s` | Time between security-review queue processing and thread maintenance runs. |
 | `review.sec.timeout` | `2m` | Deadline for a complete security-review job run. |
 | `review.module_proxy` | `https://proxy.golang.org` | Trusted credential-free Go module source endpoint. |
 | `review.go_docs` | `https://go.dev/doc` | Trusted versioned Go release-note source or mirror. |
@@ -775,6 +785,8 @@ Accepted actions log `requested pull request rebase`, `enabled pull request auto
 or `merged pull request` with repository, PR, and branch. `deleted branch` includes
 repository, branch, and SHA. Retain these for recovery; ambiguous responses can
 leave successful actions without acceptance logs.
+`resolved pull request review thread` includes repository, PR, and thread identity without
+comment contents.
 
 Monitor `ai generation` for task (including `codereview` and `secreview`), model, duration, and successful token usage.
 Success logs at info and failure at error; source, responses, and credentials
@@ -830,6 +842,13 @@ an earlier attempt generated without publishing. Ambiguous publication is never
 automatically retried; a later human request first discovers any published result.
 Inspect job and generation errors for incomplete API responses, provider failures,
 context-size failures, and deadlines before retrying.
+
+Outdated-thread maintenance rediscovers GitHub state on the existing review
+schedule, including after restart or a lost resolution response. No human command
+is needed for this cleanup. Queue work, job deadlines, or GitHub failures can delay
+it; failed threads do not block other candidates. Closed PRs and disabled review
+features receive no maintenance. Existing overview comments and overview-only
+findings remain historical output. See [review behavior](#-ai-code-reviews).
 
 #### 🛡️ Security-review recovery
 

@@ -11,10 +11,15 @@ const inferenceBudgetDivisor = 2
 
 var errReviewExists = errors.New("review: a matching result is already published")
 
-// Process drains this command's queue under its independent scheduled job.
+// Process drains this command's queue, then maintains its outdated threads
+// within the remaining job budget, preserving failures from both operations.
 // The caller provides the job deadline and prevents overlapping Process calls.
 func (c *Command) Process(ctx context.Context) error {
-	return c.queue.Process(ctx)
+	failures := c.queue.Process(ctx)
+	if err := ctx.Err(); err != nil {
+		return errors.Join(failures, err)
+	}
+	return errors.Join(failures, c.reconcileThreads(ctx))
 }
 
 func (c *Command) process(ctx context.Context, task *reviewTask) error {

@@ -30,9 +30,15 @@ Given(/^the pull request has already received a (code|security) review$/) do |ki
   @comment_event = Abgleich.github.add_comment('contribution', body: "/ab #{review_command(kind)}")
   Nonnative.start
   expect(Abgleich.deliver_comment(@comment_event).code).to eq(204)
-  wait_for { Abgleich.github.review_results.any? { |reply| reply[:body].start_with?(review_heading(kind)) } }.to be(true)
+  request = "#issuecomment-#{@comment_event.fetch(:comment).fetch('id')}"
+  review = nil
+  wait_for do
+    review = Abgleich.github.native_reviews.find do |result|
+      result[:viewer_did_author] && result[:body].start_with?(review_heading(kind)) && result[:body].include?(request)
+    end
+  end.not_to be_nil, "expected the App's #{kind} review for the current request"
   expect_review_check(kind)
-  @existing_review_body = Abgleich.github.review_results.last.fetch(:body)
+  @existing_review_body = review.fetch(:body)
   @native_review_history = Abgleich.github.native_reviews
   @completed_review_requests = Abgleich.openai.requests.length
 end
@@ -219,8 +225,12 @@ Then(/^the interrupted (code|security) review should be cancelled without public
 end
 
 Then(/^the existing App (code|security) review should remain the only review$/) do |kind|
+  wait_for do
+    Abgleich.github.review_results.map { |reply| reply[:body] }
+  end.to include(@existing_review_body), "expected the existing #{kind} review to become visible"
   expect_review_check(kind)
-  expect(Abgleich.github.review_results.map { |reply| reply[:body] }).to eq([@existing_review_body])
+  bodies = Abgleich.github.review_results.map { |reply| reply[:body] }
+  expect(bodies).to eq([@existing_review_body]), "expected the existing #{kind} review to remain the only review"
 end
 
 Then(/^the (code|security) review should describe no findings within the inspected scope$/) do |kind|
