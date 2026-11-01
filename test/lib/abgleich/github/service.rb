@@ -127,6 +127,7 @@ module Abgleich
       halt branch_deletion_response(payload.fetch('variables').fetch('input')).to_json if query.include?('mutation DeleteBranch')
       halt automation_events_response(payload.fetch('variables')).to_json if query.include?('query PullRequestAutomationEvents')
       halt review_authors_response(payload.fetch('variables').fetch('ids')).to_json if query.include?('query PullRequestReviewAuthors')
+      review_thread_response(query, payload.fetch('variables'))
 
       operation = if payload.fetch('query').include?('enablePullRequestAutoMerge(input: $input)')
                     :enable_auto_merge

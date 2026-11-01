@@ -35,6 +35,24 @@ module Abgleich
 
     private
 
+    def review_thread_response(query, variables)
+      case query
+      when /query PullRequestReviewThreads/
+        halt Abgleich.github.review_thread_page(variables.fetch('id'), variables['after']).to_json
+      when /query PullRequestReviewThread/
+        halt Abgleich.github.review_thread_node(variables.fetch('id')).to_json
+      when /mutation ResolveReviewThread/
+        resolve_thread_response(variables.fetch('input').fetch('threadId'))
+      end
+    end
+
+    def resolve_thread_response(id)
+      result = Abgleich.github.resolve_review_thread(id)
+      halt 503 if Abgleich.github.thread_failure == 'lost response'
+
+      halt result.to_json
+    end
+
     def list_pull_requests(repository, page)
       check_cleanup_pull_listing
       options = { sort: 'created', direction: 'desc', state: 'open' }

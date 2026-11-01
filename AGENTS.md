@@ -188,6 +188,19 @@ run reconciles fresh remote state; pending summary and review requests are held 
   without valid placement in the overview. Escape model text and deactivate
   links/mentions in every body.
   Never approve reviews or request merge automation.
+- After draining its manual queue, each enabled review job uses its remaining
+  deadline to reconcile its own App-rooted inline threads on open PRs, including
+  drafts and forks, independently of auto-merge, `hold`, topics, and old requester
+  consent. Resolve only unresolved threads GitHub marks outdated and the viewer
+  can resolve; authenticate both root and parent review and match the feature's
+  result namespace. Complete discovery and thread pagination before mutations,
+  then refresh PR/thread identity, ownership, and state before each resolution.
+  Preserve queue and maintenance failures and continue other candidates after an
+  individual failure. Never automatically retry mutations; later runs rediscover
+  current state, including after restart or ambiguous responses. Outdated means
+  stale placement, not a confirmed fix. Keep current threads open and inference
+  manual; add no job, configuration, webhook subscription, or persistent state.
+  GitHub has no expected-state guard for resolution; document the final-read race.
 - Deduplicate successful App results by task, case-insensitive target repository,
   PR identity, head, and base using a worker-generated marker and complete
   discussion and native review history, using API-authenticated App attribution.

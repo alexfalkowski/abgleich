@@ -131,3 +131,85 @@ Then('both advisory commands should have their own review conversations') do
   end
   expect(Abgleich.openai.requests.length).to eq(2)
 end
+
+Given('the pull request has these existing review conversations:') do |table|
+  table.hashes.each do |row|
+    Abgleich.github.seed_review_thread(row.fetch('conversation'), kind: row.fetch('kind'), state: row.fetch('state'))
+  end
+end
+
+Given('100 current conversations precede an outdated App conversation') do
+  100.times { |index| Abgleich.github.seed_review_thread("current-#{index}", state: 'current') }
+  Abgleich.github.seed_review_thread('older-page', state: 'current')
+end
+
+Given('conversation {string} becomes {string} before resolution') do |_name, state|
+  changes = { 'current' => { isOutdated: false }, 'resolved' => { isResolved: true },
+              'cannot resolve' => { viewerCanResolve: false } }
+  Abgleich.github.thread_recheck = changes.fetch(state)
+end
+
+Given('GitHub cannot resolve conversation {string} while other conversations progress') do |name|
+  Abgleich.github.thread_failure = name
+  Nonnative.start
+  expect_failed_check('codereview')
+  wait_for { Abgleich.github.review_threads.find { |thread| thread[:id] == 'available' }.fetch(:isResolved) }.to be(true)
+  thread = Abgleich.github.review_threads.find { |item| item[:id] == name }
+  expect(thread.fetch(:isResolved)).to be(false), 'expected the failed conversation to remain open'
+  expect_healthy_worker
+end
+
+Given('GitHub loses the response after resolving a conversation') do
+  Abgleich.github.thread_failure = 'lost response'
+end
+
+When('new commits make only conversation {string} outdated') do |name|
+  Abgleich.github.change_summary_state('head changed')
+  Abgleich.github.change_review_thread(name, isOutdated: true)
+  Nonnative.start
+end
+
+When('scheduled review maintenance runs') do
+  Nonnative.start
+end
+
+When('the worker restarts with those conversations already on GitHub') do
+  Nonnative.start
+  Abgleich.restart { Abgleich.github.change_review_thread('older-page', isOutdated: true) }
+end
+
+When('GitHub becomes able to resolve conversations again') do
+  Abgleich.github.thread_failure = nil
+end
+
+Then('review conversations should be:') do |table|
+  table.hashes.each do |row|
+    name = row.fetch('conversation')
+    expected = row.fetch('resolved') == 'true'
+    wait_for do
+      Abgleich.github.review_threads.find { |thread| thread[:id] == name }.fetch(:isResolved)
+    end.to be(expected), "expected conversation #{name} resolved=#{expected}"
+  end
+end
+
+Then('conversation {string} should receive exactly {int} resolution request across later checks') do |name, count|
+  kind = Abgleich.server_config_path.include?('secreview') ? 'security' : 'code'
+  2.times { expect_review_check(kind) }
+  expect(Abgleich.github.thread_resolution_requests.count(name)).to eq(count), "expected #{count} resolution request for #{name}"
+end
+
+Then('only conversation {string} should receive a resolution request') do |name|
+  expect_review_check('code')
+  expect(Abgleich.github.thread_resolution_requests).to eq([name]), 'expected only the eligible App conversation to be resolved'
+end
+
+Then('conversation {string} should receive no resolution requests') do |name|
+  expect_review_check('code')
+  expect(Abgleich.github.thread_resolution_requests).not_to include(name), "expected no resolution writes for conversation #{name}"
+end
+
+Then('no AI inference should be requested for conversation maintenance') do
+  kind = Abgleich.server_config_path.include?('secreview') ? 'security' : 'code'
+  expect_review_check(kind)
+  expect(Abgleich.openai.requests).to be_empty, 'expected existing conversations to be maintained without AI inference'
+end

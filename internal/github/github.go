@@ -286,7 +286,6 @@ type Errors []struct {
 // It returns nil when Errors is empty or nil.
 func (e Errors) Validate() error {
 	var failures error
-
 	for _, failure := range e {
 		failures = errors.Join(failures, errors.New("github: "+failure.Message))
 
@@ -317,5 +316,171 @@ func validateAutomationEvents(events []*IssueEvent) error {
 		}
 	}
 
+	return nil
+}
+
+type threadPullRequest struct {
+	ID         string `json:"id"`
+	State      string `json:"state"`
+	Repository struct {
+		NameWithOwner string `json:"nameWithOwner"`
+	} `json:"repository"`
+	Number int `json:"number"`
+}
+
+func (p *threadPullRequest) matches(repo *Repository, pull *PullRequest) bool {
+	return p.ID == pull.GetNodeID() && p.Number == pull.GetNumber() &&
+		strings.ToLower(p.Repository.NameWithOwner) == strings.ToLower(repo.GetFullName()) &&
+		(p.State == "OPEN" || p.State == "CLOSED" || p.State == "MERGED")
+}
+
+type reviewThreadNode struct {
+	ID               string            `json:"id"`
+	IsOutdated       *bool             `json:"isOutdated"`
+	IsResolved       *bool             `json:"isResolved"`
+	ViewerCanResolve *bool             `json:"viewerCanResolve"`
+	PullRequest      threadPullRequest `json:"pullRequest"`
+	Comments         struct {
+		Nodes []*struct {
+			ID              string `json:"id"`
+			ViewerDidAuthor *bool  `json:"viewerDidAuthor"`
+			Author          struct {
+				Type string `json:"__typename"`
+			} `json:"author"`
+			Review *struct {
+				ID              string  `json:"id"`
+				Body            *string `json:"body"`
+				ViewerDidAuthor *bool   `json:"viewerDidAuthor"`
+				Author          struct {
+					Type string `json:"__typename"`
+				} `json:"author"`
+				PullRequest threadPullRequest `json:"pullRequest"`
+			} `json:"pullRequestReview"`
+		} `json:"nodes"`
+	} `json:"comments"`
+}
+
+func (n *reviewThreadNode) validate(repo *Repository, pull *PullRequest) (*ReviewThread, error) {
+	if n == nil || strings.IsEmpty(n.ID) || n.IsOutdated == nil || n.IsResolved == nil || n.ViewerCanResolve == nil || !n.PullRequest.matches(repo, pull) {
+		return nil, errors.New("github: review thread returned incomplete or mismatched state")
+	}
+	if err := n.validateOwnership(repo, pull); err != nil {
+		return nil, err
+	}
+	return n.snapshot(), nil
+}
+
+func (n *reviewThreadNode) snapshot() *ReviewThread {
+	root := n.Comments.Nodes[0]
+	review := root.Review
+	return &ReviewThread{
+		ID: n.ID, ReviewBody: *review.Body, IsOutdated: *n.IsOutdated, IsResolved: *n.IsResolved, ViewerCanResolve: *n.ViewerCanResolve,
+		IsAppAuthor: *root.ViewerDidAuthor && *review.ViewerDidAuthor && root.Author.Type == "Bot" && review.Author.Type == "Bot",
+	}
+}
+
+func (n *reviewThreadNode) validateOwnership(repo *Repository, pull *PullRequest) error {
+	if len(n.Comments.Nodes) != 1 || n.Comments.Nodes[0] == nil {
+		return errors.New("github: review thread returned no root comment")
+	}
+	root := n.Comments.Nodes[0]
+	review := root.Review
+	if strings.IsEmpty(root.ID) || root.ViewerDidAuthor == nil || review == nil {
+		return errors.New("github: review thread returned incomplete ownership")
+	}
+	if strings.IsEmpty(review.ID) || review.Body == nil || review.ViewerDidAuthor == nil || !review.PullRequest.matches(repo, pull) {
+		return errors.New("github: review thread returned incomplete or mismatched review ownership")
+	}
+	return nil
+}
+
+// ReviewThreadsRequest queries one page of threads by pull request node ID.
+// A nil After cursor starts pagination.
+type ReviewThreadsRequest struct {
+	Variables struct {
+		ID    string  `json:"id"`
+		After *string `json:"after"`
+	} `json:"variables"`
+	Query string `json:"query"`
+}
+
+// ReviewThreadsResponse carries thread ownership, state, and pagination.
+// HTTP success still requires GraphQL, identity, and completeness validation.
+type ReviewThreadsResponse struct {
+	Data struct {
+		Node *struct {
+			threadPullRequest
+			ReviewThreads struct {
+				Nodes    []*reviewThreadNode `json:"nodes"`
+				PageInfo struct {
+					EndCursor   *string `json:"endCursor"`
+					HasNextPage *bool   `json:"hasNextPage"`
+				} `json:"pageInfo"`
+			} `json:"reviewThreads"`
+		} `json:"node"`
+	} `json:"data"`
+	Errors Errors `json:"errors"`
+}
+
+// ReviewThreadRequest queries one review thread by its node ID.
+type ReviewThreadRequest struct {
+	Query     string `json:"query"`
+	Variables struct {
+		ID string `json:"id"`
+	} `json:"variables"`
+}
+
+// ReviewThreadResponse carries one thread's state and authenticated ownership.
+// The service validates its identity and parent PR before returning a snapshot.
+type ReviewThreadResponse struct {
+	Data struct {
+		Node *reviewThreadNode `json:"node"`
+	} `json:"data"`
+	Errors Errors `json:"errors"`
+}
+
+// ResolveReviewThreadRequest resolves a thread by node ID without an
+// expected-state guard; callers must refresh eligibility before submission.
+type ResolveReviewThreadRequest struct {
+	Query     string `json:"query"`
+	Variables struct {
+		Input struct {
+			ThreadID string `json:"threadId"`
+		} `json:"input"`
+	} `json:"variables"`
+}
+
+// ResolveReviewThreadResponse confirms a matching thread's resolved state.
+// GraphQL errors or missing confirmation must not be treated as acceptance.
+type ResolveReviewThreadResponse struct {
+	Data struct {
+		Resolve struct {
+			Thread *struct {
+				ID         string `json:"id"`
+				IsResolved *bool  `json:"isResolved"`
+			} `json:"thread"`
+		} `json:"resolveReviewThread"`
+	} `json:"data"`
+	Errors Errors `json:"errors"`
+}
+
+func (r *ReviewThreadsResponse) validate(repo *Repository, pull *PullRequest) error {
+	if err := r.Errors.Validate(); err != nil {
+		return err
+	}
+	node := r.Data.Node
+	if node == nil || !node.matches(repo, pull) {
+		return errors.New("github: review threads returned no matching pull request")
+	}
+	page := node.ReviewThreads
+	if page.Nodes == nil || page.PageInfo.HasNextPage == nil {
+		return errors.New("github: review threads returned an incomplete page")
+	}
+	if *page.PageInfo.HasNextPage {
+		cursor := page.PageInfo.EndCursor
+		if cursor == nil || strings.IsEmpty(*cursor) {
+			return errors.New("github: review threads returned no next cursor")
+		}
+	}
 	return nil
 }

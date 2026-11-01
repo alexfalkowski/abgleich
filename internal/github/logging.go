@@ -10,6 +10,19 @@ type loggingService struct {
 	logger *logger.Logger
 }
 
+func (s *loggingService) ResolveReviewThread(ctx context.Context, repo *Repository, pull *PullRequest, thread *ReviewThread) error {
+	if err := s.Service.ResolveReviewThread(ctx, repo, pull, thread); err != nil {
+		return err
+	}
+
+	s.logger.Info("resolved pull request review thread",
+		"repository", repo.GetFullName(),
+		"pull_request", pull.GetNumber(),
+		"thread", thread.ID)
+
+	return nil
+}
+
 func (s *loggingService) AddReview(ctx context.Context, repo *Repository, pull *PullRequest, review *PullRequestReviewRequest) error {
 	if err := s.Service.AddReview(ctx, repo, pull, review); err != nil {
 		return err
