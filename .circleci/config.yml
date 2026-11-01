@@ -440,7 +440,6 @@ workflows:
       - deploy:
           context: gh
           requires:
-            - package
             - manifest-docker
           filters:
             branches:
