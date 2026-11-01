@@ -59,6 +59,8 @@ module Abgleich
       def apply_summary_file_change(file)
         case [file_mode, file[:filename]]
         when ['removed file', 'main.go'] then file[:status] = 'removed'
+        when ['renamed review file', 'main.go']
+          file.merge!(filename: 'renamed.go', previous_filename: 'main.go', status: 'renamed')
         when ['mixed patches', 'image.png'] then file[:patch] = nil
         when ['missing file name', 'test.go'] then file.delete(:filename)
         when ['duplicate file', 'test.go'] then file[:filename] = 'main.go'
@@ -75,7 +77,7 @@ module Abgleich
           patch = path == 'test.go' ? 'withheld-source' * 400 : 'x' * 6000
           "#{patch}#{path}-patch-end"
         when 'large patch' then "#{'withheld-source' * 1000}#{path}-patch-end"
-        else "@@ -1,3 +1,3 @@\n package worker\n-old\n+new\n"
+        else "@@ -1,2 +1,2 @@\n package worker\n-old\n+new\n"
         end
       end
 

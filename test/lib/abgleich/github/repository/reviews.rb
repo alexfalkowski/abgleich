@@ -44,10 +44,52 @@ module Abgleich
         +func Lookup(query string) { db.Query("SELECT name FROM users WHERE name = ?", query) }
       PATCH
 
+      def native_reviews
+        @mutex.synchronize { JSON.parse(@state.fetch(:reviews, []).to_json, symbolize_names: true) }
+      end
+
+      def review_results
+        replies + native_reviews
+      end
+
+      def publish_review(repository, number, payload)
+        @mutex.synchronize do
+          reviews = (@state[:reviews] ||= [])
+          id = 20_000 + reviews.length
+          review = { id:, node_id: "PRR_#{id}", body: payload.fetch('body'), commit_id: payload.fetch('commit_id'),
+                     state: 'COMMENTED', submitted_at: Time.now.utc.iso8601,
+                     pull_request_url: "http://localhost:11001/github/repos/#{repository}/pulls/#{number}",
+                     user: { id: 9000, login: 'abgleich[bot]', type: 'Bot' },
+                     comments: payload.fetch('comments', []), viewer_did_author: true }
+          reviews.push(review).last.dup
+        end
+      end
+
+      def review_authors(ids)
+        reviews = native_reviews
+        nodes = ids.map do |id|
+          review = reviews.find { |item| item[:node_id] == id }
+          { id:, viewer_did_author: review.fetch(:viewer_did_author) }
+        end
+        { data: { nodes: nodes.reverse } }
+      end
+
+      def change_native_review_author(author)
+        @mutex.synchronize do
+          review = @state.fetch(:reviews).last
+          review[:viewer_did_author] = false
+          review[:user] = { id: 123, login: 'maintainer', type: 'User' } if author == 'a human'
+        end
+      end
+
       def withdraw_review_reply
         @mutex.synchronize do
-          reply = @state[:replies].pop
-          @state[:comments].delete(reply.fetch(:id))
+          if @state.fetch(:reviews, []).any?
+            @state[:reviews].pop
+          else
+            reply = @state[:replies].pop
+            @state[:comments].delete(reply.fetch(:id))
+          end
         end
       end
 

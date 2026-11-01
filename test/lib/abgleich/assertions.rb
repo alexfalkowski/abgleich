@@ -28,6 +28,50 @@ module Abgleich
       "### 🤖 Abgleich #{kind} review\n"
     end
 
+    def reviews_for(kind)
+      Abgleich.github.review_results.select { |review| review.fetch(:body).start_with?(review_heading(kind)) }
+    end
+
+    # Wait for publication before inspecting a successful result's contents.
+    def wait_for_review(kind)
+      wait_for { reviews_for(kind) }.not_to be_empty, "expected an advisory #{kind} review"
+      reviews_for(kind).last
+    end
+
+    def summaries
+      Abgleich.github.replies.select { |reply| reply.fetch(:body).start_with?("### 🤖 Abgleich summary\n") }
+    end
+
+    def wait_for_summary
+      wait_for { summaries }.not_to be_empty, 'expected an App summary'
+      summaries.last
+    end
+
+    # Reading links keep the instruction below its file at the reviewed head.
+    def summary_file_location(path)
+      repository = Abgleich::GitHubRepository::DEFAULT_REPOSITORY
+      sha = Abgleich.github.pull_state('contribution').dig(:head, :sha)
+      "- [#{path}](https://github.com/#{repository}/blob/#{sha}/#{path})\\\n  "
+    end
+
+    def expect_inert_review_text(body)
+      expect(body).to include('&lt;script&gt;', "@\u200beveryone", '\\[click\\]')
+      expect(body).not_to include('<script>', '@everyone', '[click](')
+      expect(body.delete('\\')).to include('api_key=example', 'token=example')
+    end
+
+    def expect_review_usage(body, kind)
+      model = { 'code' => 'test\\-review', 'security' => 'test\\-security' }.fetch(kind)
+      expect(body).to include(model, '100', '40'), 'expected provider model and actual token usage'
+      expect(body).not_to include('$', 'Estimated token cost')
+    end
+
+    def expect_review_scope(body)
+      expect(body).to match(/patch/i), 'expected the review to identify its changed-file context'
+      expect(body).to include('read-only lookups', 'Code and tests were not executed', 'Findings are advisory')
+      expect(body).not_to include('Citations were checked'), 'expected no claim of source citation validation'
+    end
+
     # Translate human source descriptions to the fixture evidence checked by the harness.
     def source_evidence(description)
       {
@@ -47,7 +91,7 @@ module Abgleich
       wait_for { Abgleich.job_logs(command).length }.to be >= next_check, "expected a completed #{kind} review check"
     end
 
-    # Advisory requests must leave labels, reviews, and branches untouched.
+    # Advisory requests must leave merge automation, labels, and branches untouched.
     def expect_no_automation_mutations
       activity = { mutation_requests: Abgleich::GitHubService.request_counts.fetch(:mutation_requests),
                    label_requests: Abgleich.github.label_requests, accepted_actions: Abgleich.github.progress.fetch(:actions) }

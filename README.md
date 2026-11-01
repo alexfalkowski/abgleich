@@ -237,13 +237,20 @@ source tools without GitHub credentials. Each review uses one conversation bound
 response storage or automatic retries, and no review-specific output-token cap.
 Large changes can exceed provider context limits or worker deadlines.
 
-The App publishes one ordinary comment containing escaped model text, with links
-and mentions inactive and known provider credentials/common credential forms
-redacted. Details identify the request, head/base SHAs, model, and actual token
+The App submits one native `COMMENT` review with an overview and a separate inline
+conversation for each finding that can be placed on the supplied diff. Findings
+without a reliable diff location remain in the overview with their claimed
+location, when supplied. A review with no supported findings still publishes its
+overview. Every body contains escaped model text, with links and mentions inactive.
+Review text is published without credential redaction.
+Details identify the request, head/base SHAs, model, and actual token
 usage, or unavailable usage; no dollar costs are estimated. Missing patches are
 disclosed, along with the source actually inspected and any unavailable reads.
 Citations are not verified, and code/tests are not executed. Findings may be incorrect or incomplete
-and never approve, label, merge, or rebase. Evaluate approved data before
+and never approve, request changes, label, merge, or rebase. Open inline
+conversations can block merging when the repository requires conversation
+resolution. A review targets the analyzed head; a push after the final check can
+still make it outdated. Evaluate approved data before
 [broad use](#-code-review-evaluation).
 
 Authorization, comment identity, PR eligibility, and both branch identities and
@@ -274,8 +281,9 @@ with no supported findings does not certify security or constitute a complete au
 Evaluate real examples before [broad use](#-security-review-evaluation).
 
 The independent `secreview` job uses its own bounded queue and releases the webhook
-slot before inference. It follows the [code-review safeguards](#-ai-code-reviews)
-for source handling, inference budgets, escaped and redacted replies, token usage,
+slot before inference. It publishes the same native overview and inline
+conversations described for [code reviews](#-ai-code-reviews), and follows their
+safeguards for source handling, inference budgets, escaped replies, token usage,
 and consent/branch rechecks. It uses the same source-lookup conversation bounded by its deadline,
 without response storage, inference retries, fallback, or a review-specific output-token cap. It never approves, labels,
 merges, rebases, or executes code. Successful results are identified separately
@@ -809,12 +817,15 @@ ambiguous responses. Inference can repeat if generation finishes without publica
 #### 🔬 Code-review recovery
 
 Post a new `/ab codereview` after a restart loses pending work or an attempt fails.
-Failures carry no successful-result marker. Before generation and publication,
-the worker reads complete discussion history for matching App results; human or
-other-App lookalikes do not count. Deduplication includes task, case-insensitive
+Failures, including malformed model result JSON, carry no successful-result
+marker and use ordinary failure comments. Before generation and publication,
+the worker reads complete discussion and native review history for matching App
+results; human or other-App lookalikes do not count. Deduplication includes task, case-insensitive
 target repository, PR identity, head, and base. A matching result reuses its
-original usage; new revisions permit another review. To compare models on the
-same revisions, delete the matching App result and post a fresh request. Inference may repeat when
+original usage; new head or base revisions permit another manual review.
+Existing ordinary App results remain valid and can still be deleted before a
+fresh request. Submitted native reviews are not pending reviews and cannot be
+reset through these commands; use a new revision for a fresh review. Inference may repeat when
 an earlier attempt generated without publishing. Ambiguous publication is never
 automatically retried; a later human request first discovers any published result.
 Inspect job and generation errors for incomplete API responses, provider failures,

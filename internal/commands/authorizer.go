@@ -27,8 +27,15 @@ func (a *Authorizer) Authorize(ctx context.Context, name string, repo *github.Re
 		return nil, err
 	}
 
-	if Parse(comment.GetBody()) != name || comment.GetUser().GetType() != "User" ||
-		!github.HasCommentMetadata(comment) || comment.GetUpdatedAt().After(comment.GetCreatedAt().Time) {
+	matchesCommand := Parse(comment.GetBody()) == name
+	isHuman := comment.GetUser().GetType() == "User"
+	hasMetadata := github.HasCommentMetadata(comment)
+	if !matchesCommand || !isHuman || !hasMetadata {
+		return nil, nil
+	}
+
+	isEdited := comment.GetUpdatedAt().After(comment.GetCreatedAt().Time)
+	if isEdited {
 		return nil, nil
 	}
 

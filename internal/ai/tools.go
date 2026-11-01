@@ -146,7 +146,7 @@ func (c *conversation) remember(output responses.ResponseOutputItemUnion) error 
 	}
 
 	var item responses.ResponseInputItemUnion
-	if err := json.Unmarshal([]byte(output.RawJSON()), &item); err != nil {
+	if err := json.Unmarshal(strings.Bytes(output.RawJSON()), &item); err != nil {
 		return errors.New("ai: invalid conversation item")
 	}
 
@@ -207,8 +207,14 @@ func (c *conversation) recordUsage(current *Usage) {
 }
 
 func validateResponse(response *responses.Response) error {
-	if response == nil || response.Status != responses.ResponseStatusCompleted ||
-		!strings.IsEmpty(string(response.Error.Code)) || !strings.IsEmpty(response.Error.Message) {
+	if response == nil {
+		return errors.New("ai: incomplete or failed response")
+	}
+
+	isCompleted := response.Status == responses.ResponseStatusCompleted
+	hasErrorCode := !strings.IsEmpty(string(response.Error.Code))
+	hasErrorMessage := !strings.IsEmpty(response.Error.Message)
+	if !isCompleted || hasErrorCode || hasErrorMessage {
 		return errors.New("ai: incomplete or failed response")
 	}
 	return nil

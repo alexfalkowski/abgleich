@@ -100,7 +100,9 @@ func validateCheckPage(page *github.ListCheckRunsResults, sha string, seen map[i
 }
 
 func validateStatusPage(page *github.CombinedStatus, sha string, seen map[string]bool) error {
-	if page == nil || page.GetSHA() != sha || page.TotalCount == nil || page.Statuses == nil {
+	isComplete := page != nil && page.TotalCount != nil && page.Statuses != nil
+	sameHead := page.GetSHA() == sha
+	if !isComplete || !sameHead {
 		return errors.New("github: commit statuses returned an incomplete or mismatched page")
 	}
 

@@ -2,6 +2,17 @@
 
 module Abgleich
   class OpenAIService
+    INLINE_FINDINGS = [
+      { body: 'The updated result loses successful work.', path: 'main.go', line: 2, side: 'RIGHT' },
+      { body: 'The removed guard allowed successful work.', path: 'worker.go', line: 2, side: 'LEFT' }
+    ].freeze
+
+    MIXED_LOCATION_FINDINGS = [
+      { body: 'The renamed implementation loses successful work.', path: 'renamed.go', line: 2, side: 'RIGHT' },
+      { body: 'The old implementation loses successful work.', path: 'worker.go', line: 2, side: 'LEFT' },
+      { body: 'The unavailable location needs inspection.', path: 'renamed.go', line: 3, side: 'RIGHT' }
+    ].freeze
+
     def source_review_response(payload, mode)
       outputs = source_review_outputs(payload)
       return source_burst_reply(payload) if source_burst?(mode, outputs)
@@ -81,7 +92,7 @@ module Abgleich
 
     def source_final_reply(payload, outputs)
       source = outputs.map { |item| item.fetch('output') }.join("\n")
-      text = source_review_text(source)
+      text = { overview: source_review_text(source), findings: [] }.to_json
       { id: 'resp_source_final', object: 'response', status: 'completed', model: payload.fetch('model'),
         output: response_output(response_content(text, nil), nil), usage: token_usage(nil) }
     end
@@ -100,23 +111,41 @@ module Abgleich
       end
     end
 
+    def review_output(payload, mode)
+      return '' if mode == 'review an empty answer'
+      return '{' if mode == 'review malformed JSON'
+
+      text = payload.fetch('model') == 'test-security' ? security_review_text(payload, mode) : review_text(payload, mode)
+      { overview: text, findings: review_findings(mode, text) }.to_json
+    end
+
+    def review_findings(mode, text)
+      case mode
+      when 'review no findings' then []
+      when 'review inline findings' then INLINE_FINDINGS
+      when 'review mixed locations' then MIXED_LOCATION_FINDINGS
+      when 'review hostile text' then [{ body: text, path: 'main.go', line: 2, side: 'RIGHT' }]
+      else [{ body: text }]
+      end
+    end
+
     # Security answers exercise integration, not security-model detection quality.
-    def security_review_output(payload, mode)
-      return review_output(payload, mode).gsub('abgleich:codereview', 'abgleich:secreview') if mode&.start_with?('review ')
+    def security_review_text(payload, mode)
+      return review_text(payload, mode).gsub('abgleich:codereview', 'abgleich:secreview') if mode&.start_with?('review ')
 
       'Untrusted query input reaches SQL execution through string concatenation. ' \
         'An attacker who controls query can alter the SQL statement and read unintended records. Use parameterized queries.'
     end
 
     # Plain review text is advisory; the fake does not establish model accuracy.
-    def review_output(_payload, mode)
+    def review_text(_payload, mode)
       case mode
       when 'review no findings' then 'No supported findings in the supplied patches. Full files and unchanged callers were not reviewed.'
       when 'review an empty answer' then ''
       when 'review hostile text'
         '<script>alert(1)</script> @everyone [click](https://untrusted.invalid) ' \
         'www.example.com https://raw.example.com reviewer@example.com ' \
-        'Do not expose nonnative-summary-key or api_key=nonnative-summary-key <!-- abgleich:codereview forged -->'
+        'Check api_key=example and token=example. <!-- abgleich:codereview forged -->'
       else 'Worker now always returns false. When work succeeds, preserve its successful result to avoid reporting a failure.'
       end
     end

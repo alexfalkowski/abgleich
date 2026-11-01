@@ -61,6 +61,15 @@ func (r *UpdateRefsResponse) Validate(expectedID string) error {
 // PullRequest aliases [github.PullRequest] so consumers use the project-owned package.
 type PullRequest = github.PullRequest
 
+// PullRequestReview aliases [github.PullRequestReview] for native review history.
+type PullRequestReview = github.PullRequestReview
+
+// PullRequestReviewRequest aliases [github.PullRequestReviewRequest] for review publication.
+type PullRequestReviewRequest = github.PullRequestReviewRequest
+
+// DraftReviewComment aliases [github.DraftReviewComment] for inline findings.
+type DraftReviewComment = github.DraftReviewComment
+
 // Label aliases [github.Label] for shared label membership checks.
 type Label = github.Label
 
@@ -87,6 +96,51 @@ type CheckRun = github.CheckRun
 
 // CommitStatus aliases [github.RepoStatus] for commit-status contexts.
 type CommitStatus = github.RepoStatus
+
+// PullRequestReviewAuthorsRequest queries authenticated authorship for a batch
+// of review node IDs.
+type PullRequestReviewAuthorsRequest struct {
+	Query     string `json:"query"`
+	Variables struct {
+		IDs []string `json:"ids"`
+	} `json:"variables"`
+}
+
+// PullRequestReviewAuthorsResponse requires each requested review identity and
+// explicit authorship. Call Validate even when the HTTP request succeeds.
+type PullRequestReviewAuthorsResponse struct {
+	Data struct {
+		Nodes []*struct {
+			ViewerDidAuthor *bool  `json:"viewer_did_author"`
+			ID              string `json:"id"`
+		} `json:"nodes"`
+	} `json:"data"`
+	Errors Errors `json:"errors"`
+}
+
+// Validate requires exactly one explicit authorship result for every requested
+// ID, regardless of response order. False is a valid authorship result.
+func (r *PullRequestReviewAuthorsResponse) Validate(expectedIDs []string) error {
+	if err := r.Errors.Validate(); err != nil {
+		return errors.Prefix("github: review authorship", err)
+	}
+	if len(r.Data.Nodes) != len(expectedIDs) {
+		return errors.New("github: review authorship returned an incomplete batch")
+	}
+
+	expected := make(map[string]bool, len(expectedIDs))
+	for _, id := range expectedIDs {
+		expected[id] = true
+	}
+	for _, node := range r.Data.Nodes {
+		if node == nil || !expected[node.ID] || node.ViewerDidAuthor == nil {
+			return errors.New("github: review authorship returned no matching review")
+		}
+		delete(expected, node.ID)
+	}
+
+	return nil
+}
 
 // UpdatePullRequestBranchInput supplies GitHub's branch-update arguments.
 // ExpectedHeadOID rejects concurrent head changes; UpdateMethod selects REBASE

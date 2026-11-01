@@ -98,8 +98,8 @@ Feature: Authorize and publish advisory reviews
       | loss of write access |
       | an edited request    |
 
-  Scenario: Escape untrusted prose and redact credentials
+  Scenario: Keep review examples readable and escape untrusted prose
     Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
     And the AI code review answer has "hostile text"
     When a maintainer with "write" access comments "/ab codereview"
-    Then the code review should escape model markup and redact the provider credential
+    Then the code review should escape model markup and preserve examples

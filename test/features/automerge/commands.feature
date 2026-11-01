@@ -273,6 +273,7 @@ Feature: Comment requests for auto-merge
       When a maintainer with "write" access comments "  /ab status  "
       Then the comment delivery should return HTTP 204
       And the status reply should explain "<decision>"
+      And the status reply should include its policy, reason, and next step
       And the status reply should identify the observed revision and request with auto-merge "<auto-merge>"
       And the command comment should show "receipt and acceptance" feedback
       And the status request should cause no automation mutations
@@ -297,6 +298,7 @@ Feature: Comment requests for auto-merge
       When a maintainer with "admin" access comments "/ab status"
       Then the comment delivery should return HTTP 204
       And the status reply should explain "<decision>"
+      And the status reply should include its policy, reason, and next step
       And the status request should cause no automation mutations
 
       Examples:
@@ -313,6 +315,7 @@ Feature: Comment requests for auto-merge
       When a maintainer with "write" access comments "/ab status"
       Then the comment delivery should return HTTP 204
       And the status reply should explain "<decision>"
+      And the status reply should include its policy, reason, and next step
       And the status reply should include "<explanation>"
       And the status request should cause no automation mutations
 
@@ -332,6 +335,7 @@ Feature: Comment requests for auto-merge
       When a maintainer with "write" access comments "/ab status"
       Then the comment delivery should return HTTP 204
       And the status reply should explain "<decision>"
+      And the status reply should include its policy, reason, and next step
       And the status reply should include "Dependabot"
       And the status request should cause no automation mutations
 
@@ -349,6 +353,7 @@ Feature: Comment requests for auto-merge
       When a maintainer with "write" access comments "/ab status"
       Then the comment delivery should return HTTP 204
       And the status reply should explain "Waiting for renewed authorization"
+      And the status reply should include its policy, reason, and next step
       And the status reply should include "Remove and reapply"
       And the status reply should include "automerge"
       And the status reply should identify the observed revision and request with auto-merge "Disabled"
@@ -366,6 +371,7 @@ Feature: Comment requests for auto-merge
       When a maintainer with "write" access comments "/ab status"
       Then the comment delivery should return HTTP 204
       And the status reply should explain "Waiting for renewed authorization"
+      And the status reply should include its policy, reason, and next step
       And the status request should cause no automation mutations
 
     Scenario Outline: Disclose unavailable evidence instead of guessing a policy outcome
@@ -375,6 +381,7 @@ Feature: Comment requests for auto-merge
       When a maintainer with "write" access comments "/ab status"
       Then the comment delivery should return HTTP 204
       And the status reply should explain "Assessment unavailable"
+      And the status reply should include its policy, reason, and next step
       And the status reply should include "<evidence>"
       And the status request should cause no automation mutations
 

@@ -181,13 +181,17 @@ run reconciles fresh remote state; pending summary and review requests are held 
   Keep source and caches in memory without checkout or archive extraction.
   Disclose omissions and actual inspected source independently of model prose.
   Never load repository/remote skills as instructions. Do not add merge-base
-  traversal, structured finding schemas, or citation-verification machinery.
-  Publish an ordinary PR comment with
-  escaped model text, inactive links/mentions, and provider-known/common
-  credential redaction. Never approve reviews or request merge automation.
+  traversal or citation-verification machinery. Decode a small result with an
+  overview and findings containing prose bodies and optional path/line/side.
+  Publish one native `COMMENT` review pinned to the reviewed head, with a separate
+  inline conversation for each finding placed on the fetched patch. Keep findings
+  without valid placement in the overview. Escape model text and deactivate
+  links/mentions in every body.
+  Never approve reviews or request merge automation.
 - Deduplicate successful App results by task, case-insensitive target repository,
   PR identity, head, and base using a worker-generated marker and complete
-  discussion history. New revisions permit new reviews; summaries remain
+  discussion and native review history, using API-authenticated App attribution.
+  New revisions permit new reviews; summaries remain
   independent. Source-enabled reviews use v2 result markers so old patch-only
   results do not suppress a new request. Failures carry no success marker. Do not automatically retry
   ambiguous publication; later human requests first check existing results.

@@ -2,6 +2,7 @@ package ai
 
 import (
 	"github.com/alexfalkowski/abgleich/internal/transport/http/client"
+	"github.com/alexfalkowski/go-service/v2/bytes"
 	"github.com/alexfalkowski/go-service/v2/context"
 	"github.com/alexfalkowski/go-service/v2/errors"
 	"github.com/alexfalkowski/go-service/v2/os"
@@ -33,7 +34,8 @@ func NewProvider(cfg *Config, fs *os.FS, log *logger.Logger, connections *client
 	}
 
 	key, err := fs.ReadSource(cfg.OpenAI.APIKey)
-	if err != nil || strings.IsEmpty(strings.TrimSpace(string(key))) {
+	apiKey := strings.TrimSpace(bytes.String(key))
+	if err != nil || strings.IsEmpty(apiKey) {
 		return nil, errors.New("ai: api key unavailable")
 	}
 
@@ -47,23 +49,19 @@ func NewProvider(cfg *Config, fs *os.FS, log *logger.Logger, connections *client
 	// Construct the Responses service directly: NewClient inherits OPENAI_* values,
 	// including custom headers, while this constructor only uses explicit options.
 	service := responses.NewResponseService(
-		option.WithAPIKey(strings.TrimSpace(string(key))),
+		option.WithAPIKey(apiKey),
 		option.WithBaseURL(cfg.OpenAI.GetURL()),
 		option.WithHTTPClient(connection),
 		option.WithMaxRetries(0),
 	)
 	return &loggingProvider{
-		Provider: &provider{
-			service: &service,
-			key:     strings.TrimSpace(string(key)),
-		},
-		logger: log,
+		Provider: &provider{service: &service},
+		logger:   log,
 	}, nil
 }
 
 type provider struct {
 	service *responses.ResponseService
-	key     string
 }
 
 // Generate performs one cancellable conversation and rejects partial,
@@ -99,22 +97,29 @@ func (p *provider) Generate(ctx context.Context, prompt Prompt) (*Completion, er
 	if strings.IsEmpty(completion.Model) {
 		completion.Model = prompt.Model
 	}
-	completion.Text = strings.ReplaceAll(completion.Text, p.key, "[REDACTED]")
-	completion.Model = strings.ReplaceAll(completion.Model, p.key, "[REDACTED]")
 	return completion, nil
 }
 
 // Missing or inconsistent usage metadata must not suppress a valid summary.
 func responseUsage(response *responses.Response) *Usage {
 	usage := response.Usage
-	if !usage.JSON.InputTokens.Valid() || !usage.JSON.OutputTokens.Valid() ||
-		!usage.InputTokensDetails.JSON.CachedTokens.Valid() {
+	hasInputTokens := usage.JSON.InputTokens.Valid()
+	hasOutputTokens := usage.JSON.OutputTokens.Valid()
+	hasCachedTokens := usage.InputTokensDetails.JSON.CachedTokens.Valid()
+	if !hasInputTokens || !hasOutputTokens || !hasCachedTokens {
 		return nil
 	}
 
 	cached, written := usage.InputTokensDetails.CachedTokens, usage.InputTokensDetails.CacheWriteTokens
-	if usage.InputTokens < 0 || usage.OutputTokens < 0 || cached < 0 || cached > usage.InputTokens ||
-		written < 0 || written > usage.InputTokens-cached {
+	validInput := usage.InputTokens >= 0
+	validOutput := usage.OutputTokens >= 0
+	validCached := cached >= 0 && cached <= usage.InputTokens
+	if !validInput || !validOutput || !validCached {
+		return nil
+	}
+
+	validWritten := written >= 0 && written <= usage.InputTokens-cached
+	if !validWritten {
 		return nil
 	}
 	return &Usage{

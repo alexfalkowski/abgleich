@@ -49,7 +49,7 @@ func (t *sourceTools) list(ctx context.Context, input string) (string, error) {
 	var args struct {
 		Filter string `json:"filter"`
 	}
-	if err := json.Unmarshal([]byte(input), &args); err != nil {
+	if err := json.Unmarshal(strings.Bytes(input), &args); err != nil {
 		return strings.Empty, errors.New("review: invalid source lookup")
 	}
 
@@ -65,7 +65,7 @@ func (t *sourceTools) read(ctx context.Context, input string) (string, error) {
 	var args struct {
 		Path string `json:"path"`
 	}
-	if err := json.Unmarshal([]byte(input), &args); err != nil {
+	if err := json.Unmarshal(strings.Bytes(input), &args); err != nil {
 		return strings.Empty, errors.New("review: invalid source lookup")
 	}
 	return t.result(t.session.read(ctx, args.Path)), nil
@@ -77,7 +77,7 @@ func (t *sourceTools) dependency(ctx context.Context, input string) (string, err
 	}
 
 	var args dependencyRequest
-	if err := json.Unmarshal([]byte(input), &args); err != nil {
+	if err := json.Unmarshal(strings.Bytes(input), &args); err != nil {
 		return strings.Empty, errors.New("review: invalid dependency lookup")
 	}
 	return t.result(t.session.dependency(ctx, args)), nil
@@ -91,7 +91,7 @@ func (t *sourceTools) reference(ctx context.Context, input string) (string, erro
 	var args struct {
 		Manifest string `json:"manifest"`
 	}
-	if err := json.Unmarshal([]byte(input), &args); err != nil {
+	if err := json.Unmarshal(strings.Bytes(input), &args); err != nil {
 		return strings.Empty, errors.New("review: invalid Go reference lookup")
 	}
 	return t.result(t.session.goReference(ctx, args.Manifest)), nil
