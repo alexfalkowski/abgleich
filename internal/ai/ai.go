@@ -39,7 +39,7 @@ type Tool struct {
 	Description string
 }
 
-// Completion contains completed text and optional provider-reported usage.
+// Completion contains generated text and optional provider-reported usage.
 // Missing or inconsistent usage is nil rather than an invented zero count.
 type Completion struct {
 	Usage *Usage

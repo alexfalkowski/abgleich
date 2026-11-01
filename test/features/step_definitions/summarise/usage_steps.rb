@@ -15,10 +15,7 @@ end
 Then('the summary details should include {string} without a dollar estimate') do |expected|
   expected = { 'the model returned by the service' => 'Model:** other\\-model',
                'unavailable usage' => 'Tokens:** Unavailable' }.fetch(expected, expected)
-  wait_for do
-    Abgleich.github.replies.any? { |reply| reply[:body].start_with?("### 🤖 Abgleich summary\n") }
-  end.to be(true), 'expected a summary with model and token usage details'
-  summary = Abgleich.github.replies.find { |reply| reply[:body].start_with?("### 🤖 Abgleich summary\n") }
+  summary = wait_for_summary
   _, details = summary.fetch(:body).split('<details>', 2)
   expect(details).to include(expected), "expected the summary details to include #{expected.inspect}"
   expect(details).not_to include('Estimated token cost', '$'), 'expected provider usage without a dollar estimate'

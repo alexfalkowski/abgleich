@@ -10,6 +10,7 @@ Feature: Follow changed behavior into related source
   Scenario Outline: Resolve a finding using related source and the declared dependency
     When a maintainer with "write" access comments "/ab <command>"
     Then the <kind> review should explain the related implementation
+    And the reviewer should receive complete files at the reviewed revisions
     And public dependency access should omit credentials
 
     Examples:
@@ -32,6 +33,7 @@ Feature: Follow changed behavior into related source
     When a maintainer with "write" access comments "/ab <command>"
     Then the <kind> review should disclose "<limitation>"
     And unavailable or unverified source should not be shared
+    And unavailable source should not trigger unsafe lookups
 
     Examples:
       | command    | kind     | problem                                    | limitation            |
@@ -49,6 +51,7 @@ Feature: Follow changed behavior into related source
     When a maintainer with "write" access comments "/ab codereview"
     Then the code review should disclose "public dependency source unavailable"
     And unavailable or unverified source should not be shared
+    And unavailable source should not trigger unsafe lookups
 
   Scenario Outline: Constrain model-requested source access
     Given the reviewer needs "<lookup>"
@@ -82,12 +85,14 @@ Feature: Follow changed behavior into related source
     Given the contribution contains "a deleted source file"
     When a maintainer with "write" access comments "/ab codereview"
     Then the code review should explain the related implementation
+    And the reviewer should receive complete files at the reviewed revisions
     And deleted source should be read from the reviewed base revision
 
   Scenario: Permit a richer review after a patch-only result
     Given a patch-only review was published before source lookup was available
     When a maintainer with "write" access comments "/ab codereview"
     Then the code review should explain the related implementation
+    And the reviewer should receive complete files at the reviewed revisions
     And the source-enabled review should coexist with the old patch-only review
 
   Scenario: Finish a review that needs several rounds of investigation
@@ -123,12 +128,14 @@ Feature: Follow changed behavior into related source
     Given related source is "selected by a version-specific replacement"
     When a maintainer with "write" access comments "/ab codereview"
     Then the code review should explain the related implementation
+    And the reviewer should receive complete files at the reviewed revisions
     And public dependency access should omit credentials
 
   Scenario: Inspect every file in a source directory
     Given related source is "spread across several files"
     When a maintainer with "write" access comments "/ab codereview"
     Then the code review should explain the related implementation
+    And the reviewer should receive complete files at the reviewed revisions
     And the reviewer should receive every file from the directory
 
   Scenario Outline: Configuring dependency lookup does not enable reviews
@@ -147,6 +154,7 @@ Feature: Follow changed behavior into related source
     When a maintainer with "write" access comments "/ab <command>"
     Then the <kind> review should disclose "workspace or vendored"
     And unavailable or unverified source should not be shared
+    And unavailable source should not trigger unsafe lookups
 
     Examples:
       | command    | kind     | location                |
@@ -157,4 +165,5 @@ Feature: Follow changed behavior into related source
     Given the reviewed module has a workspace "in an unrelated directory"
     When a maintainer with "write" access comments "/ab codereview"
     Then the code review should explain the related implementation
+    And the reviewer should receive complete files at the reviewed revisions
     And public dependency access should omit credentials

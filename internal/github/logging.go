@@ -10,6 +10,19 @@ type loggingService struct {
 	logger *logger.Logger
 }
 
+func (s *loggingService) AddReview(ctx context.Context, repo *Repository, pull *PullRequest, review *PullRequestReviewRequest) error {
+	if err := s.Service.AddReview(ctx, repo, pull, review); err != nil {
+		return err
+	}
+
+	s.logger.Info("published pull request review",
+		"repository", repo.GetFullName(),
+		"pull_request", pull.GetNumber(),
+		"sha", pull.GetHead().GetSHA())
+
+	return nil
+}
+
 func (s *loggingService) DeleteBranch(ctx context.Context, repo *Repository, branch *Branch) error {
 	if err := s.Service.DeleteBranch(ctx, repo, branch); err != nil {
 		return err

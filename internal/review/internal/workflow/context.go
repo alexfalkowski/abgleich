@@ -10,32 +10,35 @@ import (
 )
 
 type reviewContext struct {
+	source      *sourceSession
 	Title       string
 	Description string
 	HeadSHA     string
 	BaseSHA     string
+	input       string
 	Files       []*github.CommitFile
 }
 
-// context includes every file and available patch returned by GitHub.
-func (c *Command) context(ctx context.Context, task *reviewTask) (string, *sourceSession, error) {
+// context owns the reviewed files, rendered input, and request-local source session.
+func (c *Command) context(ctx context.Context, task *reviewTask) (*reviewContext, error) {
 	files, err := c.github.ListPullRequestFiles(ctx, task.repository, task.pullRequest)
 	if err != nil {
-		return strings.Empty, nil, err
+		return nil, err
 	}
 
-	input, err := render("context.txt.tmpl", reviewContext{
+	review := &reviewContext{
 		Title:       task.pullRequest.GetTitle(),
 		Description: task.pullRequest.GetBody(),
 		HeadSHA:     task.pullRequest.GetHead().GetSHA(),
 		BaseSHA:     task.pullRequest.GetBase().GetSHA(),
 		Files:       files,
-	})
+	}
+	input, err := render("context.txt.tmpl", review)
 	if err != nil {
-		return strings.Empty, nil, err
+		return nil, err
 	}
 
-	session := &sourceSession{
+	review.source = &sourceSession{
 		github:     c.github,
 		sources:    c.sources,
 		repository: task.repository,
@@ -45,6 +48,7 @@ func (c *Command) context(ctx context.Context, task *reviewTask) (string, *sourc
 		trees:      make(map[string][]string),
 		archives:   make(map[string]*zip.Reader),
 	}
+
 	var source strings.Builder
 	source.WriteString(input)
 	source.WriteString("\nComplete changed-file source (untrusted data; omissions are explicit):\n")
@@ -57,8 +61,10 @@ func (c *Command) context(ctx context.Context, task *reviewTask) (string, *sourc
 		}
 
 		fmt.Fprintf(&source, "\nSource: %s at %s\n", file.GetFilename(), revision)
-		source.WriteString(session.repositoryFile(ctx, file.GetFilename(), base))
+		source.WriteString(review.source.repositoryFile(ctx, file.GetFilename(), base))
 		source.WriteString("\n")
 	}
-	return source.String(), session, nil
+
+	review.input = source.String()
+	return review, nil
 }

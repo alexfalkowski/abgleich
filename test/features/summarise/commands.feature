@@ -186,6 +186,8 @@ Feature: Maintainer-requested summaries
     And the AI service explains the CI workflow change
     When a maintainer with "write" access comments "/ab summarise"
     Then the summary should put the outcome and changes before its reading guide
+    And its reading guide should keep files in change order
+    And its analysis details should stay collapsed
 
   Scenario Outline: Preserve an answer whose change list cannot be formatted
     Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
@@ -204,6 +206,7 @@ Feature: Maintainer-requested summaries
     And the AI service explains missing patches after three reading pointers
     When a maintainer with "write" access comments "/ab summarise"
     Then the summary should link the available files before its context note
+    And its context note should escape markup and disclose the missing patch
 
   Scenario: Avoid a reading link to a deleted file
     Given a pull request from "the repository" for branch "contribution" is "waiting for checks"

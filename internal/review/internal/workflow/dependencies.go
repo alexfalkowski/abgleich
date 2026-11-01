@@ -28,7 +28,9 @@ type dependencyRef struct {
 }
 
 func (s *sourceSession) dependency(ctx context.Context, args dependencyRequest) (string, error) {
-	if path.Base(args.Manifest) != "go.mod" || !fs.ValidPath(args.Manifest) || !fs.ValidPath(args.Path) || strings.Contains(args.Path, "\\") {
+	validManifest := path.Base(args.Manifest) == "go.mod" && fs.ValidPath(args.Manifest)
+	validPath := fs.ValidPath(args.Path) && !strings.Contains(args.Path, "\\")
+	if !validManifest || !validPath {
 		return strings.Empty, errors.New("review: invalid dependency path")
 	}
 
@@ -108,7 +110,7 @@ func (s *sourceSession) moduleManifest(ctx context.Context, filename string) (*m
 		directory = path.Dir(directory)
 	}
 
-	manifest, err := modfile.Parse(filename, []byte(s.repositoryFile(ctx, filename, false)), nil)
+	manifest, err := modfile.Parse(filename, strings.Bytes(s.repositoryFile(ctx, filename, false)), nil)
 	if err != nil {
 		return nil, errors.New("review: Go dependency manifest")
 	}
@@ -136,9 +138,18 @@ func replacedModule(manifest *modfile.File, selected module.Version) (module.Ver
 }
 
 func moduleChecksum(sums string, selected module.Version) string {
+	const checksumFieldCount = 3
+
 	for line := range strings.SplitSeq(sums, "\n") {
 		fields := strings.Fields(line)
-		if len(fields) == 3 && fields[0] == selected.Path && fields[1] == selected.Version && strings.HasPrefix(fields[2], "h1:") {
+		if len(fields) != checksumFieldCount {
+			continue
+		}
+
+		sameModule := fields[0] == selected.Path
+		sameVersion := fields[1] == selected.Version
+		hasChecksum := strings.HasPrefix(fields[2], "h1:")
+		if sameModule && sameVersion && hasChecksum {
 			return fields[2]
 		}
 	}
@@ -197,5 +208,5 @@ func (s *sourceSession) dependencyFile(file *zip.File) string {
 	if !slices.Contains(s.inspected, label) {
 		s.inspected = append(s.inspected, label)
 	}
-	return "Source: " + label + " (reviewed go.sum verified)\n" + string(content)
+	return "Source: " + label + " (reviewed go.sum verified)\n" + bytes.String(content)
 }

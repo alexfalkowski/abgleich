@@ -57,11 +57,15 @@ Then('the status reply should explain {string}') do |decision|
   expect(body).to start_with("### 🤖 Abgleich status\n\n")
   expect(body).to include("**#{decision}**"), "expected status decision #{decision}, got #{body}"
   expect(body).to match(/\n[^\n\w*\s]+ \*\*#{Regexp.escape(decision)}\*\*/), 'expected an emoji beside the written decision'
+  expect(body.length).to be < 4000, 'expected a bounded status explanation'
+end
+
+Then('the status reply should include its policy, reason, and next step') do
+  body = Abgleich.github.replies.last.fetch(:body)
   expect(body).to include('📝 **Reason**', '👉 **Next step**', '**Policy:**')
   expect(body).to match(/\*\*Policy:\*\* [^\n]+/), 'expected the applicable automation policy'
   expect(body).to match(/📝 \*\*Reason\*\*\n[^\n]+/), 'expected an explanation for the observed decision'
   expect(body).to match(/👉 \*\*Next step\*\*\n[^\n]+/), 'expected an actionable next step'
-  expect(body.length).to be < 4000, 'expected a bounded status explanation'
 end
 
 Then('the status reply should identify the observed revision and request with auto-merge {string}') do |state|

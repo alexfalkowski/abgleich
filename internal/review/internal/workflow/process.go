@@ -18,17 +18,18 @@ func (c *Command) Process(ctx context.Context) error {
 }
 
 func (c *Command) process(ctx context.Context, task *reviewTask) error {
-	current, err := c.recheck(ctx, task)
-	if current == nil {
+	task, err := c.recheck(ctx, task)
+	if err != nil || task == nil {
 		return err
 	}
 
-	input, source, err := c.context(ctx, current)
+	review, err := c.context(ctx, task)
 	if err != nil {
 		return c.reportFailure(ctx, task, err)
 	}
 
-	if current, err := c.recheck(ctx, task); current == nil {
+	task, err = c.recheck(ctx, task)
+	if err != nil || task == nil {
 		return err
 	}
 
@@ -37,14 +38,14 @@ func (c *Command) process(ctx context.Context, task *reviewTask) error {
 		budget = time.Until(deadline) / inferenceBudgetDivisor
 	}
 
-	guard := func(ctx context.Context) error { return c.guard(ctx, current) }
-	tools := sourceTools{session: source, beforeLookup: guard}
+	guard := func(ctx context.Context) error { return c.guard(ctx, task) }
+	tools := sourceTools{session: review.source, beforeLookup: guard}
 	completion, err := c.provider.Generate(ctx, ai.Prompt{
 		Task:            c.definition.Name,
 		Model:           c.definition.Model,
 		ReasoningEffort: c.definition.ReasoningEffort,
 		Instructions:    c.definition.Instructions,
-		Input:           input,
+		Input:           review.input,
 		Tools:           tools.definitions(),
 		BeforeRequest:   guard,
 		Timeout:         budget,
@@ -59,16 +60,26 @@ func (c *Command) process(ctx context.Context, task *reviewTask) error {
 		return err
 	}
 
-	body, err := c.reply(task, completion, source)
-	if err != nil {
-		return err
-	}
-	return c.publish(ctx, task, body)
+	return c.publishReview(ctx, task, completion, review)
 }
 
-// recheck refreshes authorization and skips existing reviews. A changed
-// revision publishes a request to start again and returns no task to process.
-// A nil task ends processing, including on error.
+func (c *Command) publishReview(ctx context.Context, task *reviewTask, completion *ai.Completion, review *reviewContext) error {
+	publication, err := c.reply(task, completion, review)
+	if err != nil {
+		return c.reportFailure(ctx, task, err)
+	}
+	task, err = c.recheck(ctx, task)
+	if err != nil || task == nil {
+		return err
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return c.github.AddReview(ctx, task.repository, task.pullRequest, publication)
+}
+
+// recheck returns a refreshed task only while its authorized revisions still match.
+// A nil task stops processing, including existing results and stale revisions.
 func (c *Command) recheck(ctx context.Context, task *reviewTask) (*reviewTask, error) {
 	current, err := c.authorize(ctx, task)
 	if err != nil || current == nil {
@@ -82,6 +93,7 @@ func (c *Command) recheck(ctx context.Context, task *reviewTask) (*reviewTask, e
 	if exists, err := c.hasReview(ctx, current); err != nil || exists {
 		return nil, err
 	}
+
 	return current, nil
 }
 
@@ -101,6 +113,7 @@ func (c *Command) guard(ctx context.Context, task *reviewTask) error {
 	if exists {
 		return errReviewExists
 	}
+
 	return ctx.Err()
 }
 

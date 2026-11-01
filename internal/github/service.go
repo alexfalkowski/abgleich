@@ -91,6 +91,17 @@ type Service interface {
 	// IsAppComment requires a bot author and the configured GitHub App identity.
 	IsAppComment(comment *IssueComment) bool
 
+	// AddReview submits one COMMENT review at the reviewed head and validates
+	// publication and authenticated authorship. Ambiguous failures are not retried.
+	AddReview(ctx context.Context, repo *Repository, pull *PullRequest, review *PullRequestReviewRequest) error
+
+	// ListReviews returns complete native review history with validated PR identities.
+	ListReviews(ctx context.Context, repo *Repository, pull *PullRequest) ([]*PullRequestReview, error)
+
+	// HasAppReview checks whether any candidate belongs to the authenticated
+	// installation viewer. Human authors are skipped; bot checks are batched.
+	HasAppReview(ctx context.Context, reviews []*PullRequestReview) (bool, error)
+
 	// ListPullRequestFiles rejects incomplete pagination and mismatched file counts.
 	ListPullRequestFiles(ctx context.Context, repo *Repository, pull *PullRequest) ([]*CommitFile, error)
 

@@ -144,18 +144,6 @@ func (c *Command) revisionChanged(expected, current *reviewTask) bool {
 		current.pullRequest.GetBase().GetSHA() != expected.pullRequest.GetBase().GetSHA()
 }
 
-func (c *Command) resultMarker(task *reviewTask) string {
-	identity := strings.Join("\n",
-		c.definition.Name,
-		strings.ToLower(task.repository.GetFullName()),
-		strconv.Itoa(task.pullRequest.GetNumber()),
-		task.pullRequest.GetNodeID(),
-		task.pullRequest.GetHead().GetSHA(),
-		task.pullRequest.GetBase().GetSHA(),
-	)
-	return fmt.Sprintf("<!-- abgleich:%s:v2:%x -->", c.definition.Name, sha256.Sum256([]byte(identity)))
-}
-
 func (c *Command) hasReview(ctx context.Context, task *reviewTask) (bool, error) {
 	comments, err := c.github.ListComments(ctx, task.repository, task.pullRequest.GetNumber())
 	if err != nil {
@@ -168,5 +156,34 @@ func (c *Command) hasReview(ctx context.Context, task *reviewTask) (bool, error)
 			return true, nil
 		}
 	}
-	return false, nil
+
+	return c.hasNativeReview(ctx, task, marker)
+}
+
+func (c *Command) hasNativeReview(ctx context.Context, task *reviewTask, marker string) (bool, error) {
+	reviews, err := c.github.ListReviews(ctx, task.repository, task.pullRequest)
+	if err != nil {
+		return false, err
+	}
+
+	var candidates []*github.PullRequestReview
+	for _, review := range reviews {
+		if review.GetState() == "COMMENTED" && strings.Contains(review.GetBody(), "\n"+marker) {
+			candidates = append(candidates, review)
+		}
+	}
+
+	return c.github.HasAppReview(ctx, candidates)
+}
+
+func (c *Command) resultMarker(task *reviewTask) string {
+	identity := strings.Join("\n",
+		c.definition.Name,
+		strings.ToLower(task.repository.GetFullName()),
+		strconv.Itoa(task.pullRequest.GetNumber()),
+		task.pullRequest.GetNodeID(),
+		task.pullRequest.GetHead().GetSHA(),
+		task.pullRequest.GetBase().GetSHA(),
+	)
+	return fmt.Sprintf("<!-- abgleich:%s:v2:%x -->", c.definition.Name, sha256.Sum256(strings.Bytes(identity)))
 }

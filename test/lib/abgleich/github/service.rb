@@ -9,7 +9,8 @@ module Abgleich
         @request_mutex ||= Mutex.new
         @request_mutex.synchronize do
           @request_counts = { active_scans: 0, peak_scans: 0, mutation_requests: 0, installation_requests: 0,
-                              installation_checks: 0, repository_discoveries: 0 }
+                              installation_checks: 0, repository_discoveries: 0,
+                              review_history_reads: 0, review_authorship_requests: 0 }
         end
       end
 
@@ -43,6 +44,14 @@ module Abgleich
 
       def record_repository_discovery
         @request_mutex.synchronize { @request_counts[:repository_discoveries] += 1 }
+      end
+
+      def record_review_history_read
+        @request_mutex.synchronize { @request_counts[:review_history_reads] += 1 }
+      end
+
+      def record_review_authorship_request
+        @request_mutex.synchronize { @request_counts[:review_authorship_requests] += 1 }
       end
     end
 
@@ -114,12 +123,10 @@ module Abgleich
 
     post '/graphql' do
       payload = @graphql_payload
-      if payload.fetch('query').include?('mutation DeleteBranch')
-        halt branch_deletion_response(payload.fetch('variables').fetch('input')).to_json
-      end
-      if payload.fetch('query').include?('query PullRequestAutomationEvents')
-        halt automation_events_response(payload.fetch('variables')).to_json
-      end
+      query = payload.fetch('query')
+      halt branch_deletion_response(payload.fetch('variables').fetch('input')).to_json if query.include?('mutation DeleteBranch')
+      halt automation_events_response(payload.fetch('variables')).to_json if query.include?('query PullRequestAutomationEvents')
+      halt review_authors_response(payload.fetch('variables').fetch('ids')).to_json if query.include?('query PullRequestReviewAuthors')
 
       operation = if payload.fetch('query').include?('enablePullRequestAutoMerge(input: $input)')
                     :enable_auto_merge

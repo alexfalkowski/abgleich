@@ -133,6 +133,34 @@ module Abgleich
       files.slice((page - 1) * 2, 2).to_a.to_json
     end
 
+    post '/repos/:owner/:repository/pulls/:number/reviews' do
+      payload = JSON.parse(request.body.read)
+      halt 422 unless payload.fetch('event') == 'COMMENT'
+
+      repository = "#{params.fetch('owner')}/#{params.fetch('repository')}"
+      review = Abgleich.github.publish_review(repository, params.fetch('number').to_i, payload)
+      halt 503 if Abgleich.github.failure == 'lost reply response'
+
+      status 201
+      review.to_json
+    end
+
+    get '/repos/:owner/:repository/pulls/:number/reviews' do
+      GitHubService.record_review_history_read
+      page = params.fetch('page', '1').to_i
+      per_page = params.fetch('per_page', '30').to_i
+      case Abgleich.github.failure
+      when "review history:#{page}:null" then halt 200, 'null'
+      when "review history:#{page}:empty" then halt 200, ''
+      when "review history:#{page}:whitespace" then halt 200, " \n\t"
+      end
+      repository = "#{params.fetch('owner')}/#{params.fetch('repository')}"
+      url = "http://localhost:11001/github/repos/#{repository}/pulls/#{params.fetch('number')}"
+      reviews = Abgleich.github.native_reviews.select { |review| review[:pull_request_url] == url }
+      headers 'Link' => "<#{url}/reviews?page=#{page + 1}&per_page=#{per_page}>; rel=\"next\"" if page * per_page < reviews.length
+      reviews.slice((page - 1) * per_page, per_page).to_a.to_json
+    end
+
     post '/repos/:owner/:repository/issues/:number/labels' do
       halt 503 if Abgleich.github.failure == 'an unavailable label update'
       sleep 1 if Abgleich.github.failure == 'a delayed label update'
@@ -144,6 +172,36 @@ module Abgleich
     end
 
     private
+
+    def review_authors_response(ids)
+      GitHubService.record_review_authorship_request
+      response = Abgleich.github.review_authors(ids)
+      case Abgleich.github.failure
+      when 'review authorship:missing results' then return { data: nil }
+      when 'review authorship:GraphQL errors' then return { errors: [{ message: 'Authorship unavailable' }] }
+      end
+      change_review_author_results(response.fetch(:data).fetch(:nodes), ids)
+      response
+    end
+
+    def change_review_author_results(nodes, ids)
+      case Abgleich.github.failure
+      when 'review authorship:partial results' then nodes.pop
+      when 'review authorship:partial second batch' then nodes.pop if ids.length < 100
+      else change_review_author_identity(nodes)
+      end
+    end
+
+    def change_review_author_identity(nodes)
+      case Abgleich.github.failure
+      when 'review authorship:null review' then nodes[-1] = nil
+      when 'review authorship:missing authorship'
+        nodes.first[:viewer_did_author] = true
+        nodes.last.delete(:viewer_did_author)
+      when 'review authorship:mismatched identity' then nodes.last[:id] = 'PRR_somewhere_else'
+      when 'review authorship:duplicate identities' then nodes[-1] = nodes.first
+      end
+    end
 
     def change_status_state(repository, rechecked, failure)
       if failure&.start_with?('status settings:')

@@ -36,30 +36,32 @@ Given('a patch-only review was published before source lookup was available') do
   event = Abgleich.github.add_comment('contribution', body: '/ab codereview')
   Nonnative.start
   expect(Abgleich.deliver_comment(event).code).to eq(204)
-  wait_for { Abgleich.github.replies.any? { |reply| reply[:body].start_with?(review_heading('code')) } }.to be(true)
+  wait_for { Abgleich.github.review_results.any? { |reply| reply[:body].start_with?(review_heading('code')) } }.to be(true)
   expect_review_check('code')
-  legacy = Abgleich.github.replies.last.fetch(:body).sub(':v2:', ':v1:')
+  legacy = Abgleich.github.review_results.last.fetch(:body).sub(':v2:', ':v1:')
   Abgleich.github.withdraw_review_reply
   Abgleich.github.publish_reply(Abgleich::GitHubRepository::DEFAULT_REPOSITORY, 1, legacy)
 end
 
 Then(/^the (code|security) review should explain the related implementation$/) do |kind|
   with_wait(timeout: 25) do
-    wait_for do
-      Abgleich.github.replies.any? { |reply| reply[:body].start_with?(review_heading(kind)) && reply[:body].include?(':v2:') }
-    end.to be(true), "expected a completed #{kind} review within the source fixture's job budget"
+    wait_for { reviews_for(kind).last&.fetch(:body) }.to include(':v2:'), "expected a completed #{kind} review within its job budget"
   end
-  body = Abgleich.github.replies.last.fetch(:body).delete('\\').delete("\u200b")
+  body = reviews_for(kind).last.fetch(:body).delete('\\').delete("\u200b")
   expect(body).to include('Verified related source', 'helper-context', 'dependency-query-context', 'Inspected source')
   expect(body).to include('helpers/guard.go', 'example.com/library@v1.0.0/query.go', '400 input', '160 output')
-  first_input = Abgleich.openai.requests.first.fetch('input').to_json
-  expect(first_input).to include('complete-file-context'), 'expected complete changed files before review'
-  expect(Abgleich.openai.requests.first.fetch('reasoning')).to include('effort' => 'high')
-  revision = Abgleich.github.pull_state('contribution').dig(:head, :sha)
-  revisions = [revision]
-  revisions << Abgleich.github.pull_state('contribution').dig(:base, :sha) if Abgleich.github.file_mode == 'removed file'
-  expect(Abgleich.github.source_requests.map { |request| request.fetch(:revision) }.uniq).to contain_exactly(*revisions)
   expect_no_automation_mutations
+end
+
+Then('the reviewer should receive complete files at the reviewed revisions') do
+  request = Abgleich.openai.requests.first
+  expect(request.fetch('input').to_json).to include('complete-file-context'), 'expected complete changed files before review'
+  expect(request.fetch('reasoning')).to include('effort' => 'high')
+  pull = Abgleich.github.pull_state('contribution')
+  expected = [pull.dig(:head, :sha)]
+  expected << pull.dig(:base, :sha) if Abgleich.github.file_mode == 'removed file'
+  actual = Abgleich.github.source_requests.map { |source| source.fetch(:revision) }.uniq
+  expect(actual).to contain_exactly(*expected), 'expected source only at the reviewed head and deleted-file base'
 end
 
 Then('public dependency access should omit credentials') do
@@ -67,31 +69,31 @@ Then('public dependency access should omit credentials') do
 end
 
 Then('the reviewer should receive the complete related file') do
-  wait_for { Abgleich.github.replies.any? { |reply| reply[:body].start_with?(review_heading('code')) } }.to be(true)
+  review = wait_for_review('code')
   outputs = Abgleich.openai.requests.last.fetch('input').select { |item| item['type'] == 'function_call_output' }
   source = outputs.map { |item| item.fetch('output') }
   revision = Abgleich.github.pull_state('contribution').dig(:head, :sha)
   expected = "Source: helpers/guard.go at #{revision}\npackage worker\n// helper-context\nfunc Allowed() bool { return true }\n"
   expect(source).to include(expected), 'expected the complete related file at the reviewed head revision'
-  body = Abgleich.github.replies.last.fetch(:body).delete('\\').delete("\u200b")
+  body = review.fetch(:body).delete('\\').delete("\u200b")
   expect(body).to include('Inspected source', "#{revision}:helpers/guard.go")
 end
 
 Then('the reviewer should discover the dependency packages and inspect one') do
-  wait_for { Abgleich.github.replies.any? { |reply| reply[:body].start_with?(review_heading('code')) } }.to be(true)
+  review = wait_for_review('code')
   outputs = Abgleich.openai.requests.last.fetch('input').select { |item| item['type'] == 'function_call_output' }
   source = outputs.map { |item| item.fetch('output') }
   expect(source).to include("pkg/alpha/query.go\npkg/zeta/query.go"), 'expected complete dependency paths in name order'
   expect(source).to include(a_string_including('dependency-alpha-context')), 'expected the selected package source'
-  body = Abgleich.github.replies.last.fetch(:body).delete('\\').delete("\u200b")
+  body = review.fetch(:body).delete('\\').delete("\u200b")
   expect(body).to include('Inspected source', 'example.com/library@v1.0.0/pkg/alpha/query.go')
 end
 
 Then('the code review should receive the declared Go language reference') do
-  wait_for { Abgleich.github.replies.any? { |reply| reply[:body].start_with?(review_heading('code')) } }.to be(true)
+  review = wait_for_review('code')
   expect(Abgleich.github.reference_requests).to eq([{ version: '1.22', authorization: nil }])
   expect(Abgleich.openai.requests.last.fetch('input').to_json).to include('go1.22-reference-marker')
-  expect(Abgleich.github.replies.last.fetch(:body)).to include('Go 1.22 release notes')
+  expect(review.fetch(:body)).to include('Go 1.22 release notes')
 end
 
 Then('both language lookups should receive the same complete reference') do
@@ -103,29 +105,34 @@ Then('both language lookups should receive the same complete reference') do
 end
 
 Then(/^the (code|security) review should disclose "([^"]*)"$/) do |kind, limitation|
-  wait_for { Abgleich.github.replies.any? { |reply| reply[:body].start_with?(review_heading(kind)) } }.to be(true)
-  expect(Abgleich.github.replies.last.fetch(:body).delete('\\').delete("\u200b")).to include('Unavailable source', limitation)
+  body = wait_for_review(kind).fetch(:body).delete('\\').delete("\u200b")
+  expect(body).to include('Unavailable source', limitation)
   expect_no_automation_mutations
 end
 
 Then('unavailable or unverified source should not be shared') do
   problem = Abgleich.github.failure
   submitted = Abgleich.openai.requests.last.fetch('input').to_json
-  if ['source unavailable', 'source from another revision', 'source binary'].include?(problem)
-    expect(submitted).not_to include('complete-file-context', 'helper-context')
-    expect(Abgleich.github.module_requests).to be_empty
-  elsif problem == 'source unverified against the dependency checksum'
-    expect(submitted).not_to include('dependency-query-context')
-  elsif problem == 'source redirected to an unrelated origin'
+  private_source = case problem
+                   when 'source unavailable', 'source from another revision', 'source binary'
+                     %w[complete-file-context helper-context]
+                   when 'source behind a symbolic link' then ['helper-context']
+                   when 'source unverified against the dependency checksum', 'source redirected to an unrelated origin',
+                        /\Asource workspace /, 'source managed by a Go workspace', 'source vendored in the repository'
+                     ['dependency-query-context']
+                   end
+  expect(submitted).not_to include(*private_source) if private_source
+end
+
+Then('unavailable source should not trigger unsafe lookups') do
+  case Abgleich.github.failure
+  when 'source unavailable', 'source from another revision', 'source binary', /\Asource workspace /,
+       'source managed by a Go workspace', 'source vendored in the repository'
+    expect(Abgleich.github.module_requests).to be_empty, 'expected unavailable or repository-controlled source to avoid the public proxy'
+  when 'source redirected to an unrelated origin'
     expect(Abgleich.github.module_requests).to eq([nil]), 'expected the credential-free proxy request without following its redirect'
-    expect(submitted).not_to include('dependency-query-context')
-  elsif problem == 'source behind a symbolic link'
-    expect(submitted).not_to include('helper-context')
-    expect(Abgleich.github.source_requests.none? { |request| request[:path] == 'helpers/guard.go' }).to be(true)
-  elsif problem.start_with?('source workspace ') ||
-        ['source managed by a Go workspace', 'source vendored in the repository'].include?(problem)
-    expect(Abgleich.github.module_requests).to be_empty, 'expected repository-controlled dependencies to avoid the public proxy'
-    expect(submitted).not_to include('dependency-query-context')
+  when 'source behind a symbolic link'
+    expect(Abgleich.github.source_requests).not_to include(a_hash_including(path: 'helpers/guard.go'))
   end
 end
 
@@ -135,7 +142,7 @@ Then('deleted source should be read from the reviewed base revision') do
 end
 
 Then('the source-enabled review should coexist with the old patch-only review') do
-  bodies = Abgleich.github.replies.map { |reply| reply[:body] }
+  bodies = Abgleich.github.review_results.map { |reply| reply[:body] }
   expect(bodies.length).to eq(2), 'expected the new review scope to permit one source-enabled result'
   expect(bodies.first).to include(':v1:')
   expect(bodies.last).to include(':v2:')
@@ -151,7 +158,7 @@ Then(/^the (code|security) review should stop before sharing related source$/) d
   expect(Abgleich.openai.requests.length).to eq(1), 'expected no continuation after consent or revisions change'
   expect(Abgleich.github.source_requests.none? { |request| request[:path] == 'helpers/guard.go' }).to be(true)
   expect(Abgleich.github.module_requests).to be_empty
-  expect(Abgleich.github.replies.none? { |reply| reply[:body].start_with?(review_heading(kind)) }).to be(true)
+  expect(Abgleich.github.review_results.none? { |reply| reply[:body].start_with?(review_heading(kind)) }).to be(true)
 end
 
 Then('the reviewer should receive every file from the directory') do
@@ -164,13 +171,11 @@ Then('the reviewer should receive every file from the directory') do
 end
 
 Then(/^the (code|security) review should use all requested source$/) do |kind|
-  counts = { 'review source several rounds of investigation' => 3, 'review source several related files' => 3 }
-  count = counts.fetch(Abgleich.openai.mode)
-  wait_for { Abgleich.github.replies.any? { |reply| reply[:body].start_with?(review_heading(kind)) } }.to be(true)
+  review = wait_for_review(kind)
   outputs = Abgleich.openai.requests.last.fetch('input').select { |item| item['type'] == 'function_call_output' }
-  expect(outputs.length).to eq(count), 'expected every requested source lookup to reach the model'
+  expect(outputs.length).to eq(3), 'expected every requested source lookup to reach the model'
   expect(outputs.map { |item| item.fetch('output') }).to all(include('helpers/guard.go'))
-  body = Abgleich.github.replies.last.fetch(:body)
+  body = review.fetch(:body)
   expect(body).to include('Inspected related source paths')
   expect(body).not_to include('Unavailable source')
   expect_no_automation_mutations

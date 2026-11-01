@@ -50,12 +50,18 @@ func regularSourceFile(file *github.RepositoryContent, filename string) bool {
 
 func decodeSourceFile(file *github.RepositoryContent) (string, error) {
 	content, err := file.GetContent()
-	if err != nil || !utf8.ValidString(content) || strings.Contains(content, "\x00") || file.Size == nil || file.GetSize() != len(content) {
+	if err != nil {
+		return strings.Empty, errors.New("github: source content is incomplete or not text")
+	}
+
+	isText := utf8.ValidString(content) && !strings.Contains(content, "\x00")
+	sizeMatches := file.Size != nil && file.GetSize() == len(content)
+	if !isText || !sizeMatches {
 		return strings.Empty, errors.New("github: source content is incomplete or not text")
 	}
 
 	blob := fmt.Sprintf("blob %d%c%s", len(content), 0, content)
-	if fmt.Sprintf("%x", sha1.Sum([]byte(blob))) != file.GetSHA() { // #nosec G401 -- Match Git's native blob identifier.
+	if fmt.Sprintf("%x", sha1.Sum(strings.Bytes(blob))) != file.GetSHA() { // #nosec G401 -- Match Git's native blob identifier.
 		return strings.Empty, errors.New("github: source blob identity mismatch")
 	}
 

@@ -5,6 +5,7 @@ import (
 	"regexp"
 
 	"github.com/alexfalkowski/abgleich/internal/ai"
+	"github.com/alexfalkowski/abgleich/internal/github"
 	"github.com/alexfalkowski/go-service/v2/strings"
 )
 
@@ -17,17 +18,6 @@ type reviewComment struct {
 	Sources    []string
 	Missing    []string
 	RequestID  int64
-}
-
-var credentialAssignment = regexp.MustCompile(
-	`(?i)["']?(?:api[_-]?key|password|secret|token)["']?\s*[=:]\s*("(?:\\.|[^"\\])*"|'[^']*(?:''[^']*)*'|[^\s"',;{}]+)`,
-)
-
-var credentialPatterns = []*regexp.Regexp{
-	regexp.MustCompile(`(?s)-----BEGIN [A-Z ]*PRIVATE KEY-----.*?-----END [A-Z ]*PRIVATE KEY-----`),
-	regexp.MustCompile(`\b(?:gh[pousr]_[A-Za-z0-9_]+|github_pat_[A-Za-z0-9_]+|sk-[A-Za-z0-9_-]+)\b`),
-	regexp.MustCompile(`(?i)\b(?:bearer|basic)\s+[A-Za-z0-9._~+/=-]+`),
-	credentialAssignment,
 }
 
 var bareDomain = regexp.MustCompile(`(?i)\bwww\.`)
@@ -52,9 +42,35 @@ var markdownEscaper = strings.NewReplacer(
 	"=", "\\=",
 )
 
-func (c *Command) reply(task *reviewTask, completion *ai.Completion, source *sourceSession) (string, error) {
-	return render("review.md.tmpl", reviewComment{
-		Completion: completion,
+func (c *Command) reply(task *reviewTask, completion *ai.Completion, review *reviewContext) (*github.PullRequestReviewRequest, error) {
+	result, err := parseResult(completion.Text)
+	if err != nil {
+		return nil, err
+	}
+
+	var text strings.Builder
+	text.WriteString(result.Overview)
+	var comments []*github.DraftReviewComment
+	for _, finding := range result.Findings {
+		if finding.canPlaceInline(review.Files) {
+			comments = append(comments, &github.DraftReviewComment{
+				Path: new(finding.Path), Line: new(finding.Line), Side: new(finding.Side),
+				Body: new(markdownText(finding.Body)),
+			})
+			continue
+		}
+
+		text.WriteString("\n\n")
+		text.WriteString(finding.location())
+		text.WriteString(finding.Body)
+	}
+
+	// Preserve provider provenance while rendering only the decoded overview.
+	output := *completion
+	output.Text = text.String()
+	source := review.source
+	body, err := render("review.md.tmpl", reviewComment{
+		Completion: &output,
 		Title:      c.definition.Title,
 		Missing:    source.missing,
 		Sources:    source.inspected,
@@ -63,15 +79,17 @@ func (c *Command) reply(task *reviewTask, completion *ai.Completion, source *sou
 		Marker:     c.resultMarker(task),
 		RequestID:  task.commandComment.GetID(),
 	})
-}
-
-// markdownText makes model text inert and redacts common credential forms.
-// Provider-known credentials are redacted by ai.Provider before rendering.
-func markdownText(text string) string {
-	for _, pattern := range credentialPatterns {
-		text = pattern.ReplaceAllString(text, "[REDACTED]")
+	if err != nil {
+		return nil, err
 	}
 
+	return &github.PullRequestReviewRequest{
+		Body: new(body), Comments: comments,
+	}, nil
+}
+
+// markdownText makes model markup, links, and mentions inert.
+func markdownText(text string) string {
 	text = bareDomain.ReplaceAllString(text, "www\u200b.")
 	return html.EscapeString(markdownEscaper.Replace(text))
 }
