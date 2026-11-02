@@ -5,14 +5,17 @@ package automerge
 // value leaves rebasing to scheduled recovery. Omitted Dependabot settings
 // preserve automatic enrollment in all opted-in repositories.
 type Config struct {
-	Dependabot      *DependabotConfig `yaml:"dependabot,omitempty" json:"dependabot,omitempty" toml:"dependabot,omitempty" validate:"omitempty"`
-	CompletionCheck string            `yaml:"completion_check,omitempty" json:"completion_check,omitempty" toml:"completion_check,omitempty"`
+	// Dependabot optionally excludes repositories from automatic author-based merging.
+	Dependabot *DependabotConfig `yaml:"dependabot,omitempty" json:"dependabot,omitempty" toml:"dependabot,omitempty" validate:"omitempty"`
+	// CompletionCheck names the exact final CI signal for event rebasing; empty leaves rebasing to scheduled sweeps.
+	CompletionCheck string `yaml:"completion_check,omitempty" json:"completion_check,omitempty" toml:"completion_check,omitempty"`
 }
 
 // DependabotConfig excludes repositories from author-based merge automation.
 // Entries are case-insensitive owner/repository full names. Nil configuration
 // or an empty list preserves automatic enrollment in every opted-in repository.
 type DependabotConfig struct {
+	// Exclude lists case-insensitive owner/repository names requiring explicit merge opt-in.
 	Exclude []string `yaml:"exclude_repositories,omitempty" json:"exclude_repositories,omitempty" toml:"exclude_repositories,omitempty" validate:"dive,required"`
 }
 

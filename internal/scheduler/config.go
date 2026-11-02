@@ -20,8 +20,10 @@ type Schedule interface {
 // Timeout cancels a run; a handler must observe its context before another run
 // can begin. Scheduled starts missed during a run are skipped rather than queued.
 type Config struct {
+	// Interval sets the cadence between scheduled starts; zero uses fifteen minutes unless overridden by the feature.
 	Interval time.Duration `yaml:"interval,omitempty" json:"interval,omitempty" toml:"interval,omitempty" validate:"omitempty,gt=0"`
-	Timeout  time.Duration `yaml:"timeout,omitempty" json:"timeout,omitempty" toml:"timeout,omitempty" validate:"omitempty,gt=0"`
+	// Timeout bounds a complete run; zero uses five minutes unless overridden by the feature.
+	Timeout time.Duration `yaml:"timeout,omitempty" json:"timeout,omitempty" toml:"timeout,omitempty" validate:"omitempty,gt=0"`
 }
 
 // GetInterval returns the schedule interval, defaulting to fifteen minutes when

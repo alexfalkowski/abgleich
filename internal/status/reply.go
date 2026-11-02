@@ -18,12 +18,18 @@ var statusTemplate = template.Must(template.ParseFS(statusTemplates, "status.md.
 // Reply holds the observed assessment and display values for a status comment.
 // CheckedAt is formatted in UTC, and RequestID identifies the request comment.
 type Reply struct {
+	// Assessment supplies the observed automation policy and its explanation.
 	Assessment automerge.Assessment
-	Emoji      string
-	AutoMerge  string
-	SHA        string
-	CheckedAt  string
-	RequestID  int64
+	// Emoji distinguishes unavailable assessments, possible actions, and paused outcomes.
+	Emoji string
+	// AutoMerge displays whether GitHub auto-merge is enabled at the observed snapshot.
+	AutoMerge string
+	// SHA identifies the validated head commit associated with the assessment.
+	SHA string
+	// CheckedAt records the assessment time formatted in UTC.
+	CheckedAt string
+	// RequestID links the reply to the authorizing status command comment.
+	RequestID int64
 }
 
 func reply(assessment automerge.Assessment, pull *github.PullRequest, requestID int64, checkedAt time.Time) Reply {

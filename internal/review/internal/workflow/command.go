@@ -17,10 +17,15 @@ import (
 // one advisory review command. Feature packages own these values and registration.
 // Name is the exact /ab command suffix and the persisted result namespace.
 type Definition struct {
-	Name            string
-	Title           string
-	Model           string
-	Instructions    string
+	// Name is the exact /ab command suffix and the successful result namespace.
+	Name string
+	// Title labels the review in published replies and failure feedback.
+	Title string
+	// Model selects the provider model for this feature's review conversations.
+	Model string
+	// Instructions supplies the feature-owned advisory review prompt.
+	Instructions string
+	// ReasoningEffort optionally selects provider reasoning effort; empty leaves its default.
 	ReasoningEffort string
 }
 

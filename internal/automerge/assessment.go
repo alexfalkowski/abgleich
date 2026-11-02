@@ -10,11 +10,16 @@ import (
 // Action describes a possible request, not a promise that reconciliation or
 // GitHub will perform it. Creating an assessment never requests automation.
 type Assessment struct {
-	Policy   string
+	// Policy names the first applicable automation policy or eligibility gate.
+	Policy string
+	// Decision summarizes the observed outcome for a maintainer.
 	Decision string
-	Reason   string
+	// Reason explains the evidence or missing information behind the decision.
+	Reason string
+	// NextStep suggests how a maintainer can proceed from the observed state.
 	NextStep string
-	Action   string
+	// Action identifies a possible merge, enable, or rebase request; empty means no action is indicated.
+	Action string
 }
 
 // Assess explains the first applicable policy for the supplied repository and

@@ -7,7 +7,9 @@ import "github.com/alexfalkowski/go-service/v2/strings"
 // Omission uses proxy.golang.org. Dependencies come from the reviewed go.mod,
 // with a checksum from the reviewed go.sum required before source is shared.
 type Config struct {
-	GoDocs      string `yaml:"go_docs,omitempty" json:"go_docs,omitempty" toml:"go_docs,omitempty" validate:"omitempty,http_url"`
+	// GoDocs selects the trusted Go documentation base URL; empty uses https://go.dev/doc.
+	GoDocs string `yaml:"go_docs,omitempty" json:"go_docs,omitempty" toml:"go_docs,omitempty" validate:"omitempty,http_url"`
+	// ModuleProxy selects the trusted credential-free module proxy; empty uses https://proxy.golang.org.
 	ModuleProxy string `yaml:"module_proxy,omitempty" json:"module_proxy,omitempty" toml:"module_proxy,omitempty" validate:"omitempty,http_url"`
 }
 
