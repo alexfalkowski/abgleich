@@ -8,16 +8,21 @@ import (
 
 // Config selects the optional text generation provider. Omission disables AI.
 type Config struct {
-	Client   *client.Config `yaml:"client,omitempty" json:"client,omitempty" toml:"client,omitempty"`
-	OpenAI   *OpenAIConfig  `yaml:"openai,omitempty" json:"openai,omitempty" toml:"openai,omitempty" validate:"required"`
-	Provider string         `yaml:"provider,omitempty" json:"provider,omitempty" toml:"provider,omitempty" validate:"required,oneof=openai"`
+	// Client configures the AI HTTP connection independently of GitHub; inference retries remain disabled.
+	Client *client.Config `yaml:"client,omitempty" json:"client,omitempty" toml:"client,omitempty"`
+	// OpenAI supplies required credentials and optional endpoint settings for the OpenAI provider.
+	OpenAI *OpenAIConfig `yaml:"openai,omitempty" json:"openai,omitempty" toml:"openai,omitempty" validate:"required"`
+	// Provider selects the configured backend; the supported value is openai.
+	Provider string `yaml:"provider,omitempty" json:"provider,omitempty" toml:"provider,omitempty" validate:"required,oneof=openai"`
 }
 
 // OpenAIConfig supplies a go-service API key source read once at startup. URL
 // optionally overrides https://api.openai.com/v1/ for compatible endpoints.
 type OpenAIConfig struct {
+	// APIKey is a required go-service credential source resolved once at startup.
 	APIKey string `yaml:"api_key,omitempty" json:"api_key,omitempty" toml:"api_key,omitempty" validate:"required"`
-	URL    string `yaml:"url,omitempty" json:"url,omitempty" toml:"url,omitempty" validate:"omitempty,http_url"`
+	// URL overrides the API base URL; empty uses https://api.openai.com/v1/.
+	URL string `yaml:"url,omitempty" json:"url,omitempty" toml:"url,omitempty" validate:"omitempty,http_url"`
 }
 
 // IsEnabled reports whether AI configuration is present.

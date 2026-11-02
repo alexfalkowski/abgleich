@@ -14,12 +14,17 @@ import (
 
 // HandlerParams supplies webhook verification, delivery routing, and logging dependencies.
 type HandlerParams struct {
+	// In marks this struct as an injected dependency group.
 	di.In
 
-	Webhook     *github.Webhook
-	Dispatcher  *commands.Dispatcher
+	// Webhook verifies signed deliveries; nil disables handler construction.
+	Webhook *github.Webhook
+	// Dispatcher routes authorized comment commands and supplies reaction feedback.
+	Dispatcher *commands.Dispatcher
+	// Coordinator queues repository notifications without waiting for remote reconciliation.
 	Coordinator *automerge.Coordinator
-	Logger      *logger.Logger
+	// Logger records delivery processing failures.
+	Logger *logger.Logger
 }
 
 // NewHandler keeps verification and command execution within each delivery's deadline.

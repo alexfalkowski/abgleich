@@ -53,7 +53,9 @@ func (w *Webhook) GetTimeout() time.Duration {
 // Repository is only a discovery hint; current settings and PR state must be read
 // from GitHub before automation. Comment is nil for repository notifications.
 type Delivery struct {
-	Comment    *IssueCommentEvent
+	// Comment contains the verified comment event, or nil for a repository notification.
+	Comment *IssueCommentEvent
+	// Repository is a verified owner/repository discovery hint whose live state must be re-read.
 	Repository string
 }
 

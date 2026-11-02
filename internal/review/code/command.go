@@ -37,6 +37,7 @@ func NewCommand(cfg *Config, service github.Service, provider ai.Provider, sourc
 // Command keeps code review configuration and registration feature-owned.
 // The embedded workflow command supplies consent checks and an independent queue.
 type Command struct {
+	// Command supplies shared consent, source access, publication, and a queue dedicated to code reviews.
 	*workflow.Command
 	config *Config
 }

@@ -13,7 +13,9 @@ const (
 // Config selects the summary model and independent job schedule.
 // Omit the block to disable summaries. Zero durations use 30s and 2m.
 type Config struct {
-	Model            string `yaml:"model,omitempty" json:"model,omitempty" toml:"model,omitempty" validate:"required"`
+	// Model selects the required provider model for summary generation.
+	Model string `yaml:"model,omitempty" json:"model,omitempty" toml:"model,omitempty" validate:"required"`
+	// Config provides independent job timing; zero values use a thirty-second interval and two-minute timeout.
 	scheduler.Config `yaml:",inline" json:",inline" toml:",inline"`
 }
 

@@ -9,8 +9,11 @@ import (
 // Config composes independent code and security review settings with shared
 // source access. Omitted Code or Sec disables only that review command and job.
 type Config struct {
-	Code            *code.Config `yaml:"code,omitempty" json:"code,omitempty" toml:"code,omitempty" validate:"omitempty"`
-	Sec             *sec.Config  `yaml:"sec,omitempty" json:"sec,omitempty" toml:"sec,omitempty" validate:"omitempty"`
+	// Code enables advisory code reviews and their independent model and schedule when present.
+	Code *code.Config `yaml:"code,omitempty" json:"code,omitempty" toml:"code,omitempty" validate:"omitempty"`
+	// Sec enables advisory security reviews and their independent model and schedule when present.
+	Sec *sec.Config `yaml:"sec,omitempty" json:"sec,omitempty" toml:"sec,omitempty" validate:"omitempty"`
+	// Config shares trusted source endpoint settings between both review features.
 	workflow.Config `yaml:",inline" json:",inline" toml:",inline"`
 }
 

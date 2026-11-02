@@ -12,13 +12,19 @@ import (
 
 // ConnectionParams supplies shared HTTP settings and lifecycle dependencies.
 type ConnectionParams struct {
+	// In marks this struct as an injected dependency group.
 	di.In
 
+	// Connections creates the GitHub connection pool and registers its shutdown cleanup.
 	Connections *client.Factory
-	ID          id.Generator
-	Config      *Config
-	Logger      *logger.Logger
-	UserAgent   env.UserAgent
+	// ID generates outbound request identifiers for the shared transport.
+	ID id.Generator
+	// Config supplies GitHub HTTP settings and the effective request timeout.
+	Config *Config
+	// Logger receives outbound HTTP transport logs.
+	Logger *logger.Logger
+	// UserAgent identifies this worker in outbound API requests.
+	UserAgent env.UserAgent
 }
 
 // NewConnection constructs the shared transport. Only safe methods are retried;

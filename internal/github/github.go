@@ -17,31 +17,44 @@ type RepositoryCommit = github.RepositoryCommit
 
 // RefUpdate carries the expected and replacement OIDs for an atomic ref update.
 type RefUpdate struct {
-	Name      string `json:"name"`
+	// Name is the fully qualified reference name, such as refs/heads/feature.
+	Name string `json:"name"`
+	// BeforeOID requires the reference to still point at this commit before it can change.
 	BeforeOID string `json:"beforeOid"`
-	AfterOID  string `json:"afterOid"`
+	// AfterOID sets the replacement commit; the all-zero OID deletes the reference.
+	AfterOID string `json:"afterOid"`
 }
 
 // UpdateRefsRequest deletes one branch with an atomic expected-commit guard.
 // The zero AfterOID deletes the reference; ClientMutationID must be echoed.
 type UpdateRefsRequest struct {
-	Query     string `json:"query"`
+	// Query contains the GraphQL operation submitted with these variables.
+	Query string `json:"query"`
+	// Variables binds the operation's GraphQL arguments.
 	Variables struct {
+		// Input supplies the mutation arguments, including the target identity.
 		Input struct {
-			RepositoryID     string      `json:"repositoryId"`
-			ClientMutationID string      `json:"clientMutationId"`
-			RefUpdates       []RefUpdate `json:"refUpdates"`
+			// RepositoryID identifies the repository by its GraphQL node ID.
+			RepositoryID string `json:"repositoryId"`
+			// ClientMutationID correlates the mutation request with its acceptance response.
+			ClientMutationID string `json:"clientMutationId"`
+			// RefUpdates contains the guarded reference changes; cleanup submits one deletion at a time.
+			RefUpdates []RefUpdate `json:"refUpdates"`
 		} `json:"input"`
 	} `json:"variables"`
 }
 
 // UpdateRefsResponse requires a matching mutation ID and no GraphQL errors.
 type UpdateRefsResponse struct {
+	// Data contains returned operation data, which still requires error and identity validation.
 	Data struct {
+		// Update confirms an accepted updateRefs mutation; nil cannot confirm success.
 		Update *struct {
+			// ClientMutationID correlates the mutation request with its acceptance response.
 			ClientMutationID string `json:"clientMutationId"`
 		} `json:"updateRefs"`
 	} `json:"data"`
+	// Errors retains GraphQL failures even when the HTTP response succeeds.
 	Errors Errors `json:"errors"`
 }
 
@@ -100,8 +113,11 @@ type CommitStatus = github.RepoStatus
 // PullRequestReviewAuthorsRequest queries authenticated authorship for a batch
 // of review node IDs.
 type PullRequestReviewAuthorsRequest struct {
-	Query     string `json:"query"`
+	// Query contains the GraphQL operation submitted with these variables.
+	Query string `json:"query"`
+	// Variables binds the operation's GraphQL arguments.
 	Variables struct {
+		// IDs lists review node IDs whose authenticated authorship must be checked.
 		IDs []string `json:"ids"`
 	} `json:"variables"`
 }
@@ -109,12 +125,17 @@ type PullRequestReviewAuthorsRequest struct {
 // PullRequestReviewAuthorsResponse requires each requested review identity and
 // explicit authorship. Call Validate even when the HTTP request succeeds.
 type PullRequestReviewAuthorsResponse struct {
+	// Data contains returned operation data, which still requires error and identity validation.
 	Data struct {
+		// Nodes returns one authorship result for each requested review identity.
 		Nodes []*struct {
-			ViewerDidAuthor *bool  `json:"viewer_did_author"`
-			ID              string `json:"id"`
+			// ViewerDidAuthor reports authenticated viewer authorship; nil cannot establish ownership.
+			ViewerDidAuthor *bool `json:"viewer_did_author"`
+			// ID identifies the review whose authorship was returned.
+			ID string `json:"id"`
 		} `json:"nodes"`
 	} `json:"data"`
+	// Errors retains GraphQL failures even when the HTTP response succeeds.
 	Errors Errors `json:"errors"`
 }
 
@@ -146,16 +167,22 @@ func (r *PullRequestReviewAuthorsResponse) Validate(expectedIDs []string) error 
 // ExpectedHeadOID rejects concurrent head changes; UpdateMethod selects REBASE
 // or MERGE.
 type UpdatePullRequestBranchInput struct {
-	PullRequestID   string `json:"pullRequestId"`
+	// PullRequestID identifies the target PR by its GraphQL node ID, rather than its numeric ID.
+	PullRequestID string `json:"pullRequestId"`
+	// ExpectedHeadOID guards the mutation against concurrent changes to the PR head commit.
 	ExpectedHeadOID string `json:"expectedHeadOid"`
-	UpdateMethod    string `json:"updateMethod"`
+	// UpdateMethod selects the GitHub update strategy; the worker requests REBASE.
+	UpdateMethod string `json:"updateMethod"`
 }
 
 // UpdatePullRequestBranchRequest encodes a branch-update mutation. Query must
 // declare $input with the GraphQL type UpdatePullRequestBranchInput.
 type UpdatePullRequestBranchRequest struct {
-	Query     string `json:"query"`
+	// Query contains the GraphQL operation submitted with these variables.
+	Query string `json:"query"`
+	// Variables binds the operation's GraphQL arguments.
 	Variables struct {
+		// Input supplies the mutation arguments, including the target identity.
 		Input UpdatePullRequestBranchInput `json:"input"`
 	} `json:"variables"`
 }
@@ -164,13 +191,18 @@ type UpdatePullRequestBranchRequest struct {
 // HTTP success can include GraphQL errors or incomplete data; call Validate
 // before treating an update as accepted.
 type UpdatePullRequestBranchResponse struct {
+	// Data contains returned operation data, which still requires error and identity validation.
 	Data struct {
+		// Update contains the branch-update mutation's acceptance payload.
 		Update struct {
+			// PullRequest identifies the PR accepted for a branch update.
 			PullRequest struct {
+				// ID must match the requested PR node ID to confirm acceptance.
 				ID string `json:"id"`
 			} `json:"pullRequest"`
 		} `json:"updatePullRequestBranch"`
 	} `json:"data"`
+	// Errors retains GraphQL failures even when the HTTP response succeeds.
 	Errors Errors `json:"errors"`
 }
 
@@ -191,28 +223,39 @@ func (r *UpdatePullRequestBranchResponse) Validate(expectedID string) error {
 // EnablePullRequestAutoMergeInput selects a PR and merge method for auto-merge,
 // guarded by ExpectedHeadOID against concurrent pushes.
 type EnablePullRequestAutoMergeInput struct {
-	PullRequestID   string `json:"pullRequestId"`
+	// PullRequestID identifies the target PR by its GraphQL node ID, rather than its numeric ID.
+	PullRequestID string `json:"pullRequestId"`
+	// ExpectedHeadOID guards the mutation against concurrent changes to the PR head commit.
 	ExpectedHeadOID string `json:"expectedHeadOid"`
-	MergeMethod     string `json:"mergeMethod"`
+	// MergeMethod selects the eventual merge strategy; the worker requests SQUASH.
+	MergeMethod string `json:"mergeMethod"`
 }
 
 // EnablePullRequestAutoMergeRequest encodes GitHub's auto-merge mutation.
 type EnablePullRequestAutoMergeRequest struct {
-	Query     string `json:"query"`
+	// Query contains the GraphQL operation submitted with these variables.
+	Query string `json:"query"`
+	// Variables binds the operation's GraphQL arguments.
 	Variables struct {
+		// Input supplies the mutation arguments, including the target identity.
 		Input EnablePullRequestAutoMergeInput `json:"input"`
 	} `json:"variables"`
 }
 
 // EnablePullRequestAutoMergeResponse requires validation even on HTTP success.
 type EnablePullRequestAutoMergeResponse struct {
+	// Data contains returned operation data, which still requires error and identity validation.
 	Data struct {
+		// Enable contains the enablePullRequestAutoMerge acceptance payload.
 		Enable struct {
+			// PullRequest identifies the PR accepted for auto-merge enablement.
 			PullRequest struct {
+				// ID must match the requested PR node ID to confirm acceptance.
 				ID string `json:"id"`
 			} `json:"pullRequest"`
 		} `json:"enablePullRequestAutoMerge"`
 	} `json:"data"`
+	// Errors retains GraphQL failures even when the HTTP response succeeds.
 	Errors Errors `json:"errors"`
 }
 
@@ -232,28 +275,41 @@ func (r *EnablePullRequestAutoMergeResponse) Validate(expectedID string) error {
 // PullRequestAutomationEventsRequest identifies a PR by node ID and supplies the cursor
 // for the next page of its automation history.
 type PullRequestAutomationEventsRequest struct {
+	// Variables binds the operation's GraphQL arguments.
 	Variables struct {
-		ID    string  `json:"id"`
+		// ID identifies the PR node whose complete automation history is requested.
+		ID string `json:"id"`
+		// After selects the next page; nil starts pagination.
 		After *string `json:"after"`
 	} `json:"variables"`
+	// Query contains the GraphQL operation submitted with these variables.
 	Query string `json:"query"`
 }
 
 // PullRequestAutomationEventsResponse decodes timeline history into SDK issue-event snapshots.
 // Call Validate before using the history, even when the HTTP request succeeds.
 type PullRequestAutomationEventsResponse struct {
+	// Data contains returned operation data, which still requires error and identity validation.
 	Data struct {
+		// Node contains the PR identity and requested automation timeline page.
 		Node struct {
-			ID            string `json:"id"`
+			// ID must match the requested PR node ID before its history is used.
+			ID string `json:"id"`
+			// TimelineItems contains label and auto-merge-disable history used to establish consent.
 			TimelineItems struct {
-				Nodes    []*IssueEvent `json:"nodes"`
+				// Nodes contains the page's automation events; nil indicates an incomplete page.
+				Nodes []*IssueEvent `json:"nodes"`
+				// PageInfo reports whether discovery must continue before the results are complete.
 				PageInfo struct {
-					EndCursor   *string `json:"endCursor"`
-					HasNextPage *bool   `json:"hasNextPage"`
+					// EndCursor selects the following page when HasNextPage is true.
+					EndCursor *string `json:"endCursor"`
+					// HasNextPage reports whether more results remain; nil indicates an incomplete response.
+					HasNextPage *bool `json:"hasNextPage"`
 				} `json:"pageInfo"`
 			} `json:"timelineItems"`
 		} `json:"node"`
 	} `json:"data"`
+	// Errors retains GraphQL failures even when the HTTP response succeeds.
 	Errors Errors `json:"errors"`
 }
 
@@ -278,8 +334,10 @@ func (r *PullRequestAutomationEventsResponse) Validate(expectedID string) error 
 
 // Errors contains GraphQL failures that may accompany data even on HTTP success.
 type Errors []struct {
+	// Message contains the failure explanation included in the joined service error.
 	Message string `json:"message"`
-	Type    string `json:"type"`
+	// Type classifies the GraphQL failure, including RATE_LIMITED responses.
+	Type string `json:"type"`
 }
 
 // Validate joins reported failures and includes [ErrRateLimited] for rate limits.
@@ -397,35 +455,50 @@ func (n *reviewThreadNode) validateOwnership(repo *Repository, pull *PullRequest
 // ReviewThreadsRequest queries one page of threads by pull request node ID.
 // A nil After cursor starts pagination.
 type ReviewThreadsRequest struct {
+	// Variables binds the operation's GraphQL arguments.
 	Variables struct {
-		ID    string  `json:"id"`
+		// ID identifies the PR node whose inline conversations are requested.
+		ID string `json:"id"`
+		// After selects the next page; nil starts pagination.
 		After *string `json:"after"`
 	} `json:"variables"`
+	// Query contains the GraphQL operation submitted with these variables.
 	Query string `json:"query"`
 }
 
 // ReviewThreadsResponse carries thread ownership, state, and pagination.
 // HTTP success still requires GraphQL, identity, and completeness validation.
 type ReviewThreadsResponse struct {
+	// Data contains returned operation data, which still requires error and identity validation.
 	Data struct {
+		// Node contains the requested PR and thread page; nil cannot establish identity.
 		Node *struct {
 			threadPullRequest
+			// ReviewThreads contains one page of thread state and ownership evidence.
 			ReviewThreads struct {
-				Nodes    []*reviewThreadNode `json:"nodes"`
+				// Nodes contains thread candidates; nil indicates an incomplete discovery page.
+				Nodes []*reviewThreadNode `json:"nodes"`
+				// PageInfo reports whether discovery must continue before the results are complete.
 				PageInfo struct {
-					EndCursor   *string `json:"endCursor"`
-					HasNextPage *bool   `json:"hasNextPage"`
+					// EndCursor selects the following page when HasNextPage is true.
+					EndCursor *string `json:"endCursor"`
+					// HasNextPage reports whether more results remain; nil indicates an incomplete response.
+					HasNextPage *bool `json:"hasNextPage"`
 				} `json:"pageInfo"`
 			} `json:"reviewThreads"`
 		} `json:"node"`
 	} `json:"data"`
+	// Errors retains GraphQL failures even when the HTTP response succeeds.
 	Errors Errors `json:"errors"`
 }
 
 // ReviewThreadRequest queries one review thread by its node ID.
 type ReviewThreadRequest struct {
-	Query     string `json:"query"`
+	// Query contains the GraphQL operation submitted with these variables.
+	Query string `json:"query"`
+	// Variables binds the operation's GraphQL arguments.
 	Variables struct {
+		// ID identifies the thread node to refresh immediately before maintenance.
 		ID string `json:"id"`
 	} `json:"variables"`
 }
@@ -433,18 +506,25 @@ type ReviewThreadRequest struct {
 // ReviewThreadResponse carries one thread's state and authenticated ownership.
 // The service validates its identity and parent PR before returning a snapshot.
 type ReviewThreadResponse struct {
+	// Data contains returned operation data, which still requires error and identity validation.
 	Data struct {
+		// Node contains the thread's current state and ownership evidence; nil fails validation.
 		Node *reviewThreadNode `json:"node"`
 	} `json:"data"`
+	// Errors retains GraphQL failures even when the HTTP response succeeds.
 	Errors Errors `json:"errors"`
 }
 
 // ResolveReviewThreadRequest resolves a thread by node ID without an
 // expected-state guard; callers must refresh eligibility before submission.
 type ResolveReviewThreadRequest struct {
-	Query     string `json:"query"`
+	// Query contains the GraphQL operation submitted with these variables.
+	Query string `json:"query"`
+	// Variables binds the operation's GraphQL arguments.
 	Variables struct {
+		// Input supplies the mutation arguments, including the target identity.
 		Input struct {
+			// ThreadID identifies the thread to resolve after final eligibility rechecks.
 			ThreadID string `json:"threadId"`
 		} `json:"input"`
 	} `json:"variables"`
@@ -453,14 +533,20 @@ type ResolveReviewThreadRequest struct {
 // ResolveReviewThreadResponse confirms a matching thread's resolved state.
 // GraphQL errors or missing confirmation must not be treated as acceptance.
 type ResolveReviewThreadResponse struct {
+	// Data contains returned operation data, which still requires error and identity validation.
 	Data struct {
+		// Resolve contains the resolveReviewThread acceptance payload.
 		Resolve struct {
+			// Thread confirms the target thread and its resolved state; nil cannot confirm acceptance.
 			Thread *struct {
-				ID         string `json:"id"`
-				IsResolved *bool  `json:"isResolved"`
+				// ID must match the requested thread node ID to confirm acceptance.
+				ID string `json:"id"`
+				// IsResolved must be present and true to confirm that the mutation resolved the thread.
+				IsResolved *bool `json:"isResolved"`
 			} `json:"thread"`
 		} `json:"resolveReviewThread"`
 	} `json:"data"`
+	// Errors retains GraphQL failures even when the HTTP response succeeds.
 	Errors Errors `json:"errors"`
 }
 

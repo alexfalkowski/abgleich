@@ -10,12 +10,18 @@ import (
 // ReviewThread contains the state and authenticated ownership needed to maintain
 // an existing conversation. IsAppAuthor requires both its root and parent review.
 type ReviewThread struct {
-	ID               string
-	ReviewBody       string
-	IsOutdated       bool
-	IsResolved       bool
+	// ID is the GraphQL node identity used for final rechecks and resolution.
+	ID string
+	// ReviewBody contains the parent review's result marker for feature ownership checks.
+	ReviewBody string
+	// IsOutdated reports stale placement from GitHub, without establishing that a finding was fixed.
+	IsOutdated bool
+	// IsResolved reports whether the conversation is already closed.
+	IsResolved bool
+	// ViewerCanResolve reports whether the authenticated installation may resolve the thread.
 	ViewerCanResolve bool
-	IsAppAuthor      bool
+	// IsAppAuthor requires API-authenticated Bot authorship of both the root comment and parent review.
+	IsAppAuthor bool
 }
 
 // reviewThreadFields keeps discovery and final rechecks on the same evidence.

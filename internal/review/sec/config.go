@@ -13,8 +13,11 @@ const (
 // Config selects the security review model and independent job schedule.
 // Omit the block to disable security reviews. Zero durations use 30s and 2m.
 type Config struct {
-	ReasoningEffort  string `yaml:"reasoning_effort,omitempty" json:"reasoning_effort,omitempty" toml:"reasoning_effort,omitempty"`
-	Model            string `yaml:"model,omitempty" json:"model,omitempty" toml:"model,omitempty" validate:"required"`
+	// ReasoningEffort optionally selects provider reasoning effort; empty leaves its default.
+	ReasoningEffort string `yaml:"reasoning_effort,omitempty" json:"reasoning_effort,omitempty" toml:"reasoning_effort,omitempty"`
+	// Model selects the required provider model for security reviews.
+	Model string `yaml:"model,omitempty" json:"model,omitempty" toml:"model,omitempty" validate:"required"`
+	// Config provides independent job timing; zero values use a thirty-second interval and two-minute timeout.
 	scheduler.Config `yaml:",inline" json:",inline" toml:",inline"`
 }
 
