@@ -229,7 +229,10 @@ source with OpenAI, including private source. No topic, auto-merge setting, labe
 Approve provider data handling and billing before enabling reviews.
 
 The independent `codereview` job processes at most four queued requests serially;
-a full queue returns HTTP 503. The complete source-lookup conversation uses
+a full queue returns HTTP 503. Accepted requests wake the job immediately; requests
+received during active work wait for it to finish. These queue runs process only
+manual requests; repository-wide thread maintenance retains its configured interval.
+The complete source-lookup conversation uses
 half the remaining job budget, reserving time for final checks and publication.
 With the default two-minute job, that is at most one minute. Increase the feature
 `timeout` for deeper reviews; individual HTTP timeouts remain independent. Source is untrusted data; the model receives read-only
@@ -261,7 +264,15 @@ New head or base revisions permit a fresh review; summaries and security reviews
 remain independent.
 See [review recovery](#-code-review-recovery).
 
-After draining its queue, each enabled review job uses its remaining deadline to
+If an accepted review's PR merges, closes, or becomes a draft, the next processing
+recheck attempts a cancellation comment linking to the original request, provided
+the comment remains authorized and the job has time left. This applies while
+queued and after generation starts; a request canceled before generation sends
+no source to the provider.
+An in-flight provider request may finish before cancellation is observed, but its
+findings are discarded. Cancellation comments carry no successful-result marker.
+
+After draining its queue, each scheduled review run uses its remaining deadline to
 resolve its own App-authored inline threads that GitHub marks outdated on open
 PRs, including drafts and forks. Current threads stay open; replies do not prevent
 resolution of an outdated App thread. This needs no new command or inference and
@@ -365,6 +376,9 @@ repositories. The worker needs REST and GraphQL access, with no writable checkou
 
 Polling, event checks, and commands share the installation's API budget. The
 auto-merge interval controls polling volume; event frequency also affects usage.
+Scheduled review maintenance also discovers repositories and open PRs on each
+feature's interval. Manual review notifications perform only request-specific reads
+and inference, leaving that maintenance cadence unchanged.
 Event checks still discover all repository pages, but list PRs only in the
 affected repository. go-github supplies built-in rate-limit checks without
 additional configuration. Throttling stops the current check; a later event or
@@ -703,11 +717,11 @@ scheduler:
 | `summarise.timeout` | `2m` | Deadline for a complete summary job run. |
 | `review.code.model` | None | Required model when code reviews are configured. |
 | `review.code.reasoning_effort` | Provider default | Optional model-supported reasoning effort. |
-| `review.code.interval` | `30s` | Time between code-review queue processing and thread maintenance runs. |
+| `review.code.interval` | `30s` | Time between scheduled thread maintenance and recovery runs; manual requests wake the job immediately. |
 | `review.code.timeout` | `2m` | Deadline for a complete code-review job run. |
 | `review.sec.model` | None | Required model when security reviews are configured. |
 | `review.sec.reasoning_effort` | Provider default | Optional model-supported reasoning effort. |
-| `review.sec.interval` | `30s` | Time between security-review queue processing and thread maintenance runs. |
+| `review.sec.interval` | `30s` | Time between scheduled thread maintenance and recovery runs; manual requests wake the job immediately. |
 | `review.sec.timeout` | `2m` | Deadline for a complete security-review job run. |
 | `review.module_proxy` | `https://proxy.golang.org` | Trusted credential-free Go module source endpoint. |
 | `review.go_docs` | `https://go.dev/doc` | Trusted versioned Go release-note source or mirror. |
@@ -755,7 +769,7 @@ or Ingress.
 ### 📊 Telemetry
 
 Each completed job logs `job` (`automerge`, `cleanup`, `summarise`, `codereview`, or `secreview`), `duration`,
-`interval`, and `overrun`:
+`interval`, `overrun`, and `trigger` (`schedule` or `queue`):
 
 | Outcome | Log level | Details |
 | --- | --- | --- |
@@ -946,6 +960,9 @@ sequenceDiagram
         F->>G: Add automerge label or publish status reply
     else /ab summarise, /ab codereview, or /ab secreview
         F->>F: Queue request in memory
+        opt /ab codereview or /ab secreview
+            F->>S: Wake the existing review job
+        end
     end
     F-->>D: Command outcome
     par Webhook completion
@@ -975,7 +992,9 @@ Features register unique names through `Scheduler.Register` and
 `commands.Dispatcher.Register` before startup; duplicates prevent startup.
 The feature-independent [`scheduler`](internal/scheduler/doc.go) runs each job
 immediately, then on its own interval and deadline. Handlers observe cancellation
-and return complete outcomes. See [Operations](#-operations) for lifecycle and logs.
+and return complete outcomes. Manual review requests also wake their existing job;
+these runs share its timeout and overlap protection and leave thread maintenance
+to scheduled runs. See [Operations](#-operations) for lifecycle and logs.
 
 ## 🛠️ Development
 

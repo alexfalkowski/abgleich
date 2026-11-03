@@ -52,6 +52,15 @@ module Abgleich
         replies + native_reviews
       end
 
+      def review_cancellations(kind)
+        replies.select { |reply| reply.fetch(:body).start_with?("#{kind.capitalize} review canceled") }
+      end
+
+      def native_reviews_for(branch)
+        number = pull_state(branch).fetch(:number)
+        native_reviews.select { |review| review.fetch(:pull_request_url).end_with?("/pulls/#{number}") }
+      end
+
       def publish_review(repository, number, payload)
         @mutex.synchronize do
           reviews = (@state[:reviews] ||= [])
@@ -104,7 +113,7 @@ module Abgleich
 
       def change_review_eligibility(pull, mode)
         case mode
-        when 'closed' then pull[:state] = 'closed'
+        when 'closed', 'merged' then pull.merge!(state: 'closed', merged: mode == 'merged')
         when 'draft' then pull[:draft] = true
         when 'retargeted' then pull[:base][:ref] = 'another-target'
         when 'request deleted' then @state[:failure] = 'review deleted comment'

@@ -56,7 +56,10 @@ Given('the worker cannot authenticate when checking branch {string}') do |branch
 end
 
 When('the operator starts the worker') do
-  step 'I attempt to start the system'
+  @start_error = nil
+  Nonnative.start
+rescue StandardError => e
+  @start_error = e
 end
 
 When('the worker restarts with valid App credentials') do
@@ -64,7 +67,7 @@ When('the worker restarts with valid App credentials') do
 end
 
 Then('the worker should refuse to start') do
-  step 'starting the system should raise an error'
+  expect(@start_error).to be_a(Nonnative::StartError)
 end
 
 Then('GitHub should receive one installation check per sweep and {int} for comment commands') do |command_checks|

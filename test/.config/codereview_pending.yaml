@@ -45,4 +45,4 @@ review:
   code:
     model: test-review
     interval: 10s
-    timeout: 3s
+    timeout: 20s

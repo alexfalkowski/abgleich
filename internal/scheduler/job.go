@@ -14,19 +14,22 @@ func NewJob(name string, cfg Schedule, handler sync.Handler) *Job {
 		cfg = &Config{}
 	}
 
-	return &Job{name: name, config: cfg, handler: handler}
+	return &Job{name: name, config: cfg, handler: handler, worker: sync.NewWorker(1)}
 }
 
 // Job runs a scheduled operation with a timeout and overlap protection.
 // Construct it with NewJob and connect Start and Stop to the service lifecycle.
 type Job struct {
-	handler sync.Handler
-	config  Schedule
+	handler   sync.Handler
+	triggered sync.Handler
+	ready     <-chan struct{}
+
+	worker  *sync.Worker
 	cancel  context.CancelFunc
 	stopped chan struct{}
-	name    string
-	runs    sync.WaitGroup
-	running sync.Mutex
+
+	config Schedule
+	name   string
 }
 
 // Start begins the job immediately and schedules subsequent runs without
@@ -57,34 +60,36 @@ func (j *Job) Stop(ctx context.Context) error {
 
 func (j *Job) loop(ctx context.Context) {
 	defer close(j.stopped)
-	defer j.runs.Wait()
+	defer func() { _ = j.worker.Wait(context.Background()) }()
 
 	ticker := time.NewTicker(j.config.GetInterval())
 	defer ticker.Stop()
 
-	j.run(ctx)
+	_ = j.worker.TrySchedule(ctx, j.hook(j.handler))
 
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			j.run(ctx)
+			_ = j.worker.TrySchedule(ctx, j.hook(j.handler))
+		case <-j.ready:
+			_ = j.worker.Schedule(ctx, j.hook(j.triggered))
+
+			// Scheduled starts missed while waiting for the worker stay skipped.
+			select {
+			case <-ticker.C:
+			default:
+			}
 		}
 	}
 }
 
-func (j *Job) run(ctx context.Context) {
-	if !j.running.TryLock() {
-		return
-	}
-
-	j.runs.Go(func() {
-		defer j.running.Unlock()
-
+func (j *Job) hook(handler sync.Handler) sync.Hook {
+	return sync.Hook{OnRun: func(ctx context.Context) error {
 		ctx, cancel := context.WithTimeout(ctx, j.config.GetTimeout())
 		defer cancel()
 
-		_ = j.handler(ctx)
-	})
+		return handler(ctx)
+	}}
 }

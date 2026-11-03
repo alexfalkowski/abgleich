@@ -2,5 +2,6 @@
 // result identity, and safe publication. It refreshes consent through
 // commands.Authorizer. Features supply their own prompts, model configuration,
 // and independently registered queue jobs; replies use one shared template.
-// Enabled jobs also reconcile their own outdated inline threads without inference.
+// Manual requests wake their job without repository-wide discovery. Scheduled
+// runs also reconcile their own outdated inline threads without inference.
 package workflow

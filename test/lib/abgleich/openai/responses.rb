@@ -9,7 +9,20 @@ module Abgleich
     end
 
     def reset
-      @mutex.synchronize { @state = { mode: nil, requests: [], on_request: nil } }
+      @mutex.synchronize do
+        @state&.fetch(:response_gate, nil)&.close
+        @state = { mode: nil, requests: [], on_request: nil }
+      end
+    end
+
+    # Hold inference while queued commands and other GitHub work remain available.
+    def pause_responses
+      @mutex.synchronize { @state[:response_gate] = Queue.new }
+    end
+
+    def resume_responses
+      gate = @mutex.synchronize { @state.delete(:response_gate) }
+      gate&.close
     end
 
     def mode=(mode)
@@ -31,6 +44,8 @@ module Abgleich
         @state[:on_request]
       end
       handler&.call
+      gate = @mutex.synchronize { @state[:response_gate] }
+      gate&.pop(timeout: 3)
     end
 
     def requests

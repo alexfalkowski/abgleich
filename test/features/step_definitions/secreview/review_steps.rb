@@ -20,7 +20,7 @@ Given('a security review previously failed at the provider') do
   @comment_event = Abgleich.github.add_comment('contribution', body: '/ab secreview')
   Nonnative.start
   expect(Abgleich.deliver_comment(@comment_event).code).to eq(204)
-  step 'the security review should fail without publishing findings'
+  expect_review_failure('security')
   Abgleich.openai.mode = ''
 end
 
