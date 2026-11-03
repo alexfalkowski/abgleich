@@ -44,6 +44,6 @@ Then('the security reviewer should have read-only access') do
   expect(payload.fetch('instructions')).to include('attacker-controlled input', 'prerequisites', 'mitigation', 'untrusted')
   expect(payload.fetch('store')).to be(false), 'expected security inference response storage to remain disabled'
   names = payload.fetch('tools').map { |tool| tool.fetch('name') }
-  expect(names).to contain_exactly('list_source_files', 'read_source', 'read_go_dependency', 'read_go_reference')
+  expect(names).to contain_exactly('list_source_files', 'read_sources', 'read_go_dependency', 'read_go_reference')
   expect(payload).not_to have_key('max_output_tokens')
 end

@@ -23,6 +23,8 @@ const (
 	maxSourceRedirects   = 10
 )
 
+var errRepositorySource = errors.New("review: could not retrieve complete repository source")
+
 // NewSources constructs a credential-free connection to the trusted Go proxy.
 // Archive redirects may reach the Go proxy's HTTPS storage bucket. It never
 // executes Go or extracts archives to the filesystem.
@@ -36,6 +38,7 @@ func NewSources(cfg *Config, connections *client.Factory) (*Sources, error) {
 		return nil, errors.Prefix("review: source client", err)
 	}
 	connection.CheckRedirect = sourceRedirect
+
 	return &Sources{
 		client: connection,
 		proxy:  strings.TrimRight(cfg.GetModuleProxy(), "/"),
@@ -94,6 +97,7 @@ func sourceRedirect(request *http.Request, via []*http.Request) error {
 	if proxy && archive && storage {
 		return nil
 	}
+
 	return http.ErrUseLastResponse
 }
 
@@ -102,7 +106,7 @@ type sourceSession struct {
 	sources    *Sources
 	repository *github.Repository
 	files      map[string]string
-	trees      map[string][]string
+	trees      map[string][]*github.TreeEntry
 	archives   map[string]*zip.Reader
 	headSHA    string
 	baseSHA    string
@@ -113,7 +117,7 @@ type sourceSession struct {
 func (s *sourceSession) list(ctx context.Context, filter string) ([]string, error) {
 	files, err := s.treeFiles(ctx, s.headSHA)
 	if err != nil {
-		return nil, errors.New("review: repository tree")
+		return nil, err
 	}
 
 	var paths []string
@@ -122,26 +126,56 @@ func (s *sourceSession) list(ctx context.Context, filter string) ([]string, erro
 			paths = append(paths, name)
 		}
 	}
+
 	return paths, nil
 }
 
-func (s *sourceSession) read(ctx context.Context, filename string) (string, error) {
-	if !fs.ValidPath(filename) || strings.Contains(filename, "\\") {
-		return strings.Empty, errors.New("review: invalid repository path")
-	}
-
+func (s *sourceSession) read(ctx context.Context, filenames []string) (string, error) {
 	paths, err := s.treeFiles(ctx, s.headSHA)
 	if err != nil {
-		return strings.Empty, errors.New("review: repository tree")
+		return strings.Empty, err
+	}
+
+	var selected []string
+	for _, filename := range paths {
+		for _, requested := range filenames {
+			if filename == requested || path.Dir(filename) == requested {
+				selected = append(selected, filename)
+				break
+			}
+		}
+	}
+
+	contents, err := s.repositoryFiles(ctx, selected, false)
+	if err != nil {
+		return strings.Empty, err
+	}
+
+	var source strings.Builder
+	for _, filename := range filenames {
+		if err := ctx.Err(); err != nil {
+			return strings.Empty, err
+		}
+		source.WriteString(s.readPath(ctx, filename, paths, contents))
+		source.WriteString("\n")
+	}
+
+	return source.String(), nil
+}
+
+func (s *sourceSession) readPath(ctx context.Context, filename string, paths []string, contents map[string]string) string {
+	if !fs.ValidPath(filename) || strings.Contains(filename, "\\") {
+		return s.unavailable("review: invalid repository path")
 	}
 
 	if !slices.Contains(paths, filename) {
-		return s.directory(ctx, filename, paths), nil
+		return s.directory(ctx, filename, paths, contents)
 	}
-	return "Source: " + filename + " at " + s.headSHA + "\n" + s.repositoryFile(ctx, filename, false), nil
+
+	return "Source: " + filename + " at " + s.headSHA + "\n" + contents[filename]
 }
 
-func (s *sourceSession) directory(ctx context.Context, directory string, paths []string) string {
+func (s *sourceSession) directory(ctx context.Context, directory string, paths []string, contents map[string]string) string {
 	var source strings.Builder
 	for _, filename := range paths {
 		if path.Dir(filename) != directory {
@@ -153,58 +187,132 @@ func (s *sourceSession) directory(ctx context.Context, directory string, paths [
 		}
 
 		fmt.Fprintf(&source, "\nSource: %s at %s\n", filename, s.headSHA)
-		source.WriteString(s.repositoryFile(ctx, filename, false))
+		source.WriteString(contents[filename])
 		source.WriteString("\n")
 	}
 
 	if source.Len() == 0 {
 		return s.unavailable(directory)
 	}
+
 	return source.String()
 }
 
-func (s *sourceSession) repositoryFile(ctx context.Context, filename string, base bool) string {
-	if !fs.ValidPath(filename) || strings.Contains(filename, "\\") {
-		return s.unavailable("invalid repository path")
-	}
+func (s *sourceSession) repositoryFile(ctx context.Context, filename string, base bool) (string, error) {
+	contents, err := s.repositoryFiles(ctx, []string{filename}, base)
+	return contents[filename], err
+}
 
+func (s *sourceSession) repositoryFiles(ctx context.Context, filenames []string, base bool) (map[string]string, error) {
 	revision := s.headSHA
 	if base {
 		revision = s.baseSHA
 	}
 
-	key := revision + ":" + filename
-	if content, ok := s.files[key]; ok {
-		return content
+	contents, missing := s.uncachedFiles(revision, filenames)
+	if len(missing) == 0 {
+		return contents, nil
 	}
 
-	paths, err := s.treeFiles(ctx, revision)
-	if err != nil || !slices.Contains(paths, filename) {
-		return s.unavailable(key + " (regular file unavailable)")
+	files, err := s.regularFiles(ctx, revision, missing, contents)
+	if err != nil || len(files) == 0 {
+		return contents, err
 	}
 
-	content, err := s.github.ReadSourceFile(ctx, s.repository, revision, filename)
+	current, err := s.github.ReadSourceFiles(ctx, s.repository, revision, files)
 	if err != nil {
-		return s.unavailable(key + " (" + err.Error() + ")")
+		return nil, errors.Join(errRepositorySource, err)
 	}
 
-	s.inspected = append(s.inspected, key)
-	s.files[key] = content
-	return content
+	for _, file := range files {
+		filename := file.GetPath()
+		key := revision + ":" + filename
+		if content, ok := current[filename]; ok {
+			s.inspected = append(s.inspected, key)
+			s.files[key] = content
+			contents[filename] = content
+			continue
+		}
+
+		contents[filename] = s.unavailable(key + " (binary file)")
+	}
+
+	return contents, nil
 }
 
-func (s *sourceSession) treeFiles(ctx context.Context, revision string) ([]string, error) {
-	if paths, ok := s.trees[revision]; ok {
-		return paths, nil
+func (s *sourceSession) uncachedFiles(revision string, filenames []string) (map[string]string, []string) {
+	contents := make(map[string]string, len(filenames))
+	seen := make(map[string]bool, len(filenames))
+
+	var missing []string
+	for _, filename := range filenames {
+		if seen[filename] {
+			continue
+		}
+		seen[filename] = true
+		if !fs.ValidPath(filename) || strings.Contains(filename, "\\") {
+			contents[filename] = s.unavailable("invalid repository path")
+			continue
+		}
+		if content, ok := s.files[revision+":"+filename]; ok {
+			contents[filename] = content
+			continue
+		}
+		missing = append(missing, filename)
 	}
 
-	paths, err := s.github.ListSourceFiles(ctx, s.repository, revision)
+	return contents, missing
+}
+
+func (s *sourceSession) regularFiles(ctx context.Context, revision string, filenames []string, contents map[string]string) ([]*github.TreeEntry, error) {
+	entries, err := s.treeEntries(ctx, revision)
 	if err != nil {
 		return nil, err
 	}
 
-	s.trees[revision] = paths
+	byPath := make(map[string]*github.TreeEntry, len(entries))
+	for _, entry := range entries {
+		byPath[entry.GetPath()] = entry
+	}
+
+	var files []*github.TreeEntry
+	for _, filename := range filenames {
+		if entry := byPath[filename]; entry != nil {
+			files = append(files, entry)
+		} else {
+			contents[filename] = s.unavailable(revision + ":" + filename + " (regular file unavailable)")
+		}
+	}
+
+	return files, nil
+}
+
+func (s *sourceSession) treeFiles(ctx context.Context, revision string) ([]string, error) {
+	entries, err := s.treeEntries(ctx, revision)
+	if err != nil {
+		return nil, err
+	}
+
+	paths := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		paths = append(paths, entry.GetPath())
+	}
+
 	return paths, nil
+}
+
+func (s *sourceSession) treeEntries(ctx context.Context, revision string) ([]*github.TreeEntry, error) {
+	if entries, ok := s.trees[revision]; ok {
+		return entries, nil
+	}
+
+	entries, err := s.github.ListSourceFiles(ctx, s.repository, revision)
+	if err != nil {
+		return nil, errors.Join(errRepositorySource, err)
+	}
+
+	s.trees[revision] = entries
+	return entries, nil
 }
 
 func (s *sourceSession) unavailable(label string) string {
@@ -212,6 +320,7 @@ func (s *sourceSession) unavailable(label string) string {
 	if !slices.Contains(s.missing, message) {
 		s.missing = append(s.missing, message)
 	}
+
 	return message
 }
 
@@ -226,5 +335,6 @@ func validSourceEndpoint(raw string) bool {
 	if !strings.IsEmpty(endpoint.RawQuery) || !strings.IsEmpty(endpoint.Fragment) {
 		return false
 	}
+
 	return endpoint.Scheme == "https" || endpoint.Scheme == "http"
 }

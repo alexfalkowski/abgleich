@@ -16,12 +16,6 @@ import (
 	"golang.org/x/mod/module"
 )
 
-type dependencyRequest struct {
-	Manifest string `json:"manifest"`
-	Module   string `json:"module"`
-	Path     string `json:"path"`
-}
-
 type dependencyRef struct {
 	module   module.Version
 	checksum string
@@ -49,6 +43,7 @@ func (s *sourceSession) dependency(ctx context.Context, args dependencyRequest) 
 
 		s.archives[key] = archive
 	}
+
 	return s.dependencySource(archive, key, args.Path), nil
 }
 
@@ -79,18 +74,23 @@ func (s *sourceSession) resolveDependency(ctx context.Context, args dependencyRe
 		return nil, errors.New("review: invalid module identity")
 	}
 
-	sums := s.repositoryFile(ctx, path.Join(path.Dir(args.Manifest), "go.sum"), false)
+	sums, err := s.repositoryFile(ctx, path.Join(path.Dir(args.Manifest), "go.sum"), false)
+	if err != nil {
+		return nil, err
+	}
+
 	checksum := moduleChecksum(sums, selected)
 	if strings.IsEmpty(checksum) {
 		return nil, errors.New("review: dependency has no reviewed go.sum checksum")
 	}
+
 	return &dependencyRef{module: selected, checksum: checksum}, nil
 }
 
 func (s *sourceSession) moduleManifest(ctx context.Context, filename string) (*modfile.File, error) {
 	paths, err := s.treeFiles(ctx, s.headSHA)
 	if err != nil {
-		return nil, errors.New("review: repository tree")
+		return nil, err
 	}
 
 	directory := path.Dir(filename)
@@ -110,10 +110,16 @@ func (s *sourceSession) moduleManifest(ctx context.Context, filename string) (*m
 		directory = path.Dir(directory)
 	}
 
-	manifest, err := modfile.Parse(filename, strings.Bytes(s.repositoryFile(ctx, filename, false)), nil)
+	content, err := s.repositoryFile(ctx, filename, false)
+	if err != nil {
+		return nil, err
+	}
+
+	manifest, err := modfile.Parse(filename, strings.Bytes(content), nil)
 	if err != nil {
 		return nil, errors.New("review: Go dependency manifest")
 	}
+
 	return manifest, nil
 }
 
@@ -134,6 +140,7 @@ func replacedModule(manifest *modfile.File, selected module.Version) (module.Ver
 	if strings.IsEmpty(replacement.Version) {
 		return module.Version{}, errors.New("review: local dependency replacement; inspect repository source")
 	}
+
 	return replacement, nil
 }
 
@@ -153,6 +160,7 @@ func moduleChecksum(sums string, selected module.Version) string {
 			return fields[2]
 		}
 	}
+
 	return strings.Empty
 }
 
@@ -160,6 +168,7 @@ func (s *sourceSession) dependencySource(archive *zip.Reader, key, requested str
 	prefix := key + "/"
 	var source strings.Builder
 	var names []string
+
 	for _, file := range archive.File {
 		filename := strings.TrimPrefix(file.Name, prefix)
 		if filename == requested {
@@ -195,11 +204,13 @@ func packageSourceFile(filename, directory string) bool {
 
 func (s *sourceSession) dependencyFile(file *zip.File) string {
 	label := file.Name
+
 	reader, err := file.Open()
 	if err != nil {
 		return s.unavailable(label)
 	}
 	defer reader.Close()
+
 	content, err := io.ReadAll(reader)
 	if err != nil || !utf8.Valid(content) || bytes.ContainsRune(content, 0) {
 		return s.unavailable(label)
@@ -208,5 +219,6 @@ func (s *sourceSession) dependencyFile(file *zip.File) string {
 	if !slices.Contains(s.inspected, label) {
 		s.inspected = append(s.inspected, label)
 	}
+
 	return "Source: " + label + " (reviewed go.sum verified)\n" + bytes.String(content)
 }

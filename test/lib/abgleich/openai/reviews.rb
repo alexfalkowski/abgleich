@@ -54,8 +54,18 @@ module Abgleich
       when 'review source the declared Go language rules' then [['read_go_reference', { manifest: 'go.mod' }]]
       when 'review source the declared Go language rules again' then Array.new(2) { ['read_go_reference', { manifest: 'go.mod' }] }
       when 'review source several rounds of investigation' then Array.new(3) { ['list_source_files', { filter: 'helpers' }] }
-      when 'review source a file outside the repository' then [['read_source', { path: '../keys/private' }]]
-      when 'review source a related source file' then [['read_source', { path: 'helpers/guard.go' }]]
+      when 'review source a file outside the repository' then [['read_sources', { paths: ['../keys/private'] }]]
+      when 'review source a related source file' then [['read_sources', { paths: ['helpers/guard.go'] }]]
+      when 'review source a large directory' then [['read_sources', { paths: ['helpers'] }]]
+      else batch_source_calls(mode)
+      end
+    end
+
+    def batch_source_calls(mode)
+      case mode
+      when 'review source a batch of related files' then [['read_sources', { paths: %w[helpers/guard.go go.mod] }]]
+      when 'review source a batch with an invalid path' then [['read_sources', { paths: %w[helpers/guard.go ../keys/private go.mod] }]]
+      when 'review source a malformed batch' then [['read_sources', { paths: 'helpers/guard.go' }]]
       else dependency_source_calls(mode)
       end
     end
@@ -73,7 +83,7 @@ module Abgleich
 
     def related_source_calls(mode)
       manifest = mode == 'review source a nested Go module' ? 'tools/app/go.mod' : 'go.mod'
-      [['list_source_files', { filter: 'helpers' }], ['read_source', { path: 'helpers' }],
+      [['list_source_files', { filter: 'helpers' }], ['read_sources', { paths: ['helpers'] }],
        ['read_go_dependency', { manifest:, module: 'example.com/library', path: '.' }]]
     end
 

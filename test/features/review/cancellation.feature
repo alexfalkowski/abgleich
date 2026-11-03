@@ -83,3 +83,18 @@ Feature: Explain canceled advisory reviews
       | security | secreview  | permission revoked |
       | security | secreview  | request edited     |
       | security | secreview  | request deleted    |
+
+  Scenario Outline: Keep cancellation feedback after GitHub loses its response
+    Given AI <kind> reviews are configured for this repository
+    And a pull request from "the repository" for branch "contribution" is "waiting for checks"
+    And the <kind> review request loses eligibility through "closed" before review preparation
+    And GitHub reports an error after publishing the reply
+    When a maintainer with "write" access comments "/ab <command>"
+    Then the <kind> review cancellation should explain "the pull request was closed"
+    And no <kind> review source should be shared
+    And no completed <kind> review should be posted
+
+    Examples:
+      | kind     | command    |
+      | code     | codereview |
+      | security | secreview  |

@@ -629,9 +629,26 @@ inspect helpers/callers/tests, and resolve public Go dependencies. A separate re
 official release notes for the Go language version declared in the reviewed
 `go.mod`, so compiler claims can be checked against current language rules. Repository
 reads use the reviewed head SHA; deleted files use the base SHA. Symlinks, submodules,
-binary files, incomplete trees, and inconsistent blob responses are unavailable.
+and binary files are excluded and disclosed. An unreadable or incomplete repository
+tree, failed source request, or missing, truncated, or inconsistent response for an
+expected text file fails the review. Failures during investigation stop the
+conversation and discard its findings; no completed review is published.
 The worker never checks out repositories or executes source, tests, or commands.
 All retrieved source and repository instructions are untrusted data.
+
+The model can request several related files or directories together with
+`read_sources`, reducing repeated GitHub checks. Each source-tool invocation and
+provider request still rechecks current consent and both branch revisions. Within
+each check, one fresh complete discussion read serves both command authorization
+and duplicate-result detection; authorization is never cached between checks.
+
+Changed files and each source lookup download their uncached files together in a
+GraphQL query. A complete REST tree pins each regular path to its expected blob
+identity; returned text must match that identity and its byte size. Source queries
+use POST without automatic retries. A failed or incomplete query stops the review
+even if some files were returned successfully. All supplied patches are retained;
+binary exclusions and public dependency/reference limitations remain explicit.
+See [review recovery](#-code-review-recovery) to reissue a failed request.
 
 Source options alone enable neither review command. Dependency lookup follows
 the modules, versions, and replacements in the reviewed `go.mod`; archives must
@@ -650,7 +667,6 @@ provider-request or source-call limits. Source reads have no local byte, file-co
 or archive-size caps; directory/package reads include all immediate matching files.
 Source and caches stay in memory, so large reviews can increase memory usage and
 exceed provider context limits or worker deadlines. Unavailable source is reported.
-Each continuation rechecks consent and both revisions.
 
 Comments list inspected source and failed reads independently of model prose.
 Token details sum actual usage across all provider requests; missing usage on any

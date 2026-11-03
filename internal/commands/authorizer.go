@@ -27,6 +27,24 @@ func (a *Authorizer) Authorize(ctx context.Context, name string, repo *github.Re
 		return nil, err
 	}
 
+	return a.authorize(ctx, name, repo, comment)
+}
+
+// AuthorizeWithHistory applies the same consent and current permission checks as
+// Authorize, using the command from a complete fresh discussion read. It returns
+// that history for result detection within the same check. Missing commands
+// return nil; history read and identity errors prevent authorization.
+func (a *Authorizer) AuthorizeWithHistory(ctx context.Context, name string, repo *github.Repository, number int, expected *github.IssueComment) (*github.IssueComment, []*github.IssueComment, error) {
+	comment, comments, err := a.github.GetCommentWithHistory(ctx, repo, number, expected)
+	if err != nil || comment == nil {
+		return nil, comments, err
+	}
+
+	comment, err = a.authorize(ctx, name, repo, comment)
+	return comment, comments, err
+}
+
+func (a *Authorizer) authorize(ctx context.Context, name string, repo *github.Repository, comment *github.IssueComment) (*github.IssueComment, error) {
 	matchesCommand := Parse(comment.GetBody()) == name
 	isHuman := comment.GetUser().GetType() == "User"
 	hasMetadata := github.HasCommentMetadata(comment)

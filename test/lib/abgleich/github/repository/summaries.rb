@@ -20,7 +20,8 @@ module Abgleich
       def issue_comments(repository, number)
         @mutex.synchronize do
           url = "http://localhost:11001/github/repos/#{repository}/issues/#{number}"
-          @state[:comments].values.map { |entry| entry[:comment] }.select { |comment| comment[:issue_url] == url }
+          entries = @state[:comments].values.reject { |entry| entry[:permission] && @state[:failure] == 'review deleted comment' }
+          entries.map { |entry| entry[:comment] }.select { |comment| comment[:issue_url] == url }
         end
       end
 
@@ -113,6 +114,7 @@ module Abgleich
         case mode
         when 'permission revoked' then entry[:permission] = 'read'
         when 'request edited' then entry[:comment][:updated_at] = '2026-01-01T00:00:06Z'
+        when 'request identity changed' then entry[:comment].merge!(created_at: '2026-01-01T00:00:04Z', updated_at: '2026-01-01T00:00:04Z')
         when 'topic removed' then @state[:repositories].each_value { |repository| repository[:topics] = [] }
         end
       end

@@ -137,3 +137,56 @@ func (s *service) validateReview(repo *Repository, pull *PullRequest, review *Pu
 
 	return nil
 }
+
+// PullRequestReviewAuthorsRequest queries authenticated authorship for a batch
+// of review node IDs.
+type PullRequestReviewAuthorsRequest struct {
+	// Query contains the GraphQL operation submitted with these variables.
+	Query string `json:"query"`
+	// Variables binds the operation's GraphQL arguments.
+	Variables struct {
+		// IDs lists review node IDs whose authenticated authorship must be checked.
+		IDs []string `json:"ids"`
+	} `json:"variables"`
+}
+
+// PullRequestReviewAuthorsResponse requires each requested review identity and
+// explicit authorship. Call Validate even when the HTTP request succeeds.
+type PullRequestReviewAuthorsResponse struct {
+	// Data contains returned operation data, which still requires error and identity validation.
+	Data struct {
+		// Nodes returns one authorship result for each requested review identity.
+		Nodes []*struct {
+			// ViewerDidAuthor reports authenticated viewer authorship; nil cannot establish ownership.
+			ViewerDidAuthor *bool `json:"viewer_did_author"`
+			// ID identifies the review whose authorship was returned.
+			ID string `json:"id"`
+		} `json:"nodes"`
+	} `json:"data"`
+	// Errors retains GraphQL failures even when the HTTP response succeeds.
+	Errors Errors `json:"errors"`
+}
+
+// Validate requires exactly one explicit authorship result for every requested
+// ID, regardless of response order. False is a valid authorship result.
+func (r *PullRequestReviewAuthorsResponse) Validate(expectedIDs []string) error {
+	if err := r.Errors.Validate(); err != nil {
+		return errors.Prefix("github: review authorship", err)
+	}
+	if len(r.Data.Nodes) != len(expectedIDs) {
+		return errors.New("github: review authorship returned an incomplete batch")
+	}
+
+	expected := make(map[string]bool, len(expectedIDs))
+	for _, id := range expectedIDs {
+		expected[id] = true
+	}
+	for _, node := range r.Data.Nodes {
+		if node == nil || !expected[node.ID] || node.ViewerDidAuthor == nil {
+			return errors.New("github: review authorship returned no matching review")
+		}
+		delete(expected, node.ID)
+	}
+
+	return nil
+}

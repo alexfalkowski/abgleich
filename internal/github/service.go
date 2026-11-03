@@ -3,32 +3,12 @@ package github
 import (
 	"github.com/alexfalkowski/go-service/v2/context"
 	"github.com/alexfalkowski/go-service/v2/errors"
-	"github.com/alexfalkowski/go-service/v2/net/http"
-	"github.com/alexfalkowski/go-service/v2/net/http/media"
 	"github.com/alexfalkowski/go-service/v2/strings"
 	"github.com/alexfalkowski/go-service/v2/telemetry/logger"
 	"github.com/google/go-github/v93/github"
 )
 
 const pageSize = 100
-
-// GitHub exposes server-side rebases through GraphQL, while the REST branch
-// update only merges. Keep using go-github's authenticated request transport.
-// https://docs.github.com/en/graphql/reference/pulls#updatepullrequestbranch
-const rebaseMutation = `mutation RebasePullRequest($input: UpdatePullRequestBranchInput!) {
-  updatePullRequestBranch(input: $input) {
-    pullRequest { id }
-  }
-}`
-
-// GitHub enables auto-merge through GraphQL and merges once repository
-// requirements pass. Keep using go-github's authenticated request transport.
-// https://docs.github.com/en/graphql/reference/pulls#enablepullrequestautomerge
-const autoMergeMutation = `mutation EnableAutoMerge($input: EnablePullRequestAutoMergeInput!) {
-  enablePullRequestAutoMerge(input: $input) {
-    pullRequest { id }
-  }
-}`
 
 // NewService constructs shared worker and webhook access through the App client.
 // Construction does not contact GitHub; each sweep discovers fresh remote state.
@@ -39,14 +19,16 @@ func NewService(cfg *Config, client *Client, log *logger.Logger) Service {
 // Service owns repository discovery, identity checks, REST reads, and guarded
 // mutations. Callers own pull request eligibility, rebase, and merge policy.
 type Service interface {
-	// ReadSourceFile returns UTF-8 source at the caller's fixed revision. Callers
-	// must select regular paths from ListSourceFiles to exclude symlink resolution.
-	// Paths, response identity, size, and Git blob digest are validated.
-	ReadSourceFile(ctx context.Context, repo *Repository, revision, filename string) (string, error)
+	// ReadSourceFiles batches regular entries from ListSourceFiles at a fixed
+	// revision. Only complete UTF-8 blobs matching the repository, tree SHA and
+	// byte size are returned, keyed by path. Binary entries are omitted; failed,
+	// missing, or inconsistent responses reject the group. Reads do not retry.
+	ReadSourceFiles(ctx context.Context, repo *Repository, revision string, files []*TreeEntry) (map[string]string, error)
 
-	// ListSourceFiles returns regular file paths from a complete recursive tree.
-	// Truncated trees are errors; symlinks and submodules are excluded.
-	ListSourceFiles(ctx context.Context, repo *Repository, revision string) ([]string, error)
+	// ListSourceFiles returns regular entries, including their blob identities,
+	// from a complete recursive tree. Truncated trees and missing identities are
+	// errors; symlinks and submodules are excluded.
+	ListSourceFiles(ctx context.Context, repo *Repository, revision string) ([]*TreeEntry, error)
 
 	// ListBranches collects complete, validated branch pagination before cleanup.
 	ListBranches(ctx context.Context, repo *Repository) ([]*Branch, error)
@@ -70,6 +52,11 @@ type Service interface {
 
 	// GetComment reads the current comment and verifies its PR and author identity.
 	GetComment(ctx context.Context, repo *Repository, number int, expected *IssueComment) (*IssueComment, error)
+
+	// GetCommentWithHistory reads the complete discussion and validates the
+	// expected command's PR, author, and creation identity. A missing command
+	// returns nil with the current history; no snapshot is cached.
+	GetCommentWithHistory(ctx context.Context, repo *Repository, number int, expected *IssueComment) (*IssueComment, []*IssueComment, error)
 
 	// HasWritePermission checks the author's current repository permissions.
 	HasWritePermission(ctx context.Context, repo *Repository, author *User) (bool, error)
@@ -333,56 +320,6 @@ func (s *service) Compare(ctx context.Context, repo *Repository, base, head stri
 	}
 
 	return comparison, nil
-}
-
-// Rebase requests a server-side rebase using pull's node ID and expected head
-// SHA. HTTP failures, GraphQL errors, and mismatched response IDs are errors.
-// Success confirms acceptance, not completion; the mutation is not retried.
-func (s *service) Rebase(ctx context.Context, pull *PullRequest) error {
-	nodeID := pull.GetNodeID()
-	body := UpdatePullRequestBranchRequest{Query: rebaseMutation}
-	body.Variables.Input = UpdatePullRequestBranchInput{
-		PullRequestID: nodeID, ExpectedHeadOID: pull.GetHead().GetSHA(), UpdateMethod: "REBASE",
-	}
-
-	request, err := s.client.installation.NewRequest(ctx, http.MethodPost, "graphql", body)
-	if err != nil {
-		return err
-	}
-
-	request.Header.Set(http.AcceptKey, media.JSON)
-
-	var response UpdatePullRequestBranchResponse
-
-	if _, err := s.client.installation.Do(request, &response); err != nil {
-		return err
-	}
-
-	return response.Validate(nodeID)
-}
-
-// EnableAutoMerge enables squash auto-merge using the PR's node ID and expected
-// head SHA. GitHub enforces repository rules. Failures are not retried.
-func (s *service) EnableAutoMerge(ctx context.Context, pull *PullRequest) error {
-	body := EnablePullRequestAutoMergeRequest{Query: autoMergeMutation}
-	body.Variables.Input = EnablePullRequestAutoMergeInput{
-		PullRequestID: pull.GetNodeID(), ExpectedHeadOID: pull.GetHead().GetSHA(), MergeMethod: "SQUASH",
-	}
-
-	request, err := s.client.installation.NewRequest(ctx, http.MethodPost, "graphql", body)
-	if err != nil {
-		return err
-	}
-
-	request.Header.Set(http.AcceptKey, media.JSON)
-
-	var response EnablePullRequestAutoMergeResponse
-
-	if _, err := s.client.installation.Do(request, &response); err != nil {
-		return err
-	}
-
-	return response.Validate(pull.GetNodeID())
 }
 
 // Merge requests a squash merge with the expected head SHA. GitHub enforces
