@@ -138,6 +138,11 @@ type Service interface {
 	// comparing names case-insensitively. Its head may belong to a fork.
 	IsBaseRepository(repo *Repository, pull *PullRequest) bool
 
+	// IsSamePullRequestIdentity matches PR number and node ID across snapshots
+	// and requires current to target repo, comparing repository names ignoring
+	// case. Branch refs and commit SHAs may differ.
+	IsSamePullRequestIdentity(repo *Repository, current, expected *PullRequest) bool
+
 	// IsSamePullRequest compares identity, branch repositories, refs, and head
 	// SHA across snapshots. Repository names are compared case-insensitively.
 	IsSamePullRequest(current, expected *PullRequest) bool

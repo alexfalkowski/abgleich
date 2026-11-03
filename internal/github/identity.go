@@ -22,6 +22,17 @@ func (s *service) IsBaseRepository(repo *Repository, pull *PullRequest) bool {
 	return strings.ToLower(repo.GetFullName()) == strings.ToLower(pull.GetBase().GetRepo().GetFullName())
 }
 
+// IsSamePullRequestIdentity compares the PR number and node ID across snapshots
+// and requires current to target repo. Repository names ignore case; branch refs
+// and commit SHAs may differ.
+func (s *service) IsSamePullRequestIdentity(repo *Repository, current, expected *PullRequest) bool {
+	sameNumber := current.GetNumber() == expected.GetNumber()
+	sameNodeID := current.GetNodeID() == expected.GetNodeID()
+	sameRepository := s.IsBaseRepository(repo, current)
+
+	return sameNumber && sameNodeID && sameRepository
+}
+
 // IsSamePullRequest detects changes to the PR identity, branch repositories,
 // refs, or head SHA between snapshots. Repository names ignore case.
 func (s *service) IsSamePullRequest(current, expected *PullRequest) bool {
