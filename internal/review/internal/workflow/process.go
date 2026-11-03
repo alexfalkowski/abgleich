@@ -72,6 +72,7 @@ func (c *Command) process(ctx context.Context, task *reviewTask) error {
 	if err != nil {
 		return c.reportFailure(ctx, task, err)
 	}
+
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -84,13 +85,16 @@ func (c *Command) publishReview(ctx context.Context, task *reviewTask, completio
 	if err != nil {
 		return c.reportFailure(ctx, task, err)
 	}
+
 	task, err = c.recheck(ctx, task)
 	if err != nil || task == nil {
 		return err
 	}
+
 	if err := ctx.Err(); err != nil {
 		return err
 	}
+
 	return c.github.AddReview(ctx, task.repository, task.pullRequest, publication)
 }
 
@@ -159,6 +163,7 @@ func (c *Command) publish(ctx context.Context, task *reviewTask, body string) er
 	if err := ctx.Err(); err != nil {
 		return err
 	}
+
 	return c.github.AddComment(ctx, current.repository, current.pullRequest.GetNumber(), body)
 }
 
@@ -202,10 +207,7 @@ func (c *Command) authorizeCancellation(ctx context.Context, task *reviewTask) (
 		return nil, err
 	}
 
-	sameNumber := pull.GetNumber() == task.pullRequest.GetNumber()
-	sameNodeID := pull.GetNodeID() == task.pullRequest.GetNodeID()
-	sameRepository := c.github.IsBaseRepository(repo, pull)
-	if !sameNumber || !sameNodeID || !sameRepository {
+	if !c.github.IsSamePullRequestIdentity(repo, pull, task.pullRequest) {
 		return nil, errors.New("review: pull request identity changed before cancellation")
 	}
 

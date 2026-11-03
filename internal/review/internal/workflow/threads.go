@@ -95,10 +95,7 @@ func (c *Command) resolveThread(ctx context.Context, repository *github.Reposito
 		return err
 	}
 
-	sameNumber := current.GetNumber() == pull.GetNumber()
-	sameNodeID := current.GetNodeID() == pull.GetNodeID()
-	sameRepository := c.github.IsBaseRepository(repository, current)
-	if !sameNumber || !sameNodeID || !sameRepository {
+	if !c.github.IsSamePullRequestIdentity(repository, current, pull) {
 		return errors.New("review: pull request identity changed before thread resolution")
 	}
 	if current.GetState() != "open" {

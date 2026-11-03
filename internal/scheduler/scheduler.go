@@ -9,6 +9,22 @@ import (
 	"github.com/alexfalkowski/go-sync"
 )
 
+// TriggeredHandler supplies scheduled and queue processing for one job.
+// Both processing methods must observe cancellation and return complete outcomes;
+// the scheduler prevents them from overlapping.
+type TriggeredHandler interface {
+	// Process handles startup and scheduled runs within the job timeout.
+	Process(ctx context.Context) error
+
+	// ProcessQueue drains pending work after a Ready notification, with a fresh
+	// job timeout starting when execution begins.
+	ProcessQueue(ctx context.Context) error
+
+	// Ready returns a stable channel that coalesces pending-work notifications.
+	// The channel must remain open for the scheduler's lifetime.
+	Ready() <-chan struct{}
+}
+
 // NewScheduler constructs a scheduler with no jobs. Feature packages register
 // their jobs before the application starts.
 func NewScheduler(log *logger.Logger) *Scheduler {
@@ -29,32 +45,19 @@ type Scheduler struct {
 // Outcomes and overruns are logged after each run.
 // A nil configuration uses the default interval and timeout.
 func (s *Scheduler) Register(name string, cfg Schedule, handler sync.Handler) error {
-	return s.RegisterTriggered(name, cfg, handler, nil, nil)
+	return s.register(NewJob(name, cfg, handler))
 }
 
-// RegisterTriggered adds one job with separate scheduled and notified handlers.
-// Notifications coalesce while either handler runs and request a later notified
-// pass. Both handlers share the job deadline, overlap protection, and shutdown.
-// ready must remain open for the scheduler's lifetime and requires a non-nil
-// triggered handler. Pass nil for both to disable notifications.
-func (s *Scheduler) RegisterTriggered(name string, cfg Schedule, handler, triggered sync.Handler, ready <-chan struct{}) error {
-	for _, job := range s.jobs {
-		if job.name == name {
-			return fmt.Errorf("%w: %s", ErrJobRegistered, name)
-		}
-	}
+// RegisterTriggered adds one job with scheduled and queue processing supplied by
+// handler. It follows Register's naming, configuration, logging, and startup rules.
+// Notifications coalesce while either method runs and request a later queue pass.
+// Both methods share the job timeout, overlap protection, and shutdown.
+func (s *Scheduler) RegisterTriggered(name string, cfg Schedule, handler TriggeredHandler) error {
+	job := NewJob(name, cfg, handler.Process)
+	job.triggered = handler.ProcessQueue
+	job.ready = handler.Ready()
 
-	job := NewJob(name, cfg, handler)
-	job.handler = s.logHandler(job, handler, "schedule")
-	job.ready = ready
-
-	if triggered != nil {
-		job.triggered = s.logHandler(job, triggered, "queue")
-	}
-
-	s.jobs = append(s.jobs, job)
-
-	return nil
+	return s.register(job)
 }
 
 // Start begins each job immediately and schedules subsequent runs. Jobs do not
@@ -91,6 +94,23 @@ func (s *Scheduler) Stop(ctx context.Context) error {
 	}
 
 	return group.Wait()
+}
+
+func (s *Scheduler) register(job *Job) error {
+	for _, existing := range s.jobs {
+		if existing.name == job.name {
+			return fmt.Errorf("%w: %s", ErrJobRegistered, job.name)
+		}
+	}
+
+	job.handler = s.logHandler(job, job.handler, "schedule")
+	if job.triggered != nil {
+		job.triggered = s.logHandler(job, job.triggered, "queue")
+	}
+
+	s.jobs = append(s.jobs, job)
+
+	return nil
 }
 
 func (s *Scheduler) logHandler(job *Job, handler sync.Handler, trigger string) sync.Handler {
