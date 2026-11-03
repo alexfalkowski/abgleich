@@ -5,6 +5,7 @@ import (
 	"github.com/alexfalkowski/go-service/v2/errors"
 	"github.com/alexfalkowski/go-service/v2/net/http"
 	"github.com/alexfalkowski/go-service/v2/net/http/media"
+	"github.com/alexfalkowski/go-service/v2/strings"
 )
 
 // ReviewThread contains the state and authenticated ownership needed to maintain
@@ -178,6 +179,208 @@ func (s *service) ResolveReviewThread(ctx context.Context, _ *Repository, _ *Pul
 
 	if !sameThread || !isResolved {
 		return errors.New("github: resolve review thread returned no matching resolved thread")
+	}
+
+	return nil
+}
+
+// ReviewThreadsRequest queries one page of threads by pull request node ID.
+// A nil After cursor starts pagination.
+type ReviewThreadsRequest struct {
+	// Variables binds the operation's GraphQL arguments.
+	Variables struct {
+		// ID identifies the PR node whose inline conversations are requested.
+		ID string `json:"id"`
+		// After selects the next page; nil starts pagination.
+		After *string `json:"after"`
+	} `json:"variables"`
+	// Query contains the GraphQL operation submitted with these variables.
+	Query string `json:"query"`
+}
+
+// ReviewThreadsResponse carries thread ownership, state, and pagination.
+// HTTP success still requires GraphQL, identity, and completeness validation.
+type ReviewThreadsResponse struct {
+	// Data contains returned operation data, which still requires error and identity validation.
+	Data struct {
+		// Node contains the requested PR and thread page; nil cannot establish identity.
+		Node *struct {
+			threadPullRequest
+			// ReviewThreads contains one page of thread state and ownership evidence.
+			ReviewThreads struct {
+				// Nodes contains thread candidates; nil indicates an incomplete discovery page.
+				Nodes []*reviewThreadNode `json:"nodes"`
+				// PageInfo reports whether discovery must continue before the results are complete.
+				PageInfo struct {
+					// EndCursor selects the following page when HasNextPage is true.
+					EndCursor *string `json:"endCursor"`
+					// HasNextPage reports whether more results remain; nil indicates an incomplete response.
+					HasNextPage *bool `json:"hasNextPage"`
+				} `json:"pageInfo"`
+			} `json:"reviewThreads"`
+		} `json:"node"`
+	} `json:"data"`
+	// Errors retains GraphQL failures even when the HTTP response succeeds.
+	Errors Errors `json:"errors"`
+}
+
+// ReviewThreadRequest queries one review thread by its node ID.
+type ReviewThreadRequest struct {
+	// Query contains the GraphQL operation submitted with these variables.
+	Query string `json:"query"`
+	// Variables binds the operation's GraphQL arguments.
+	Variables struct {
+		// ID identifies the thread node to refresh immediately before maintenance.
+		ID string `json:"id"`
+	} `json:"variables"`
+}
+
+// ReviewThreadResponse carries one thread's state and authenticated ownership.
+// The service validates its identity and parent PR before returning a snapshot.
+type ReviewThreadResponse struct {
+	// Data contains returned operation data, which still requires error and identity validation.
+	Data struct {
+		// Node contains the thread's current state and ownership evidence; nil fails validation.
+		Node *reviewThreadNode `json:"node"`
+	} `json:"data"`
+	// Errors retains GraphQL failures even when the HTTP response succeeds.
+	Errors Errors `json:"errors"`
+}
+
+// ResolveReviewThreadRequest resolves a thread by node ID without an
+// expected-state guard; callers must refresh eligibility before submission.
+type ResolveReviewThreadRequest struct {
+	// Query contains the GraphQL operation submitted with these variables.
+	Query string `json:"query"`
+	// Variables binds the operation's GraphQL arguments.
+	Variables struct {
+		// Input supplies the mutation arguments, including the target identity.
+		Input struct {
+			// ThreadID identifies the thread to resolve after final eligibility rechecks.
+			ThreadID string `json:"threadId"`
+		} `json:"input"`
+	} `json:"variables"`
+}
+
+// ResolveReviewThreadResponse confirms a matching thread's resolved state.
+// GraphQL errors or missing confirmation must not be treated as acceptance.
+type ResolveReviewThreadResponse struct {
+	// Data contains returned operation data, which still requires error and identity validation.
+	Data struct {
+		// Resolve contains the resolveReviewThread acceptance payload.
+		Resolve struct {
+			// Thread confirms the target thread and its resolved state; nil cannot confirm acceptance.
+			Thread *struct {
+				// ID must match the requested thread node ID to confirm acceptance.
+				ID string `json:"id"`
+				// IsResolved must be present and true to confirm that the mutation resolved the thread.
+				IsResolved *bool `json:"isResolved"`
+			} `json:"thread"`
+		} `json:"resolveReviewThread"`
+	} `json:"data"`
+	// Errors retains GraphQL failures even when the HTTP response succeeds.
+	Errors Errors `json:"errors"`
+}
+
+func (r *ReviewThreadsResponse) validate(repo *Repository, pull *PullRequest) error {
+	if err := r.Errors.Validate(); err != nil {
+		return err
+	}
+
+	node := r.Data.Node
+	if node == nil || !node.matches(repo, pull) {
+		return errors.New("github: review threads returned no matching pull request")
+	}
+
+	page := node.ReviewThreads
+	if page.Nodes == nil || page.PageInfo.HasNextPage == nil {
+		return errors.New("github: review threads returned an incomplete page")
+	}
+	if *page.PageInfo.HasNextPage {
+		cursor := page.PageInfo.EndCursor
+		if cursor == nil || strings.IsEmpty(*cursor) {
+			return errors.New("github: review threads returned no next cursor")
+		}
+	}
+
+	return nil
+}
+
+type threadPullRequest struct {
+	ID         string `json:"id"`
+	State      string `json:"state"`
+	Repository struct {
+		NameWithOwner string `json:"nameWithOwner"`
+	} `json:"repository"`
+	Number int `json:"number"`
+}
+
+func (p *threadPullRequest) matches(repo *Repository, pull *PullRequest) bool {
+	sameNodeID := p.ID == pull.GetNodeID()
+	sameNumber := p.Number == pull.GetNumber()
+	sameRepository := strings.ToLower(p.Repository.NameWithOwner) == strings.ToLower(repo.GetFullName())
+	validState := p.State == "OPEN" || p.State == "CLOSED" || p.State == "MERGED"
+
+	return sameNodeID && sameNumber && sameRepository && validState
+}
+
+type reviewThreadNode struct {
+	ID               string            `json:"id"`
+	IsOutdated       *bool             `json:"isOutdated"`
+	IsResolved       *bool             `json:"isResolved"`
+	ViewerCanResolve *bool             `json:"viewerCanResolve"`
+	PullRequest      threadPullRequest `json:"pullRequest"`
+	Comments         struct {
+		Nodes []*struct {
+			ID              string `json:"id"`
+			ViewerDidAuthor *bool  `json:"viewerDidAuthor"`
+			Author          struct {
+				Type string `json:"__typename"`
+			} `json:"author"`
+			Review *struct {
+				ID              string  `json:"id"`
+				Body            *string `json:"body"`
+				ViewerDidAuthor *bool   `json:"viewerDidAuthor"`
+				Author          struct {
+					Type string `json:"__typename"`
+				} `json:"author"`
+				PullRequest threadPullRequest `json:"pullRequest"`
+			} `json:"pullRequestReview"`
+		} `json:"nodes"`
+	} `json:"comments"`
+}
+
+func (n *reviewThreadNode) validate(repo *Repository, pull *PullRequest) (*ReviewThread, error) {
+	if n == nil || strings.IsEmpty(n.ID) || n.IsOutdated == nil || n.IsResolved == nil || n.ViewerCanResolve == nil || !n.PullRequest.matches(repo, pull) {
+		return nil, errors.New("github: review thread returned incomplete or mismatched state")
+	}
+	if err := n.validateOwnership(repo, pull); err != nil {
+		return nil, err
+	}
+	return n.snapshot(), nil
+}
+
+func (n *reviewThreadNode) snapshot() *ReviewThread {
+	root := n.Comments.Nodes[0]
+	review := root.Review
+	return &ReviewThread{
+		ID: n.ID, ReviewBody: *review.Body, IsOutdated: *n.IsOutdated, IsResolved: *n.IsResolved, ViewerCanResolve: *n.ViewerCanResolve,
+		IsAppAuthor: *root.ViewerDidAuthor && *review.ViewerDidAuthor && root.Author.Type == "Bot" && review.Author.Type == "Bot",
+	}
+}
+
+func (n *reviewThreadNode) validateOwnership(repo *Repository, pull *PullRequest) error {
+	if len(n.Comments.Nodes) != 1 || n.Comments.Nodes[0] == nil {
+		return errors.New("github: review thread returned no root comment")
+	}
+
+	root := n.Comments.Nodes[0]
+	review := root.Review
+	if strings.IsEmpty(root.ID) || root.ViewerDidAuthor == nil || review == nil {
+		return errors.New("github: review thread returned incomplete ownership")
+	}
+	if strings.IsEmpty(review.ID) || review.Body == nil || review.ViewerDidAuthor == nil || !review.PullRequest.matches(repo, pull) {
+		return errors.New("github: review thread returned incomplete or mismatched review ownership")
 	}
 
 	return nil

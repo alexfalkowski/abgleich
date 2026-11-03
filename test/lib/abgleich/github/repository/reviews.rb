@@ -103,7 +103,9 @@ module Abgleich
       end
 
       def change_review_state(mode)
-        return change_summary_state(mode) if ['head changed', 'base changed', 'permission revoked', 'request edited'].include?(mode)
+        if ['head changed', 'base changed', 'permission revoked', 'request edited', 'request identity changed'].include?(mode)
+          return change_summary_state(mode)
+        end
 
         @mutex.synchronize do
           pull = @state[:pulls].values.find { |item| item.dig(:head, :ref) == 'contribution' }

@@ -2,6 +2,7 @@ package workflow
 
 import (
 	"github.com/alexfalkowski/abgleich/internal/ai"
+	"github.com/alexfalkowski/abgleich/internal/github"
 	"github.com/alexfalkowski/go-service/v2/context"
 	"github.com/alexfalkowski/go-service/v2/errors"
 	"github.com/alexfalkowski/go-service/v2/time"
@@ -9,7 +10,7 @@ import (
 
 const inferenceBudgetDivisor = 2
 
-var errReviewExists = errors.New("review: a matching result is already published")
+var errReviewStopped = errors.New("review: no further processing is required")
 
 // Ready signals accepted manual work for this command's existing job.
 func (c *Command) Ready() <-chan struct{} {
@@ -44,17 +45,35 @@ func (c *Command) process(ctx context.Context, task *reviewTask) error {
 		return c.reportFailure(ctx, task, err)
 	}
 
-	task, err = c.recheck(ctx, task)
-	if err != nil || task == nil {
-		return err
-	}
+	return c.generateReview(ctx, task, review)
+}
 
+func (c *Command) generateReview(ctx context.Context, task *reviewTask, review *reviewContext) error {
 	budget := time.Minute
 	if deadline, ok := ctx.Deadline(); ok {
 		budget = time.Until(deadline) / inferenceBudgetDivisor
 	}
 
-	guard := func(ctx context.Context) error { return c.guard(ctx, task) }
+	needsSubmissionCheck := true
+	var submissionCheckErr error
+	guard := func(ctx context.Context) error {
+		if !needsSubmissionCheck {
+			return c.guard(ctx, task)
+		}
+		// The initial source-submission check can publish cancellation or stale-revision feedback.
+		needsSubmissionCheck = false
+
+		task, submissionCheckErr = c.recheck(ctx, task)
+		if submissionCheckErr != nil {
+			return submissionCheckErr
+		}
+		if task == nil {
+			return errReviewStopped
+		}
+
+		return ctx.Err()
+	}
+
 	tools := sourceTools{session: review.source, beforeLookup: guard}
 	completion, err := c.provider.Generate(ctx, ai.Prompt{
 		Task:            c.definition.Name,
@@ -66,7 +85,12 @@ func (c *Command) process(ctx context.Context, task *reviewTask) error {
 		BeforeRequest:   guard,
 		Timeout:         budget,
 	})
-	if errors.Is(err, errReviewExists) {
+	// Return submission-check errors directly: feedback may already have been
+	// published, including after an ambiguous response.
+	if submissionCheckErr != nil {
+		return submissionCheckErr
+	}
+	if errors.Is(err, errReviewStopped) {
 		return nil
 	}
 	if err != nil {
@@ -101,7 +125,7 @@ func (c *Command) publishReview(ctx context.Context, task *reviewTask, completio
 // recheck returns a refreshed task only while its authorized revisions still match.
 // A nil task stops processing, including existing results and stale revisions.
 func (c *Command) recheck(ctx context.Context, task *reviewTask) (*reviewTask, error) {
-	current, err := c.authorize(ctx, task)
+	current, comments, err := c.authorize(ctx, task)
 	if err != nil {
 		return nil, err
 	}
@@ -113,7 +137,7 @@ func (c *Command) recheck(ctx context.Context, task *reviewTask) (*reviewTask, e
 		return nil, c.publish(ctx, task, c.staleMessage)
 	}
 
-	exists, err := c.hasReview(ctx, current)
+	exists, err := c.hasReview(ctx, current, comments)
 	if err != nil || exists {
 		return nil, err
 	}
@@ -122,7 +146,7 @@ func (c *Command) recheck(ctx context.Context, task *reviewTask) (*reviewTask, e
 }
 
 func (c *Command) guard(ctx context.Context, task *reviewTask) error {
-	current, err := c.authorize(ctx, task)
+	current, comments, err := c.authorize(ctx, task)
 	if err != nil {
 		return err
 	}
@@ -131,19 +155,19 @@ func (c *Command) guard(ctx context.Context, task *reviewTask) error {
 		return errors.New("review: authorization or revision changed")
 	}
 
-	exists, err := c.hasReview(ctx, current)
+	exists, err := c.hasReview(ctx, current, comments)
 	if err != nil {
 		return err
 	}
 	if exists {
-		return errReviewExists
+		return errReviewStopped
 	}
 
 	return ctx.Err()
 }
 
 func (c *Command) publish(ctx context.Context, task *reviewTask, body string) error {
-	current, err := c.authorize(ctx, task)
+	current, comments, err := c.authorize(ctx, task)
 	if err != nil {
 		return err
 	}
@@ -155,7 +179,7 @@ func (c *Command) publish(ctx context.Context, task *reviewTask, body string) er
 		body = c.staleMessage
 	}
 
-	exists, err := c.hasReview(ctx, current)
+	exists, err := c.hasReview(ctx, current, comments)
 	if err != nil || exists {
 		return err
 	}
@@ -170,7 +194,7 @@ func (c *Command) publish(ctx context.Context, task *reviewTask, body string) er
 // Cancellation feedback requires fresh consent, but permits closed and draft PRs.
 // Source submission and review publication keep their stricter eligibility checks.
 func (c *Command) publishCancellation(ctx context.Context, task *reviewTask) error {
-	current, err := c.authorizeCancellation(ctx, task)
+	current, comments, err := c.authorizeCancellation(ctx, task)
 	if err != nil || current == nil {
 		return err
 	}
@@ -180,7 +204,7 @@ func (c *Command) publishCancellation(ctx context.Context, task *reviewTask) err
 		return nil
 	}
 
-	exists, err := c.hasReview(ctx, current)
+	exists, err := c.hasReview(ctx, current, comments)
 	if err != nil || exists {
 		return err
 	}
@@ -192,31 +216,31 @@ func (c *Command) publishCancellation(ctx context.Context, task *reviewTask) err
 	return c.github.AddComment(ctx, current.repository, current.pullRequest.GetNumber(), body)
 }
 
-func (c *Command) authorizeCancellation(ctx context.Context, task *reviewTask) (*reviewTask, error) {
+func (c *Command) authorizeCancellation(ctx context.Context, task *reviewTask) (*reviewTask, []*github.IssueComment, error) {
 	if err := c.github.ValidateInstallation(ctx); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	repo, err := c.github.GetRepository(ctx, task.repository)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	pull, err := c.github.GetPullRequest(ctx, repo, task.pullRequest.GetNumber())
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	if !c.github.IsSamePullRequestIdentity(repo, pull, task.pullRequest) {
-		return nil, errors.New("review: pull request identity changed before cancellation")
+		return nil, nil, errors.New("review: pull request identity changed before cancellation")
 	}
 
-	comment, err := c.authorizer.Authorize(ctx, c.definition.Name, repo, pull.GetNumber(), task.commandComment)
+	comment, comments, err := c.authorizer.AuthorizeWithHistory(ctx, c.definition.Name, repo, pull.GetNumber(), task.commandComment)
 	if err != nil || comment == nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	return &reviewTask{repository: repo, pullRequest: pull, commandComment: comment}, nil
+	return &reviewTask{repository: repo, pullRequest: pull, commandComment: comment}, comments, nil
 }
 
 // reportFailure preserves the operation error and skips feedback after cancellation.

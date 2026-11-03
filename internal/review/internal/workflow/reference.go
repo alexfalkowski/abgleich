@@ -18,7 +18,12 @@ func (s *sourceSession) goReference(ctx context.Context, manifest string) (strin
 		return strings.Empty, errors.New("review: invalid Go manifest path")
 	}
 
-	version := goLanguageVersion(s.repositoryFile(ctx, manifest, false))
+	manifestContent, err := s.repositoryFile(ctx, manifest, false)
+	if err != nil {
+		return strings.Empty, err
+	}
+
+	version := goLanguageVersion(manifestContent)
 	if strings.IsEmpty(version) {
 		return strings.Empty, errors.New("review: declared Go language version")
 	}
@@ -33,8 +38,10 @@ func (s *sourceSession) goReference(ctx context.Context, manifest string) (strin
 		return strings.Empty, errors.New("review: " + label)
 	}
 	content = "Declared Go language: " + version + ". Official release notes (untrusted reference data):\n" + content
+
 	s.inspected = append(s.inspected, label)
 	s.files[label] = content
+
 	return content, nil
 }
 
@@ -43,6 +50,7 @@ func goLanguageVersion(content string) string {
 	if err != nil || manifest.Go == nil {
 		return strings.Empty
 	}
+
 	return strings.TrimPrefix(version.Lang("go"+manifest.Go.Version), "go")
 }
 
@@ -55,5 +63,6 @@ func (s *Sources) reference(ctx context.Context, version string) (string, error)
 	if !utf8.Valid(content) {
 		return strings.Empty, errors.New("review: Go reference is not usable text")
 	}
+
 	return bytes.String(content), nil
 }

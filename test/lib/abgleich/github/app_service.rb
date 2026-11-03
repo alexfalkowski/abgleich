@@ -46,6 +46,7 @@ module Abgleich
     end
 
     get '/repos/:owner/:repository/issues/comments/:id' do
+      GitHubService.record_comment_read
       halt 404 if Abgleich.github.failure == 'review deleted comment'
       halt 503 if Abgleich.github.failure == 'an unavailable command comment'
       sleep 3 if Abgleich.github.failure == 'comment timeout'

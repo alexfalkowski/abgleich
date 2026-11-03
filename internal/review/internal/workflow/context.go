@@ -45,26 +45,53 @@ func (c *Command) context(ctx context.Context, task *reviewTask) (*reviewContext
 		headSHA:    task.pullRequest.GetHead().GetSHA(),
 		baseSHA:    task.pullRequest.GetBase().GetSHA(),
 		files:      make(map[string]string),
-		trees:      make(map[string][]string),
+		trees:      make(map[string][]*github.TreeEntry),
 		archives:   make(map[string]*zip.Reader),
 	}
 
-	var source strings.Builder
-	source.WriteString(input)
-	source.WriteString("\nComplete changed-file source (untrusted data; omissions are explicit):\n")
+	source, err := review.completeSource(ctx)
+	if err != nil {
+		return nil, err
+	}
 
-	for _, file := range files {
+	review.input = input + "\nComplete changed-file source (untrusted data; omissions are explicit):\n" + source
+	return review, nil
+}
+
+func (r *reviewContext) completeSource(ctx context.Context) (string, error) {
+	var headFiles, baseFiles []string
+	for _, file := range r.Files {
+		if file.GetStatus() == "removed" {
+			baseFiles = append(baseFiles, file.GetFilename())
+		} else {
+			headFiles = append(headFiles, file.GetFilename())
+		}
+	}
+
+	headSource, err := r.source.repositoryFiles(ctx, headFiles, false)
+	if err != nil {
+		return strings.Empty, err
+	}
+
+	baseSource, err := r.source.repositoryFiles(ctx, baseFiles, true)
+	if err != nil {
+		return strings.Empty, err
+	}
+
+	var source strings.Builder
+	for _, file := range r.Files {
 		base := file.GetStatus() == "removed"
-		revision := task.pullRequest.GetHead().GetSHA()
+		revision := r.HeadSHA
+		contents := headSource
 		if base {
-			revision = task.pullRequest.GetBase().GetSHA()
+			revision = r.BaseSHA
+			contents = baseSource
 		}
 
 		fmt.Fprintf(&source, "\nSource: %s at %s\n", file.GetFilename(), revision)
-		source.WriteString(review.source.repositoryFile(ctx, file.GetFilename(), base))
+		source.WriteString(contents[file.GetFilename()])
 		source.WriteString("\n")
 	}
 
-	review.input = source.String()
-	return review, nil
+	return source.String(), nil
 }

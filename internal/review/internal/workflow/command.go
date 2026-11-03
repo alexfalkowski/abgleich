@@ -81,7 +81,7 @@ func (c *Command) Handle(ctx context.Context, event *github.IssueCommentEvent) (
 		return false, nil
 	}
 
-	task, err := c.authorize(ctx, &reviewTask{
+	task, comments, err := c.authorize(ctx, &reviewTask{
 		repository:     event.GetRepo(),
 		pullRequest:    &github.PullRequest{Number: event.GetIssue().Number},
 		commandComment: event.GetComment(),
@@ -90,7 +90,7 @@ func (c *Command) Handle(ctx context.Context, event *github.IssueCommentEvent) (
 		return false, err
 	}
 
-	if exists, err := c.hasReview(ctx, task); err != nil || exists {
+	if exists, err := c.hasReview(ctx, task, comments); err != nil || exists {
 		return exists, err
 	}
 
@@ -105,35 +105,35 @@ func (c *Command) Handle(ctx context.Context, event *github.IssueCommentEvent) (
 	return err == nil, err
 }
 
-func (c *Command) authorize(ctx context.Context, task *reviewTask) (*reviewTask, error) {
+func (c *Command) authorize(ctx context.Context, task *reviewTask) (*reviewTask, []*github.IssueComment, error) {
 	if err := c.github.ValidateInstallation(ctx); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	repo, err := c.github.GetRepository(ctx, task.repository)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	pull, err := c.github.GetPullRequest(ctx, repo, task.pullRequest.GetNumber())
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	if pull.GetNumber() != task.pullRequest.GetNumber() || !c.eligible(repo, pull) {
-		return nil, nil
+		return nil, nil, nil
 	}
 
-	comment, err := c.authorizer.Authorize(ctx, c.definition.Name, repo, pull.GetNumber(), task.commandComment)
+	comment, comments, err := c.authorizer.AuthorizeWithHistory(ctx, c.definition.Name, repo, pull.GetNumber(), task.commandComment)
 	if err != nil || comment == nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	return &reviewTask{
 		repository:     repo,
 		pullRequest:    pull,
 		commandComment: comment,
-	}, nil
+	}, comments, nil
 }
 
 func (c *Command) eligible(repo *github.Repository, pull *github.PullRequest) bool {
@@ -149,12 +149,7 @@ func (c *Command) revisionChanged(expected, current *reviewTask) bool {
 		current.pullRequest.GetBase().GetSHA() != expected.pullRequest.GetBase().GetSHA()
 }
 
-func (c *Command) hasReview(ctx context.Context, task *reviewTask) (bool, error) {
-	comments, err := c.github.ListComments(ctx, task.repository, task.pullRequest.GetNumber())
-	if err != nil {
-		return false, err
-	}
-
+func (c *Command) hasReview(ctx context.Context, task *reviewTask, comments []*github.IssueComment) (bool, error) {
 	marker := c.resultMarker(task)
 	for _, comment := range comments {
 		if c.github.IsAppComment(comment) && strings.Contains(comment.GetBody(), "\n"+marker) {

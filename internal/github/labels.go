@@ -21,7 +21,8 @@ func HasLabel(labels []*Label, name string) bool {
 }
 
 // HasCommentMetadata checks for an author login and edit timestamp on a comment
-// whose PR, author ID, and creation timestamp were already validated by GetComment.
+// whose PR, author ID, and creation timestamp were already validated by GetComment
+// or GetCommentWithHistory.
 func HasCommentMetadata(comment *IssueComment) bool {
 	return !strings.IsEmpty(comment.GetUser().GetLogin()) && !comment.GetUpdatedAt().IsZero()
 }
@@ -33,17 +34,34 @@ func (s *service) GetComment(ctx context.Context, repo *Repository, number int, 
 		return nil, err
 	}
 
-	issueURL := s.client.installation.BaseURL() + "repos/" + repo.GetFullName() + "/issues/" + strconv.Itoa(number)
-	sameComment := comment.GetID() == expected.GetID() &&
-		comment.GetUser().GetID() == expected.GetUser().GetID() &&
-		comment.GetCreatedAt().Equal(expected.GetCreatedAt())
-	samePullRequest := strings.ToLower(comment.GetIssueURL()) == strings.ToLower(issueURL)
-
-	if !sameComment || !samePullRequest {
-		return nil, errors.New("github: comment does not match the requested pull request and author")
+	if err := s.validateCommandComment(repo, number, comment, expected); err != nil {
+		return nil, err
 	}
 
 	return comment, nil
+}
+
+// GetCommentWithHistory reads complete fresh discussion history so command
+// consent and result detection can share one snapshot. A missing command returns
+// nil with the history; a mismatched identity or incomplete history is an error.
+func (s *service) GetCommentWithHistory(ctx context.Context, repo *Repository, number int, expected *IssueComment) (*IssueComment, []*IssueComment, error) {
+	comments, err := s.ListComments(ctx, repo, number)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	for _, comment := range comments {
+		if comment.GetID() != expected.GetID() {
+			continue
+		}
+
+		if err := s.validateCommandComment(repo, number, comment, expected); err != nil {
+			return nil, nil, err
+		}
+		return comment, comments, nil
+	}
+
+	return nil, comments, nil
 }
 
 // HasWritePermission reads effective permissions, including maintain and admin.
@@ -73,4 +91,17 @@ func (s *service) AddLabel(ctx context.Context, repo *Repository, number int, la
 	}
 
 	return errors.New("github: label response does not contain the requested label")
+}
+
+func (s *service) validateCommandComment(repo *Repository, number int, comment, expected *IssueComment) error {
+	issueURL := s.client.installation.BaseURL() + "repos/" + repo.GetFullName() + "/issues/" + strconv.Itoa(number)
+	sameComment := comment.GetID() == expected.GetID() &&
+		comment.GetUser().GetID() == expected.GetUser().GetID() &&
+		comment.GetCreatedAt().Equal(expected.GetCreatedAt())
+	samePullRequest := strings.ToLower(comment.GetIssueURL()) == strings.ToLower(issueURL)
+
+	if !sameComment || !samePullRequest {
+		return errors.New("github: comment does not match the requested pull request and author")
+	}
+	return nil
 }
