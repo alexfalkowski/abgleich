@@ -11,6 +11,17 @@ const inferenceBudgetDivisor = 2
 
 var errReviewExists = errors.New("review: a matching result is already published")
 
+// Ready signals accepted manual work for this command's existing job.
+func (c *Command) Ready() <-chan struct{} {
+	return c.queue.Ready()
+}
+
+// ProcessQueue drains manual requests without discovering repositories or
+// maintaining review threads. It shares the scheduled job's timeout and exclusion.
+func (c *Command) ProcessQueue(ctx context.Context) error {
+	return c.queue.Process(ctx)
+}
+
 // Process drains this command's queue, then maintains its outdated threads
 // within the remaining job budget, preserving failures from both operations.
 // The caller provides the job deadline and prevents overlapping Process calls.
@@ -87,15 +98,19 @@ func (c *Command) publishReview(ctx context.Context, task *reviewTask, completio
 // A nil task stops processing, including existing results and stale revisions.
 func (c *Command) recheck(ctx context.Context, task *reviewTask) (*reviewTask, error) {
 	current, err := c.authorize(ctx, task)
-	if err != nil || current == nil {
+	if err != nil {
 		return nil, err
+	}
+	if current == nil {
+		return nil, c.publishCancellation(ctx, task)
 	}
 
 	if c.revisionChanged(task, current) {
 		return nil, c.publish(ctx, task, c.staleMessage)
 	}
 
-	if exists, err := c.hasReview(ctx, current); err != nil || exists {
+	exists, err := c.hasReview(ctx, current)
+	if err != nil || exists {
 		return nil, err
 	}
 
@@ -107,7 +122,8 @@ func (c *Command) guard(ctx context.Context, task *reviewTask) error {
 	if err != nil {
 		return err
 	}
-	if current == nil || c.revisionChanged(task, current) {
+	sameRevision := current != nil && !c.revisionChanged(task, current)
+	if !sameRevision {
 		return errors.New("review: authorization or revision changed")
 	}
 
@@ -124,15 +140,19 @@ func (c *Command) guard(ctx context.Context, task *reviewTask) error {
 
 func (c *Command) publish(ctx context.Context, task *reviewTask, body string) error {
 	current, err := c.authorize(ctx, task)
-	if err != nil || current == nil {
+	if err != nil {
 		return err
+	}
+	if current == nil {
+		return c.publishCancellation(ctx, task)
 	}
 
 	if c.revisionChanged(task, current) {
 		body = c.staleMessage
 	}
 
-	if exists, err := c.hasReview(ctx, current); err != nil || exists {
+	exists, err := c.hasReview(ctx, current)
+	if err != nil || exists {
 		return err
 	}
 
@@ -140,6 +160,61 @@ func (c *Command) publish(ctx context.Context, task *reviewTask, body string) er
 		return err
 	}
 	return c.github.AddComment(ctx, current.repository, current.pullRequest.GetNumber(), body)
+}
+
+// Cancellation feedback requires fresh consent, but permits closed and draft PRs.
+// Source submission and review publication keep their stricter eligibility checks.
+func (c *Command) publishCancellation(ctx context.Context, task *reviewTask) error {
+	current, err := c.authorizeCancellation(ctx, task)
+	if err != nil || current == nil {
+		return err
+	}
+
+	body := c.cancellationMessage(current)
+	if body == "" {
+		return nil
+	}
+
+	exists, err := c.hasReview(ctx, current)
+	if err != nil || exists {
+		return err
+	}
+
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
+	return c.github.AddComment(ctx, current.repository, current.pullRequest.GetNumber(), body)
+}
+
+func (c *Command) authorizeCancellation(ctx context.Context, task *reviewTask) (*reviewTask, error) {
+	if err := c.github.ValidateInstallation(ctx); err != nil {
+		return nil, err
+	}
+
+	repo, err := c.github.GetRepository(ctx, task.repository)
+	if err != nil {
+		return nil, err
+	}
+
+	pull, err := c.github.GetPullRequest(ctx, repo, task.pullRequest.GetNumber())
+	if err != nil {
+		return nil, err
+	}
+
+	sameNumber := pull.GetNumber() == task.pullRequest.GetNumber()
+	sameNodeID := pull.GetNodeID() == task.pullRequest.GetNodeID()
+	sameRepository := c.github.IsBaseRepository(repo, pull)
+	if !sameNumber || !sameNodeID || !sameRepository {
+		return nil, errors.New("review: pull request identity changed before cancellation")
+	}
+
+	comment, err := c.authorizer.Authorize(ctx, c.definition.Name, repo, pull.GetNumber(), task.commandComment)
+	if err != nil || comment == nil {
+		return nil, err
+	}
+
+	return &reviewTask{repository: repo, pullRequest: pull, commandComment: comment}, nil
 }
 
 // reportFailure preserves the operation error and skips feedback after cancellation.

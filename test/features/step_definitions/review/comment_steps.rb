@@ -16,13 +16,13 @@ Given('the contribution renames a reviewed file') do
 end
 
 Given('a legacy App code review exists for the current revision') do
-  step 'the pull request has already received a code review'
+  complete_review_request('code')
   Abgleich.github.withdraw_review_reply
   Abgleich.github.publish_reply(Abgleich::GitHubRepository::DEFAULT_REPOSITORY, 1, @existing_review_body)
 end
 
 Given('a native code review lookalike was posted by {string}') do |author|
-  step 'the pull request has already received a code review'
+  complete_review_request('code')
   Abgleich.github.change_native_review_author(author)
 end
 
@@ -40,7 +40,7 @@ Given('native review history returns {string} on page {int}') do |response, page
 end
 
 Given(/^105 native (code|security) review lookalikes were posted by "([^"]*)"$/) do |kind, author|
-  step "the pull request has already received a #{kind} review"
+  complete_review_request(kind)
   Abgleich.github.change_native_review_author(author)
   pull = Abgleich.github.pull_state('contribution')
   104.times do

@@ -27,24 +27,11 @@ Given(/^the (code|security) review configuration has "([^"]*)"$/) do |kind, prob
 end
 
 Given(/^the pull request has already received a (code|security) review$/) do |kind|
-  @comment_event = Abgleich.github.add_comment('contribution', body: "/ab #{review_command(kind)}")
-  Nonnative.start
-  expect(Abgleich.deliver_comment(@comment_event).code).to eq(204)
-  request = "#issuecomment-#{@comment_event.fetch(:comment).fetch('id')}"
-  review = nil
-  wait_for do
-    review = Abgleich.github.native_reviews.find do |result|
-      result[:viewer_did_author] && result[:body].start_with?(review_heading(kind)) && result[:body].include?(request)
-    end
-  end.not_to be_nil, "expected the App's #{kind} review for the current request"
-  expect_review_check(kind)
-  @existing_review_body = review.fetch(:body)
-  @native_review_history = Abgleich.github.native_reviews
-  @completed_review_requests = Abgleich.openai.requests.length
+  complete_review_request(kind)
 end
 
 Given(/^a (code|security) review lookalike was posted by "([^"]*)"$/) do |kind, author|
-  step "the pull request has already received a #{kind} review"
+  complete_review_request(kind)
   Abgleich.github.withdraw_review_reply
 
   event = Abgleich.github.add_comment('contribution', body: @existing_review_body)
@@ -66,6 +53,22 @@ end
 
 Given('the pull request has no target branch revision') do
   Abgleich.github.change_review_state('missing base revision')
+end
+
+Given(/^the (code|security) review loses consent through "([^"]*)" before cancellation$/) do |_kind, change|
+  Abgleich.github.collection_change = lambda do
+    Abgleich.github.change_review_state(change)
+    Abgleich.github.change_review_state('closed')
+  end
+end
+
+Given(/^another (code|security) review is still being prepared$/) do |kind|
+  Abgleich.use_config("#{review_command(kind)}_waiting")
+  hold_review_worker(kind)
+end
+
+Given(/^a maintainer's (code|security) review request is waiting$/) do |kind|
+  @comment_event = queue_review(kind)
 end
 
 Given(/^(code|security) reviews and summaries are independently enabled$/) do |kind|
@@ -101,35 +104,26 @@ Given(/^the existing App (code|security) review becomes visible while a review i
 end
 
 Given(/^the existing App (code|security) review becomes visible while a request waits$/) do |kind|
-  Abgleich.restart { Abgleich.use_config("#{review_command(kind)}_waiting") }
-  wait_for { Abgleich.job_logs(review_command(kind)).last }.to include('msg' => 'job finished')
-  @comment_event = Abgleich.github.add_comment('contribution', body: "/ab #{review_command(kind)}")
-  expect(Abgleich.deliver_comment(@comment_event).code).to eq(204)
-  Abgleich.github.publish_reply(Abgleich::GitHubRepository::DEFAULT_REPOSITORY, 1, @existing_review_body)
+  Abgleich.github.collection_change = lambda do
+    Abgleich.github.publish_reply(Abgleich::GitHubRepository::DEFAULT_REPOSITORY, 1, @existing_review_body)
+  end
+
+  @comment_event = queue_review(kind)
 end
 
 Given(/^four maintainers are waiting for (code|security) reviews$/) do |kind|
+  fill_review_queue(kind)
+end
+
+Given(/^(code|security) reviews use infrequent thread maintenance$/) do |kind|
   Abgleich.use_config("#{review_command(kind)}_pending")
   Nonnative.start
   wait_for { Abgleich.job_logs(review_command(kind)) }.not_to be_empty
-  4.times do |index|
-    branch = "#{kind}-review-queued-#{index}"
-    Abgleich.github.add_pull(branch, auto_merge: false, current: true)
-    event = Abgleich.github.add_comment(branch, body: "/ab #{review_command(kind)}")
-    expect(Abgleich.deliver_comment(event).code).to eq(204), "expected the review for #{branch} to be queued"
-  end
+  Abgleich.github.seed_review_thread('waiting-maintenance', kind:)
 end
 
 Given(/^a (code|security) review request was interrupted by restart$/) do |kind|
-  Abgleich.use_config("#{review_command(kind)}_pending")
-  Nonnative.start
-  wait_for { Abgleich.job_logs(review_command(kind)) }.not_to be_empty
-  event = Abgleich.github.add_comment('contribution', body: "/ab #{review_command(kind)}")
-  expect(Abgleich.deliver_comment(event).code).to eq(204)
-  Abgleich.restart { Abgleich.use_config(review_command(kind)) }
-  expect_review_check(kind)
-  expect(Abgleich.openai.requests).to be_empty, "expected restart to discard pending #{kind} reviews"
-  expect(Abgleich.github.review_results).to be_empty, 'expected no reply before a maintainer reissues the command'
+  interrupt_review_request(kind)
 end
 
 When(/^two maintainers request (code|security) review while a review is being prepared$/) do |kind|
@@ -153,6 +147,15 @@ end
 
 When(/^Abgleich processes the waiting (code|security) review$/) do |kind|
   expect_review_check(kind)
+end
+
+When('the pull request merges before its queued review starts') do
+  Abgleich.github.change_review_state('merged')
+  Abgleich.openai.resume_responses
+end
+
+When('the AI service completes the active review') do
+  Abgleich.openai.resume_responses
 end
 
 When(/^the maintainer reissues the (code|security) review request after new commits$/) do |kind|
@@ -250,14 +253,11 @@ Then(/^the (code|security) reviewer should receive "([^"]*)"$/) do |_kind, descr
 end
 
 Then(/^the (code|security) review should fail without publishing findings$/) do |kind|
-  wait_for { Abgleich.github.review_results.any? { |reply| reply[:body].include?("#{kind.capitalize} review failed") } }.to be(true)
-  expect(Abgleich.github.review_results.none? { |reply| reply[:body].start_with?(review_heading(kind)) }).to be(true)
-  expect_healthy_worker
-  expect_no_automation_mutations
+  expect_review_failure(kind)
 end
 
 Then(/^(code|security) review collection should fail before sharing source$/) do |kind|
-  step "the #{kind} review should fail without publishing findings"
+  expect_review_failure(kind)
   expect(Abgleich.openai.requests).to be_empty, 'expected incomplete or misidentified source to remain unshared'
 end
 
@@ -289,4 +289,43 @@ Then(/^the maintainer should be asked for a (code|security) review of the new re
   wait_for { Abgleich.github.review_results.any? { |reply| reply[:body].include?('revision changed') } }.to be(true)
   finding = kind == 'code' ? 'Worker now always returns false' : 'Untrusted query input reaches SQL execution'
   expect(Abgleich.github.review_results.last.fetch(:body)).not_to include(finding)
+end
+
+Then(/^the (code|security) review cancellation should explain "([^"]*)"$/) do |kind, reason|
+  body = wait_for_review_cancellation(kind)
+  expect_review_check(kind)
+  request = @comment_event.fetch(:comment).fetch('id')
+  expect(body).to include(reason, "#issuecomment-#{request}")
+  expect(body).not_to include('<!-- abgleich:')
+  expect(Abgleich.github.review_cancellations(kind).length).to eq(1), 'expected one cancellation comment for the request'
+  expect_no_automation_mutations
+end
+
+Then('no review cancellation comment should be posted') do
+  expect(Abgleich.github.replies).to be_empty, 'expected withdrawn consent to prevent cancellation feedback'
+end
+
+Then('the canceled review should not publish findings') do
+  expect(Abgleich.github.native_reviews_for('contribution')).to be_empty, 'expected no findings for the canceled request'
+end
+
+Then(/^manual (code|security) review should leave scheduled maintenance pending$/) do |kind|
+  wait_for { Abgleich.job_logs(review_command(kind)) }.to include(a_hash_including('trigger' => 'queue'))
+  thread = Abgleich.github.review_threads.find { |item| item[:id] == 'waiting-maintenance' }
+  expect(thread.fetch(:isResolved)).to be(false), 'expected manual inference to leave thread maintenance on its schedule'
+  expect(Abgleich.github.thread_resolution_requests).to be_empty, 'expected no maintenance mutations during manual review'
+end
+
+Then(/^ordinary automation should continue while those (code|security) reviews wait$/) do |_kind|
+  next_check = Abgleich.job_logs('automerge').length + 1
+  wait_for { Abgleich.job_logs('automerge').length }.to be >= next_check, 'expected automation to continue during inference'
+  expect(Abgleich.openai.requests.length).to eq(1), 'expected queued reviews to wait behind the active inference'
+  expect_successful_check('automerge')
+  expect_healthy_worker
+end
+
+Then(/^all (\d+) accepted (code|security) reviews should finish promptly$/) do |count, kind|
+  with_wait(timeout: 2) do
+    wait_for { reviews_for(kind).length }.to eq(count.to_i), 'expected every accepted review before the next maintenance run'
+  end
 end

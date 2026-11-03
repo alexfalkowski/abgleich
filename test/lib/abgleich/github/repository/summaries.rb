@@ -88,7 +88,9 @@ module Abgleich
       def apply_collection_change
         mode = @mutex.synchronize { @state.delete(:collection_change) }
 
-        if mode&.start_with?('review:')
+        if mode.respond_to?(:call)
+          mode.call
+        elsif mode&.start_with?('review:')
           change_review_state(mode.delete_prefix('review:'))
         elsif mode
           change_summary_state(mode)

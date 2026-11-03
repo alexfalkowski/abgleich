@@ -27,7 +27,7 @@ Feature: Keep security review recoverable and independent
     Given four maintainers are waiting for security reviews
     When a maintainer with "write" access comments "/ab secreview"
     Then the request should be temporarily declined
-    And ordinary automation should continue while those requests wait
+    And ordinary automation should continue while those security reviews wait
 
   Scenario: Request all advisory tasks for the same revision
     Given security reviews and summaries are independently enabled

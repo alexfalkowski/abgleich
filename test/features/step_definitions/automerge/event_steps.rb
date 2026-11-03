@@ -66,7 +66,11 @@ Given('event checks and sweeps are both enabled on the regular schedule') do
 end
 
 Given('the event check for branch {string} failed') do |branch|
-  step 'event checks and sweeps are both enabled on the regular schedule'
+  completed = Abgleich.job_logs('automerge').length
+  Abgleich.restart { Abgleich.use_config('events_regular') }
+  wait_for { Abgleich.job_logs('automerge').length }.to be > completed, 'expected the regular schedule to finish its startup sweep'
+  expect_successful_check('automerge')
+
   Abgleich.github.add_pull(branch)
   Abgleich.github.fail_with('list')
   @event_response = Abgleich.deliver_event('push', Abgleich.github.repository_notification)

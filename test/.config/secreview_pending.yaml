@@ -45,4 +45,4 @@ review:
   sec:
     model: test-security
     interval: 10s
-    timeout: 3s
+    timeout: 20s

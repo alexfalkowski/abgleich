@@ -71,7 +71,7 @@ Feature: Keep code review recoverable and independent
     Given four maintainers are waiting for code reviews
     When a maintainer with "write" access comments "/ab codereview"
     Then the request should be temporarily declined
-    And ordinary automation should continue while those requests wait
+    And ordinary automation should continue while those code reviews wait
 
   Scenario: Reissue code review after pending work is lost on restart
     Given a code review request was interrupted by restart

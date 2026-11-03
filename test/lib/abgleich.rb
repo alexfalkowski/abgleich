@@ -8,6 +8,7 @@ require 'openssl'
 require 'jwt'
 
 require 'abgleich/assertions'
+require 'abgleich/review/context'
 require 'abgleich/credentials'
 require 'abgleich/github/repository'
 require 'abgleich/github/service'

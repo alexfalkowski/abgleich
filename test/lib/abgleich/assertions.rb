@@ -91,6 +91,11 @@ module Abgleich
       wait_for { Abgleich.job_logs(command).length }.to be >= next_check, "expected a completed #{kind} review check"
     end
 
+    def wait_for_review_cancellation(kind)
+      wait_for { Abgleich.github.review_cancellations(kind) }.not_to be_empty, "expected a #{kind} review cancellation"
+      Abgleich.github.review_cancellations(kind).last.fetch(:body)
+    end
+
     # Advisory requests must leave merge automation, labels, and branches untouched.
     def expect_no_automation_mutations
       activity = { mutation_requests: Abgleich::GitHubService.request_counts.fetch(:mutation_requests),
