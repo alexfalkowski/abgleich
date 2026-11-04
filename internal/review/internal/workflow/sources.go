@@ -172,7 +172,7 @@ func (s *sourceSession) readPath(ctx context.Context, filename string, paths []s
 		return s.directory(ctx, filename, paths, contents)
 	}
 
-	return "Source: " + filename + " at " + s.headSHA + "\n" + contents[filename]
+	return strings.Concat("Source: ", filename, " at ", s.headSHA, "\n", contents[filename])
 }
 
 func (s *sourceSession) directory(ctx context.Context, directory string, paths []string, contents map[string]string) string {
@@ -280,7 +280,7 @@ func (s *sourceSession) regularFiles(ctx context.Context, revision string, filen
 		if entry := byPath[filename]; entry != nil {
 			files = append(files, entry)
 		} else {
-			contents[filename] = s.unavailable(revision + ":" + filename + " (regular file unavailable)")
+			contents[filename] = s.unavailable(strings.Concat(revision, ":", filename, " (regular file unavailable)"))
 		}
 	}
 

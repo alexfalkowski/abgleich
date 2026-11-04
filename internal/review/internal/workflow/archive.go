@@ -25,13 +25,13 @@ func (s *Sources) archive(ctx context.Context, name, version, checksum string) (
 		return nil, errors.Prefix("review: escape module version", err)
 	}
 
-	endpoint := s.proxy + "/" + escapedName + "/@v/" + url.PathEscape(escapedVersion) + ".zip"
+	endpoint := strings.Concat(s.proxy, "/", escapedName, "/@v/", url.PathEscape(escapedVersion), ".zip")
 	content, err := s.fetch(ctx, endpoint)
 	if err != nil {
 		return nil, err
 	}
 
-	return verifiedArchive(content, name+"@"+version+"/", checksum)
+	return verifiedArchive(content, strings.Concat(name, "@", version, "/"), checksum)
 }
 
 func verifiedArchive(content []byte, prefix, checksum string) (*zip.Reader, error) {

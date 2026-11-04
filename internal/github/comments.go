@@ -64,7 +64,7 @@ func (s *service) ListComments(ctx context.Context, repo *Repository, number int
 }
 
 func (s *service) validateComment(repo *Repository, number int, comment *IssueComment) error {
-	issueURL := s.client.installation.BaseURL() + "repos/" + repo.GetFullName() + "/issues/" + strconv.Itoa(number)
+	issueURL := strings.Concat(s.client.installation.BaseURL(), "repos/", repo.GetFullName(), "/issues/", strconv.Itoa(number))
 	if comment.GetID() <= 0 || strings.ToLower(comment.GetIssueURL()) != strings.ToLower(issueURL) {
 		return errors.New("github: comment returned an incomplete or mismatched identity")
 	}

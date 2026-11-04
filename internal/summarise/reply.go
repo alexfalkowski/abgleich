@@ -83,7 +83,7 @@ func summaryLocations(text string, files []changedFile, repository, sha string) 
 		link := url.URL{
 			Scheme: "https",
 			Host:   "github.com",
-			Path:   "/" + repository + "/blob/" + sha + "/" + path,
+			Path:   strings.Concat("/", repository, "/blob/", sha, "/", path),
 		}
 
 		linkURL := strings.NewReplacer("(", "%28", ")", "%29").Replace(link.String())
