@@ -126,7 +126,7 @@ func (s *service) HasAppReview(ctx context.Context, reviews []*PullRequestReview
 }
 
 func (s *service) validateReview(repo *Repository, pull *PullRequest, review *PullRequestReview) error {
-	pullPath := "repos/" + repo.GetFullName() + "/pulls/" + strconv.Itoa(pull.GetNumber())
+	pullPath := strings.Concat("repos/", repo.GetFullName(), "/pulls/", strconv.Itoa(pull.GetNumber()))
 	expectedURL := strings.ToLower(s.client.installation.BaseURL() + pullPath)
 	reviewURL := strings.ToLower(review.GetPullRequestURL())
 	reviewID := review.GetID()

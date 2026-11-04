@@ -37,7 +37,7 @@ func (s *sourceSession) goReference(ctx context.Context, manifest string) (strin
 	if err != nil {
 		return strings.Empty, errors.New("review: " + label)
 	}
-	content = "Declared Go language: " + version + ". Official release notes (untrusted reference data):\n" + content
+	content = strings.Concat("Declared Go language: ", version, ". Official release notes (untrusted reference data):\n", content)
 
 	s.inspected = append(s.inspected, label)
 	s.files[label] = content

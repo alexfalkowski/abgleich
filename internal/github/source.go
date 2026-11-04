@@ -109,7 +109,7 @@ func newSourceFilesRequest(repo *Repository, revision string, files []*TreeEntry
 
 	return &sourceFilesRequest{
 		Variables: variables,
-		Query:     "query SourceFiles(" + strings.Join(", ", parameters...) + ") {\n" + strings.Join("\n", fields...) + "\n}",
+		Query:     strings.Concat("query SourceFiles(", strings.Join(", ", parameters...), ") {\n", strings.Join("\n", fields...), "\n}"),
 	}, nil
 }
 

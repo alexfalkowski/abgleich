@@ -220,5 +220,5 @@ func (s *sourceSession) dependencyFile(file *zip.File) string {
 		s.inspected = append(s.inspected, label)
 	}
 
-	return "Source: " + label + " (reviewed go.sum verified)\n" + bytes.String(content)
+	return strings.Concat("Source: ", label, " (reviewed go.sum verified)\n", bytes.String(content))
 }

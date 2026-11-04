@@ -146,7 +146,7 @@ func (s *service) DeleteBranch(ctx context.Context, repo *Repository, branch *Br
 	body := UpdateRefsRequest{Query: deleteBranchMutation}
 	input := &body.Variables.Input
 	input.RepositoryID = repo.GetNodeID()
-	input.ClientMutationID = repo.GetNodeID() + ":" + branch.GetName() + ":" + branch.GetCommit().GetSHA()
+	input.ClientMutationID = strings.Concat(repo.GetNodeID(), ":", branch.GetName(), ":", branch.GetCommit().GetSHA())
 	input.RefUpdates = []RefUpdate{
 		{Name: "refs/heads/" + branch.GetName(), BeforeOID: branch.GetCommit().GetSHA(), AfterOID: "0000000000000000000000000000000000000000"},
 	}

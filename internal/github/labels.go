@@ -94,7 +94,7 @@ func (s *service) AddLabel(ctx context.Context, repo *Repository, number int, la
 }
 
 func (s *service) validateCommandComment(repo *Repository, number int, comment, expected *IssueComment) error {
-	issueURL := s.client.installation.BaseURL() + "repos/" + repo.GetFullName() + "/issues/" + strconv.Itoa(number)
+	issueURL := strings.Concat(s.client.installation.BaseURL(), "repos/", repo.GetFullName(), "/issues/", strconv.Itoa(number))
 	sameComment := comment.GetID() == expected.GetID() &&
 		comment.GetUser().GetID() == expected.GetUser().GetID() &&
 		comment.GetCreatedAt().Equal(expected.GetCreatedAt())
