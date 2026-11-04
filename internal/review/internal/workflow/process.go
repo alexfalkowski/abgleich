@@ -42,7 +42,7 @@ func (c *Command) process(ctx context.Context, task *reviewTask) error {
 
 	review, err := c.context(ctx, task)
 	if err != nil {
-		return c.reportFailure(ctx, task, err)
+		return c.reportFailure(ctx, task, "Source collection", err)
 	}
 
 	return c.generateReview(ctx, task, review)
@@ -94,7 +94,7 @@ func (c *Command) generateReview(ctx context.Context, task *reviewTask, review *
 		return nil
 	}
 	if err != nil {
-		return c.reportFailure(ctx, task, err)
+		return c.reportFailure(ctx, task, "AI generation", err)
 	}
 
 	if err := ctx.Err(); err != nil {
@@ -107,7 +107,7 @@ func (c *Command) generateReview(ctx context.Context, task *reviewTask, review *
 func (c *Command) publishReview(ctx context.Context, task *reviewTask, completion *ai.Completion, review *reviewContext) error {
 	publication, err := c.reply(task, completion, review)
 	if err != nil {
-		return c.reportFailure(ctx, task, err)
+		return c.reportFailure(ctx, task, "Result validation", err)
 	}
 
 	task, err = c.recheck(ctx, task)
@@ -244,9 +244,15 @@ func (c *Command) authorizeCancellation(ctx context.Context, task *reviewTask) (
 }
 
 // reportFailure preserves the operation error and skips feedback after cancellation.
-func (c *Command) reportFailure(ctx context.Context, task *reviewTask, err error) error {
+func (c *Command) reportFailure(ctx context.Context, task *reviewTask, stage string, cause error) error {
 	if ctx.Err() != nil {
-		return err
+		return cause
 	}
-	return errors.Join(err, c.publish(ctx, task, c.failureMessage))
+
+	body, err := c.failureReply(task, stage, cause)
+	if err != nil {
+		return errors.Join(cause, err)
+	}
+
+	return errors.Join(cause, c.publish(ctx, task, body))
 }

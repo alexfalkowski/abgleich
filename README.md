@@ -819,8 +819,11 @@ leave successful actions without acceptance logs.
 comment contents.
 
 Monitor `ai generation` for task (including `codereview` and `secreview`), model, duration, and successful token usage.
-Success logs at info and failure at error; source, responses, and credentials
-are never logged.
+Success logs at info and failure at error. Provider failures add `http_status`,
+`provider_code`, `provider_type`, and `provider_request_id` when available;
+codes and types must be recognized, and request IDs must match the supported format.
+Provider diagnostics exclude raw messages/responses, request bodies, URLs, source,
+and credentials.
 
 ### 📦 Deployment
 
@@ -860,7 +863,12 @@ ambiguous responses. Inference can repeat if generation finishes without publica
 
 Post a new `/ab codereview` after a restart loses pending work or an attempt fails.
 Failures, including malformed model result JSON, carry no successful-result
-marker and use ordinary failure comments. Before generation and publication,
+marker and use ordinary failure comments. These show an emoji summary, a safe
+reason, and recovery advice. Collapsed **Failure details** identify the processing
+stage, original request, head/base SHAs, configured model, unavailable token usage,
+and available provider diagnostics described under [Telemetry](#-telemetry).
+Unknown provider metadata and raw provider messages are withheld from comments.
+Before generation and publication,
 the worker reads complete discussion and native review history for matching App
 results; human or other-App lookalikes do not count. Deduplication includes task, case-insensitive
 target repository, PR identity, head, and base. A matching result reuses its

@@ -49,28 +49,26 @@ func NewCommand(definition Definition, service github.Service, provider ai.Provi
 	}
 
 	return &Command{
-		definition:     definition,
-		github:         service,
-		provider:       provider,
-		sources:        sources,
-		queue:          commands.NewQueue(),
-		authorizer:     authorizer,
-		staleMessage:   fmt.Sprintf("The pull request revision changed. Post a new /ab %s request.", definition.Name),
-		failureMessage: fmt.Sprintf("%s failed. Post a new /ab %s request after recovery.", definition.Title, definition.Name),
+		definition:   definition,
+		github:       service,
+		provider:     provider,
+		sources:      sources,
+		queue:        commands.NewQueue(),
+		authorizer:   authorizer,
+		staleMessage: fmt.Sprintf("The pull request revision changed. Post a new /ab %s request.", definition.Name),
 	}, nil
 }
 
 // Command owns shared review consent, revision checks, deduplication, and queued
 // work. Each instance has independent state; successful results retain its name.
 type Command struct {
-	definition     Definition
-	github         github.Service
-	provider       ai.Provider
-	sources        *Sources
-	queue          *commands.Queue
-	authorizer     *commands.Authorizer
-	staleMessage   string
-	failureMessage string
+	definition   Definition
+	github       github.Service
+	provider     ai.Provider
+	sources      *Sources
+	queue        *commands.Queue
+	authorizer   *commands.Authorizer
+	staleMessage string
 }
 
 // Handle refreshes human consent and queues one revision-specific review. A full

@@ -47,7 +47,7 @@ func (p *provider) generate(ctx context.Context, prompt Prompt, params responses
 
 		if len(requested) == 0 {
 			if strings.IsEmpty(strings.TrimSpace(response.OutputText())) {
-				return nil, errors.New("ai: empty response")
+				return nil, &GenerationError{Reason: "The AI provider returned an empty answer.", Recovery: "Check provider availability and model settings."}
 			}
 
 			return &Completion{
@@ -94,11 +94,11 @@ func (c *conversation) request(ctx context.Context) (*responses.Response, error)
 
 	response, err := c.provider.service.New(ctx, c.params)
 	if ctx.Err() != nil {
-		return nil, errors.New("ai: cancelled or timed out")
+		return nil, requestFailure(ctx.Err())
 	}
 
 	if err != nil {
-		return nil, errors.New("ai: request failed")
+		return nil, requestFailure(err)
 	}
 
 	if err := validateResponse(response); err != nil {
@@ -123,12 +123,12 @@ func (c *conversation) accept(response *responses.Response) ([]responses.Respons
 		case "message":
 			for _, content := range output.AsMessage().Content {
 				if content.Type != "output_text" {
-					return nil, errors.New("ai: refused or unexpected response")
+					return nil, &GenerationError{Reason: "The AI provider refused the request or returned unexpected content.", Recovery: "Check the model's supported capabilities and content policies."}
 				}
 			}
 		case "reasoning":
 		default:
-			return nil, errors.New("ai: refused or unexpected response")
+			return nil, &GenerationError{Reason: "The AI provider returned an unsupported response item.", Recovery: "Check the model's supported capabilities and the worker's provider integration."}
 		}
 
 		if err := c.remember(output); err != nil {
@@ -208,14 +208,23 @@ func (c *conversation) recordUsage(current *Usage) {
 
 func validateResponse(response *responses.Response) error {
 	if response == nil {
-		return errors.New("ai: incomplete or failed response")
+		return &GenerationError{Reason: "The AI provider returned no response.", Recovery: "Check provider availability and the AI endpoint."}
 	}
 
 	isCompleted := response.Status == responses.ResponseStatusCompleted
 	hasErrorCode := !strings.IsEmpty(string(response.Error.Code))
 	hasErrorMessage := !strings.IsEmpty(response.Error.Message)
 	if !isCompleted || hasErrorCode || hasErrorMessage {
-		return errors.New("ai: incomplete or failed response")
+		code := knownProviderCode(string(response.Error.Code))
+		if response.Status == responses.ResponseStatusIncomplete {
+			code = knownProviderCode(response.IncompleteDetails.Reason)
+		}
+
+		return &GenerationError{
+			Reason: "The AI provider returned an incomplete or failed response.", Code: code,
+			Recovery: "Check the provider code and model settings before sending another request.",
+		}
 	}
+
 	return nil
 }

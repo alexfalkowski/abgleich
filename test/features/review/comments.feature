@@ -46,6 +46,7 @@ Feature: Discuss advisory findings beside the changed code
     And the reviewer reports "an unreadable answer"
     When a maintainer with "write" access comments "/ab codereview"
     Then the code review should fail without publishing findings
+    And its failure comment should explain "unreadable or invalid review result" with recovery advice
     And exactly 1 request should reach the AI service
     And no native review should be submitted
 
