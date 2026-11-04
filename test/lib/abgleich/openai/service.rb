@@ -55,6 +55,18 @@ module Abgleich
       'overlapping writes' => { cached_tokens: 80, cache_write_tokens: 30 }
     }.freeze
 
+    REVIEW_FAILURES = {
+      'rate limiting' => [429, 'rate_limit_exceeded', 'rate_limit_error'],
+      'an unavailable provider' => [503, 'server_error', 'server_error'],
+      'invalid credentials' => [401, 'invalid_api_key', 'authentication_error'],
+      'insufficient quota' => [429, 'insufficient_quota', 'insufficient_quota'],
+      'too much source' => [400, 'context_length_exceeded', 'invalid_request_error'],
+      'invalid reasoning state' => [400, 'invalid_encrypted_content', 'invalid_request_error'],
+      'denied access' => [403, nil, 'permission_error'],
+      'an unavailable model' => [404, 'model_not_found', 'invalid_request_error'],
+      'unrecognized diagnostics' => [400, 'nonnative-summary-key', 'func Worker() bool']
+    }.freeze
+
     before do
       content_type :json
       halt 401 unless request.env['HTTP_AUTHORIZATION'] == 'Bearer nonnative-summary-key'
@@ -62,8 +74,7 @@ module Abgleich
 
     post '/v1/responses' do
       payload = JSON.parse(request.body.read)
-      Abgleich.openai.record_request(payload)
-      mode = Abgleich.openai.mode
+      mode = prepare_response(payload)
       sleep 0.8 if mode == 'slow'
       # The 3s test job allows at most 1.5s for inference.
       sleep 2 if mode == 'timeout'
@@ -92,6 +103,21 @@ module Abgleich
     end
 
     private
+
+    def prepare_response(payload)
+      Abgleich.openai.record_request(payload)
+      mode = Abgleich.openai.mode
+      reject_review_request(mode.delete_prefix('diagnostic ')) if mode&.start_with?('diagnostic ')
+      mode
+    end
+
+    def reject_review_request(problem)
+      status, code, type = REVIEW_FAILURES.fetch(problem)
+      request_id = problem == 'unrecognized diagnostics' ? 'req_sk-provider-secret' : 'req_0123456789abcdef0123456789abcdef'
+      headers 'X-Request-Id' => request_id
+      message = 'provider-private-detail nonnative-summary-key func Worker() bool @everyone <script> https://untrusted.invalid'
+      halt status, { error: { code:, type:, message:, param: 'sk-provider-secret' } }.to_json
+    end
 
     def response_output(content, mode)
       messages = [{ id: 'msg_summary', type: 'message', role: 'assistant', status: 'completed', content: }]

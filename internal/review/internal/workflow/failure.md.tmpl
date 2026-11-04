@@ -1,0 +1,32 @@
+### ❌ Abgleich {{.Title | lower}}
+
+**{{.Title}} failed:** {{.Reason | markdown}}
+
+**🛠️ Recovery:** {{.Recovery | markdown}}
+
+Post a new `/ab {{.Command}}` request after recovery.
+
+<details>
+<summary>🔎 Failure details</summary>
+
+**📍 Stage:** {{.Stage}}
+
+[💬 {{.Title}} request](#issuecomment-{{.RequestID}})
+
+**🔖 Head:** `{{.HeadSHA}}`
+
+**🔖 Base:** `{{.BaseSHA}}`
+
+**🧠 Model:** {{.Model | markdown}}
+
+**📊 Tokens:** Unavailable for this failed attempt.
+
+{{with .Provider}}**🌐 HTTP status:** {{if .StatusCode}}{{.StatusCode}}{{else}}Unavailable.{{end}}
+
+**🏷️ Provider code:** {{if .Code}}{{.Code | markdown}}{{else}}Unavailable or unrecognized.{{end}}
+
+**🧩 Provider type:** {{if .Type}}{{.Type | markdown}}{{else}}Unavailable or unrecognized.{{end}}
+
+**🆔 Provider request ID:** {{if .RequestID}}{{.RequestID | markdown}}{{else}}Unavailable or unrecognized.{{end}}
+
+{{end}}</details>
