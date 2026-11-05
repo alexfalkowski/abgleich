@@ -16,7 +16,9 @@ executes Git.
 
 Each sweep discovers public and private repositories accessible to the App
 installation, excluding archived, disabled, and foreign repositories. Merge
-automation requires **Allow auto-merge**. Only open, non-draft PRs are eligible.
+automation requires **Allow auto-merge**. Only open, non-draft PRs with both
+branches in the discovered repository are eligible. Fork PRs are ignored because
+fork contributions do not run CI.
 
 For PRs authored by `dependabot[bot]` with both branches in the discovered
 repository, Abgleich by default enables squash auto-merge while requirements are
@@ -76,9 +78,9 @@ Cleanup, summary, code-review, and security-review jobs retain independent sched
 
 Apply the exact `automerge` label to request squash auto-merge or an immediate
 guarded squash merge when ready. The repository must allow both auto-merge and
-squash merging. Fork PRs are supported when their base belongs to the discovered
-repository; fork authors must keep their branches current. Same-repository
-branches can be rebased on a later sweep.
+squash merging. Both branches must belong to the discovered repository;
+the label does not permit fork PRs. Eligible branches can be rebased on a later
+sweep.
 
 Target-repository label permissions control opt-in, including labels from bots
 and workflows. The label authorizes the PR across commits; configure required
@@ -95,7 +97,7 @@ disable that separately to stop it.
 
 Provision and apply the exact, case-sensitive `hold` label to pause auto-merge
 enablement, immediate merges, rebases, and `/ab automerge` requests on that PR.
-It covers Dependabot and fork PRs, survives restarts, and leaves status, summary,
+It covers Dependabot and labeled PRs, survives restarts, and leaves status, summary,
 code-review, and security-review commands available. Rejected commands still
 receive reaction feedback.
 
@@ -139,9 +141,11 @@ on the original comment:
 | 👍 | Accepted: automerge labeled or already enabled, status published, or summary/review queued or already present. |
 | 😕 | The request was ineligible, rejected, or failed. |
 
-`/ab automerge` adds the durable `automerge` label for the next automation check,
-including fork PRs. With PR event subscriptions enabled, GitHub's label event
-prompts that check. Existing labels or enabled auto-merge need no write, but
+`/ab automerge` adds the durable `automerge` label for the next automation check
+when both branches belong to the repository. Fork requests are rejected, including
+when already labeled or enabled for auto-merge. With PR event subscriptions
+enabled, GitHub's label event prompts that check. Existing labels or enabled
+auto-merge need no write, but
 authorization is still checked. Acceptance does not mean merging has finished.
 
 A command at or before a label removal or auto-merge disablement cannot restore
@@ -158,9 +162,9 @@ acceptance feedback. Consult current PR state for the outcome.
 
 `/ab status` replies with the observed policy decision, reason, next step, head
 commit, UTC assessment time, auto-merge state, and request link. It explains
-opt-out, Dependabot exclusions, PR eligibility, `hold`, squash settings, label
-consent, and the applicable strategy, explicitly reporting missing history or
-comparison evidence.
+opt-out, Dependabot exclusions, PR eligibility (including ignored forks), `hold`,
+squash settings, label consent, and the applicable strategy, explicitly reporting
+missing history or comparison evidence.
 
 Status is advisory and performs no merge automation. Consult GitHub's merge box
 for individual failing checks or missing reviews. A detected revision or policy
@@ -172,7 +176,8 @@ leave duplicate replies.
 ### 📝 AI pull request summaries
 
 With [summaries configured](#-summary-settings), `/ab summarise` requests an
-advisory summary of an open, non-draft PR in any repository accessible to the App.
+advisory summary of an open, non-draft PR with both branches in a repository
+accessible to the App. Fork requests are rejected without AI inference.
 No repository topic, auto-merge setting, or label is required.
 
 The independent job processes at most four queued requests serially. Inference
@@ -185,7 +190,7 @@ after restart or new commits.** See [summary recovery](#-summary-recovery).
 > [!IMPORTANT]
 > An authorized `/ab summarise` comment authorizes sending PR metadata and
 > changed-file patches returned by GitHub to OpenAI, including private
-> repositories and fork contributions. Approve the provider's data handling and
+> repositories. Approve the provider's data handling and
 > billing before enabling summaries.
 > Summaries are advisory and never label, approve, merge, rebase, or execute code.
 
@@ -222,7 +227,8 @@ explicit credentials, `store: false`, and no automatic inference retries.
 ### 🔬 AI code reviews
 
 With [code reviews configured](#-code-review-settings), post `/ab codereview` to
-request a review of an open, non-draft PR, including fork contributions.
+request a review of an open, non-draft PR with both branches in the target
+repository. Fork requests are rejected without AI inference.
 A new, unedited human comment from a current writer or administrator authorizes
 sharing PR metadata, patches, whole changed-file text, and relevant repository
 source with OpenAI, including private source. No topic, auto-merge setting, label, or removal of `hold` is needed.
@@ -303,8 +309,9 @@ findings are discarded. Cancellation comments carry no successful-result marker.
 
 After draining its queue, each scheduled review run uses its remaining deadline to
 resolve its own App-authored inline threads that GitHub marks outdated on open
-PRs, including drafts and forks. Current threads stay open; replies do not prevent
-resolution of an outdated App thread. This needs no new command or inference and
+PRs with both branches in the repository, including drafts. Fork PRs receive no
+thread maintenance. Current threads stay open; replies do not prevent resolution
+of an outdated App thread. This needs no new command or inference and
 does not depend on topics, `hold`, auto-merge settings, or the original requester's
 continued permission. Outdated means the comment's location became stale; it does
 not establish that the issue was fixed. A fresh AI review still requires the
@@ -314,8 +321,9 @@ resolution, so changes after the final state and ownership check can race it.
 ### 🛡️ AI security reviews
 
 With [security reviews configured](#-security-review-settings), post `/ab secreview`
-to request a focused security review, including on fork PRs and private
-repositories. A new, unedited human comment from a current writer or administrator
+to request a focused security review, including in private repositories. Both
+branches must belong to the target repository; fork requests are rejected without
+AI inference. A new, unedited human comment from a current writer or administrator
 consents to sharing PR metadata, patches, whole changed files, and relevant
 repository source with OpenAI.
 Approve provider data handling and billing before enabling it. The PR must be open
@@ -872,6 +880,8 @@ connection pools.
 No checkpoint or database is needed. After crashes, timeouts, or ambiguous
 responses, the next sweep reconciles fresh GitHub state. An accepted update can
 finish after the caller stops waiting; inspect remote state before acting manually.
+Existing GitHub auto-merge on fork PRs is left unchanged; disable it in GitHub
+separately if needed. Use a branch in the target repository for merge automation.
 If event rebasing is waiting, inspect the configured completion signal on the
 current head. Failed workflows that never emit their final signal and GitHub
 permission failures when reading CI evidence leave repair to the scheduled sweep.
@@ -920,8 +930,8 @@ context-size failures, and deadlines before retrying.
 Outdated-thread maintenance rediscovers GitHub state on the existing review
 schedule, including after restart or a lost resolution response. No human command
 is needed for this cleanup. Queue work, job deadlines, or GitHub failures can delay
-it; failed threads do not block other candidates. Closed PRs and disabled review
-features receive no maintenance. Existing overview comments and overview-only
+it; failed threads do not block other candidates. Closed PRs, fork PRs, and disabled
+review features receive no maintenance. Existing overview comments and overview-only
 findings remain historical output. See [review behavior](#-ai-code-reviews).
 
 #### 🛡️ Security-review recovery

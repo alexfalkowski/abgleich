@@ -6,4 +6,6 @@
 // runs also reconcile their own outdated inline threads without inference.
 // One factory constructs independent commands sharing source access and serialized
 // publication so an approval preserves the other feature's findings.
+// Reviews and thread maintenance require both branches in the target repository;
+// fork pull requests are ignored.
 package workflow

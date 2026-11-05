@@ -6,18 +6,26 @@ Feature: Maintainer-requested summaries
   Background:
     Given AI summaries are configured for this repository
 
-  Scenario Outline: Request a summary of a contribution
-    Given a pull request from "<source>" for branch "contribution" is "waiting for checks"
+  Scenario: Request a summary of a contribution
+    Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
     When a maintainer with "write" access comments "/ab summarise"
     Then the request should be accepted
     And the summary should identify the request and the pull request revision
     And the operator should see that summary generation succeeded
     And the summary should leave pull request automation unchanged
 
+  Scenario Outline: Decline fork contributions without generating a summary
+    Given a pull request from "a fork" for branch "contribution" is "<condition>"
+    When a maintainer with "write" access comments "/ab summarise"
+    Then the comment delivery should return HTTP 204
+    And the command comment should show "receipt and rejection" feedback
+    And no source should be shared with the AI service
+    And no completed summary should be posted
+
     Examples:
-      | source         |
-      | the repository |
-      | a fork         |
+      | condition          |
+      | waiting for checks |
+      | ready to merge     |
 
   Scenario: Keep an existing summary after new commits and a restart
     Given a pull request from "the repository" for branch "contribution" is "waiting for checks"

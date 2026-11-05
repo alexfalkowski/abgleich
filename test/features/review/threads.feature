@@ -104,10 +104,10 @@ Feature: Retire outdated review conversations
     And conversation "unconfirmed" should receive exactly 1 resolution request across later checks
     And no AI inference should be requested for conversation maintenance
 
-  Scenario: Maintain both enabled features on a draft fork without merge automation
+  Scenario: Maintain both enabled features on a draft without merge automation
     Given AI security reviews are configured for this repository
     And security reviews and summaries are independently enabled
-    And a pull request from "a fork" for branch "contribution" is "a draft"
+    And a pull request from "the repository" for branch "contribution" is "a draft"
     And the reviewed repository has hold and automatic merging disabled
     And the pull request has these existing review conversations:
       | conversation | kind     | state    |
@@ -128,4 +128,35 @@ Feature: Retire outdated review conversations
       | closed       | code | outdated |
     When scheduled review maintenance runs
     Then conversation "closed" should receive no resolution requests
+    And no AI inference should be requested for conversation maintenance
+
+  Scenario Outline: Ignore review conversations on fork contributions
+    Given AI <kind> reviews are configured for this repository
+    And a pull request from "a fork" for branch "contribution" is "<condition>"
+    And the pull request has these existing review conversations:
+      | conversation | kind   | state    |
+      | fork         | <kind> | outdated |
+    When scheduled review maintenance runs
+    Then conversation "fork" should receive no resolution requests
+    And review conversations should be:
+      | conversation | resolved |
+      | fork         | false    |
+    And no AI inference should be requested for conversation maintenance
+
+    Examples:
+      | kind     | condition          |
+      | code     | waiting for checks |
+      | code     | a draft            |
+      | security | waiting for checks |
+      | security | a draft            |
+
+  Scenario: Recheck the branch repository before resolving a conversation
+    Given AI code reviews are configured for this repository
+    And a pull request from "the repository" for branch "contribution" is "waiting for checks"
+    And the pull request has these existing review conversations:
+      | conversation | kind | state    |
+      | moved        | code | outdated |
+    And the pull request moves to a fork before conversation resolution
+    When scheduled review maintenance runs
+    Then conversation "moved" should receive no resolution requests
     And no AI inference should be requested for conversation maintenance

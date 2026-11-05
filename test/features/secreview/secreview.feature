@@ -6,8 +6,8 @@ Feature: Request a security review with a GitHub verdict
   Background:
     Given AI security reviews are configured for this repository
 
-  Scenario Outline: Review the patches of a contribution
-    Given a pull request from "<source>" for branch "contribution" is "waiting for checks"
+  Scenario: Review the patches of a contribution
+    Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
     When a maintainer with "write" access comments "/ab secreview"
     Then the request should be accepted
     And the security review should identify the request and revisions
@@ -17,10 +17,18 @@ Feature: Request a security review with a GitHub verdict
     And the security reviewer should have read-only access
     And source and findings should remain absent from worker logs
 
+  Scenario Outline: Decline fork contributions without generating a security review
+    Given a pull request from "a fork" for branch "contribution" is "<condition>"
+    When a maintainer with "write" access comments "/ab secreview"
+    Then the comment delivery should return HTTP 204
+    And the command comment should show "receipt and rejection" feedback
+    And no security review source should be shared
+    And no native review should be submitted
+
     Examples:
-      | source         |
-      | the repository |
-      | a fork         |
+      | condition          |
+      | waiting for checks |
+      | ready to merge     |
 
   Scenario: Report a clean inspected scope
     Given a pull request from "the repository" for branch "contribution" is "waiting for checks"

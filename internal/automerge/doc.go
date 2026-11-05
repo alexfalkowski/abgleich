@@ -1,6 +1,6 @@
 // Package automerge applies ordered Dependabot, label, and rebase strategies in
-// opted-in repositories. Labeled PRs may come from forks; rebasing requires both
-// branches in the discovered repository. The internal strategy package owns
+// opted-in repositories. All merge automation requires both branches in the
+// discovered repository; fork PRs are ignored. The internal strategy package owns
 // policy and fresh pre-mutation checks; Module owns strategy order, and the
 // reconciler owns repository opt-in. GitHub access and mutations belong to github.
 // Coordinator serializes scheduled sweeps and queued repository notifications,

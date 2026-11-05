@@ -47,19 +47,19 @@ func (r *Reconciler) Assess(ctx context.Context, repo *github.Repository, pull *
 		}
 	}
 
+	if !r.github.IsSameRepository(repo, pull) {
+		return Assessment{
+			Policy: "PR eligibility", Decision: "Fork pull request ignored",
+			Reason:   "Merge automation requires both branches in the repository. Fork contributions do not run the repository's CI.",
+			NextStep: "Use a branch in the target repository for merge automation. Disable any existing GitHub auto-merge separately if needed.",
+		}
+	}
+
 	for _, s := range r.strategies {
 		if s.Matches(repo, pull) {
 			// Decision reasons retain unavailable evidence alongside remote errors.
 			decision, _ := s.Assess(ctx, repo, pull)
 			return explainDecision(decision)
-		}
-	}
-
-	if pull.GetAutoMerge() != nil && !r.github.IsSameRepository(repo, pull) {
-		return Assessment{
-			Policy: "rebase", Decision: "Fork rebase unsupported",
-			Reason:   "GitHub auto-merge is enabled, but the head branch belongs to a fork. Abgleich never rebases fork branches.",
-			NextStep: "Ask the contributor to keep the fork branch current. GitHub controls the existing auto-merge request.",
 		}
 	}
 

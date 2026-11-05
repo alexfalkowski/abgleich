@@ -16,14 +16,14 @@ func NewLabel(service github.Service) *Label {
 	return &Label{github: service}
 }
 
-// Label automates labeled pull requests, including contributions from forks.
+// Label automates labeled pull requests with both branches in the repository.
 type Label struct {
 	github github.Service
 }
 
 // Matches identifies eligible labeled pull requests without auto-merge enabled.
 func (s *Label) Matches(repository *github.Repository, pull *github.PullRequest) bool {
-	if !Eligible(pull) || !s.github.IsBaseRepository(repository, pull) || pull.GetAutoMerge() != nil {
+	if !Eligible(pull) || !s.github.IsSameRepository(repository, pull) || pull.GetAutoMerge() != nil {
 		return false
 	}
 

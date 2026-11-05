@@ -6,8 +6,8 @@ Feature: Request a code review with a GitHub verdict
   Background:
     Given AI code reviews are configured for this repository
 
-  Scenario Outline: Review the patches of a contribution
-    Given a pull request from "<source>" for branch "contribution" is "waiting for checks"
+  Scenario: Review the patches of a contribution
+    Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
     When a maintainer with "write" access comments "/ab codereview"
     Then the request should be accepted
     And the code review should identify the request and revisions
@@ -16,10 +16,18 @@ Feature: Request a code review with a GitHub verdict
     And exactly 1 request should reach the AI service
     And source and findings should remain absent from worker logs
 
+  Scenario Outline: Decline fork contributions without generating a code review
+    Given a pull request from "a fork" for branch "contribution" is "<condition>"
+    When a maintainer with "write" access comments "/ab codereview"
+    Then the comment delivery should return HTTP 204
+    And the command comment should show "receipt and rejection" feedback
+    And no code review source should be shared
+    And no native review should be submitted
+
     Examples:
-      | source         |
-      | the repository |
-      | a fork         |
+      | condition          |
+      | waiting for checks |
+      | ready to merge     |
 
   Scenario: Report a clean inspected scope
     Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
