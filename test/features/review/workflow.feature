@@ -1,12 +1,12 @@
 @github @manual @commands @codereview @review
-Feature: Authorize and publish advisory reviews
+Feature: Authorize and publish reviews
   Maintainers can request a first review of GitHub pull request patches.
-  Reviews remain advisory and do not change pull request automation.
+  Reviews report findings and select a verdict without requesting merge automation.
 
   Background:
     Given AI code reviews are configured for this repository
 
-  Scenario: Keep advisory review available on hold without repository opt-in
+  Scenario: Keep review available on hold without repository opt-in
     Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
     And the reviewed repository has hold and automatic merging disabled
     When a maintainer with "write" access comments "/ab codereview"

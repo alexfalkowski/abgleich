@@ -12,8 +12,12 @@ import (
 )
 
 // NewReconciler constructs stateless cleanup using the shared GitHub service.
-// Configuration is optional; the module registers no job when it is nil.
+// Omitted configuration returns nil; the module registers no cleanup job.
 func NewReconciler(cfg *Config, service github.Service) *Reconciler {
+	if !cfg.IsEnabled() {
+		return nil
+	}
+
 	return &Reconciler{config: cfg, github: service}
 }
 

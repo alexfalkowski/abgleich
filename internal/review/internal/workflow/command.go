@@ -9,12 +9,12 @@ import (
 	"github.com/alexfalkowski/abgleich/internal/commands"
 	"github.com/alexfalkowski/abgleich/internal/github"
 	"github.com/alexfalkowski/go-service/v2/context"
-	"github.com/alexfalkowski/go-service/v2/errors"
 	"github.com/alexfalkowski/go-service/v2/strings"
+	"github.com/alexfalkowski/go-sync"
 )
 
 // Definition supplies the identity, model, and instructions for
-// one advisory review command. Feature packages own these values and registration.
+// one review command. Feature packages own these values and registration.
 // Name is the exact /ab command suffix and the persisted result namespace.
 type Definition struct {
 	// Name is the exact /ab command suffix and the successful result namespace.
@@ -23,7 +23,7 @@ type Definition struct {
 	Title string
 	// Model selects the provider model for this feature's review conversations.
 	Model string
-	// Instructions supplies the feature-owned advisory review prompt.
+	// Instructions supplies the feature-owned review prompt.
 	Instructions string
 	// ReasoningEffort optionally selects provider reasoning effort; empty leaves its default.
 	ReasoningEffort string
@@ -35,30 +35,6 @@ type reviewTask struct {
 	commandComment *github.IssueComment
 }
 
-// NewCommand constructs an enabled advisory review with its own bounded queue.
-// A missing provider returns an error; construction performs no remote calls.
-func NewCommand(definition Definition, service github.Service, provider ai.Provider, sources *Sources, authorizer *commands.Authorizer) (*Command, error) {
-	switch definition.ReasoningEffort {
-	case strings.Empty, "none", "minimal", "low", "medium", "high", "xhigh", "max":
-	default:
-		return nil, errors.New("review: invalid reasoning effort")
-	}
-
-	if provider == nil {
-		return nil, errors.New(definition.Name + ": requires AI configuration")
-	}
-
-	return &Command{
-		definition:   definition,
-		github:       service,
-		provider:     provider,
-		sources:      sources,
-		queue:        commands.NewQueue(),
-		authorizer:   authorizer,
-		staleMessage: fmt.Sprintf("The pull request revision changed. Post a new /ab %s request.", definition.Name),
-	}, nil
-}
-
 // Command owns shared review consent, revision checks, deduplication, and queued
 // work. Each instance has independent state; successful results retain its name.
 type Command struct {
@@ -66,6 +42,7 @@ type Command struct {
 	github       github.Service
 	provider     ai.Provider
 	sources      *Sources
+	publication  *sync.Worker
 	queue        *commands.Queue
 	authorizer   *commands.Authorizer
 	staleMessage string
@@ -166,7 +143,12 @@ func (c *Command) hasNativeReview(ctx context.Context, task *reviewTask, marker 
 
 	var candidates []*github.PullRequestReview
 	for _, review := range reviews {
-		if review.GetState() == "COMMENTED" && strings.Contains(review.GetBody(), "\n"+marker) {
+		switch review.GetState() {
+		case "COMMENTED", "APPROVED", "CHANGES_REQUESTED", "DISMISSED":
+		default:
+			continue
+		}
+		if strings.Contains(review.GetBody(), "\n"+marker) {
 			candidates = append(candidates, review)
 		}
 	}

@@ -4,6 +4,7 @@ import (
 	"github.com/alexfalkowski/abgleich/internal/transport/http/client"
 	"github.com/alexfalkowski/go-service/v2/bytes"
 	"github.com/alexfalkowski/go-service/v2/context"
+	"github.com/alexfalkowski/go-service/v2/di"
 	"github.com/alexfalkowski/go-service/v2/errors"
 	"github.com/alexfalkowski/go-service/v2/os"
 	"github.com/alexfalkowski/go-service/v2/strings"
@@ -24,16 +25,31 @@ type Provider interface {
 	Generate(ctx context.Context, prompt Prompt) (*Completion, error)
 }
 
+// ProviderParams supplies provider settings, credential resolution, and transport dependencies.
+type ProviderParams struct {
+	// In marks this struct as an injected dependency group.
+	di.In
+
+	// Config enables the provider and selects credentials and HTTP settings.
+	Config *Config
+	// FS resolves the configured credential source once at startup.
+	FS *os.FS
+	// Logger records generation outcomes without source, response text, or credentials.
+	Logger *logger.Logger
+	// Connections creates the AI connection pool and registers its shutdown cleanup.
+	Connections *client.Factory
+}
+
 // NewProvider reads the configured key once without making network requests.
 // A nil configuration returns nil, nil. Invalid settings or missing/empty key
 // sources prevent startup; changing credentials requires a process restart.
 // Idle connections close during shutdown after scheduled work stops.
-func NewProvider(cfg *Config, fs *os.FS, log *logger.Logger, connections *client.Factory) (Provider, error) {
-	if !cfg.IsEnabled() {
+func NewProvider(params ProviderParams) (Provider, error) {
+	if !params.Config.IsEnabled() {
 		return nil, nil
 	}
 
-	key, err := fs.ReadSource(cfg.OpenAI.APIKey)
+	key, err := params.FS.ReadSource(params.Config.OpenAI.APIKey)
 	apiKey := strings.TrimSpace(bytes.String(key))
 	if err != nil || strings.IsEmpty(apiKey) {
 		return nil, errors.New("ai: api key unavailable")
@@ -41,7 +57,7 @@ func NewProvider(cfg *Config, fs *os.FS, log *logger.Logger, connections *client
 
 	// Inference POSTs never use transport retries, including when shared client
 	// retry settings are present. The SDK's retries are also disabled below.
-	connection, err := connections.NewClient(cfg.Client, cfg.GetTimeout())
+	connection, err := params.Connections.NewClient(params.Config.Client, params.Config.GetTimeout())
 	if err != nil {
 		return nil, errors.Prefix("ai: client", err)
 	}
@@ -50,13 +66,13 @@ func NewProvider(cfg *Config, fs *os.FS, log *logger.Logger, connections *client
 	// including custom headers, while this constructor only uses explicit options.
 	service := responses.NewResponseService(
 		option.WithAPIKey(apiKey),
-		option.WithBaseURL(cfg.OpenAI.GetURL()),
+		option.WithBaseURL(params.Config.OpenAI.GetURL()),
 		option.WithHTTPClient(connection),
 		option.WithMaxRetries(0),
 	)
 	return &loggingProvider{
 		Provider: &provider{service: &service},
-		logger:   log,
+		logger:   params.Logger,
 	}, nil
 }
 

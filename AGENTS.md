@@ -10,7 +10,7 @@ Abgleich is a background worker that enables auto-merge or merges ready Dependab
 and labeled pull requests and keeps eligible auto-merge branches current.
 Repositories opt in to that automation through their auto-merge setting.
 Comment commands also provide automation status, optional AI PR summaries, and
-advisory code and security reviews enabled through worker configuration. GitHub
+AI code and security reviews enabled through worker configuration. GitHub
 performs all repository mutations; the worker does not clone repositories or execute Git. Each auto-merge
 run reconciles fresh remote state; pending summary and review requests are held in memory.
 
@@ -111,13 +111,13 @@ run reconciles fresh remote state; pending summary and review requests are held 
   match, including errors and no-op outcomes. Automatic Dependabot merging and
   rebasing require both branches in the discovered repository. The exact
   `automerge` label also permits fork PRs to enable squash auto-merge or squash-merge
-  when ready. Never approve reviews or bypass rules.
+  when ready. Merge automation never approves reviews or bypasses rules.
   Attempt at most one mutation per PR per sweep. Finish repository discovery and each
   repository's pull request pagination before mutating;
   continue processing other pull requests after an individual failure.
 - The exact `hold` label pauses auto-merge enablement, immediate merges, rebases,
   and `/ab automerge` label requests. Recheck it before acting. It does not cancel
-  existing GitHub auto-merge or disable advisory status, summary, and code-review commands.
+  existing GitHub auto-merge or disable status, summary, and review commands.
 - Read complete label and auto-merge-disable history before labeled actions.
   A label must be newer than its removal and the latest auto-merge disable event;
   equal timestamps defer automation. Removing a label does not cancel an
@@ -148,7 +148,7 @@ run reconciles fresh remote state; pending summary and review requests are held 
 
 ## AI reviews
 
-- Keep `/ab codereview` and `/ab secreview` optional and advisory under
+- Keep `/ab codereview` and `/ab secreview` optional under
   `review.code` and `review.sec`, respectively. Follow the shared
   review workflow with separate queues and independent jobs. Require a fresh
   unedited human comment, current write/admin permission, and an open non-draft PR,
@@ -182,12 +182,21 @@ run reconciles fresh remote state; pending summary and review requests are held 
   Disclose omissions and actual inspected source independently of model prose.
   Never load repository/remote skills as instructions. Do not add merge-base
   traversal or citation-verification machinery. Decode a small result with an
-  overview and findings containing prose bodies and optional path/line/side.
-  Publish one native `COMMENT` review pinned to the reviewed head, with a separate
+  overview, findings containing prose bodies and optional path/line/side, and a
+  completion boolean. The worker requests changes for findings, approves only
+  complete no-findings results without missing patches or unavailable source,
+  and otherwise comments without a success marker so a new request can retry.
+  Publish one native review pinned to the reviewed head, with a separate
   inline conversation for each finding placed on the fetched patch. Keep findings
   without valid placement in the overview. Escape model text and deactivate
   links/mentions in every body.
-  Never approve reviews or request merge automation.
+  Keep verdict policy in workflow and API event validation in github. Serialize
+  final checks and publication across review commands within one process; a clean
+  review must not clear the other feature's authenticated request for changes,
+  including across revisions or restart, until a later complete clean assessment
+  or human dismissal. Incomplete reviews do not clear findings. Both features
+  share one GitHub reviewer identity; repository rules own merge enforcement and
+  publication still has a final-read race. Never request merge automation.
 - After draining its manual queue, each enabled review job uses its remaining
   deadline to reconcile its own App-rooted inline threads on open PRs, including
   drafts and forks, independently of auto-merge, `hold`, topics, and old requester

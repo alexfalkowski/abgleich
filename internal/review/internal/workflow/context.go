@@ -48,6 +48,11 @@ func (c *Command) context(ctx context.Context, task *reviewTask) (*reviewContext
 		trees:      make(map[string][]*github.TreeEntry),
 		archives:   make(map[string]*zip.Reader),
 	}
+	for _, file := range files {
+		if strings.IsEmpty(file.GetPatch()) {
+			review.source.unavailable("patch for " + file.GetFilename())
+		}
+	}
 
 	source, err := review.completeSource(ctx)
 	if err != nil {

@@ -20,11 +20,20 @@ const reviewAuthorsQuery = `query PullRequestReviewAuthors($ids: [ID!]!) {
   }
 }`
 
-// AddReview submits one advisory review pinned to pull's reviewed head. A
+var reviewStates = map[string]string{
+	"COMMENT":         "COMMENTED",
+	"APPROVE":         "APPROVED",
+	"REQUEST_CHANGES": "CHANGES_REQUESTED",
+}
+
+// AddReview submits one review pinned to pull's reviewed head. A
 // concurrent push may make it old; commit_id is not a current-head guard.
 func (s *service) AddReview(ctx context.Context, repo *Repository, pull *PullRequest, review *PullRequestReviewRequest) error {
 	publication := *review
-	publication.Event = new("COMMENT")
+	expectedState, ok := reviewStates[publication.GetEvent()]
+	if !ok {
+		return errors.New("github: unsupported review event")
+	}
 	publication.CommitID = new(pull.GetHead().GetSHA())
 
 	created, _, err := s.client.installation.PullRequests.CreateReview(ctx, repo.GetOwner().GetLogin(), repo.GetName(), pull.GetNumber(), &publication)
@@ -38,9 +47,9 @@ func (s *service) AddReview(ctx context.Context, repo *Repository, pull *PullReq
 
 	bodyMatches := created.GetBody() == publication.GetBody()
 	commitMatches := created.GetCommitID() == publication.GetCommitID()
-	isCommented := created.GetState() == "COMMENTED"
+	stateMatches := created.GetState() == expectedState
 	isSubmitted := !created.GetSubmittedAt().IsZero()
-	if !bodyMatches || !commitMatches || !isCommented || !isSubmitted {
+	if !bodyMatches || !commitMatches || !stateMatches || !isSubmitted {
 		return errors.New("github: review publication returned mismatched content or submission state")
 	}
 
@@ -90,6 +99,13 @@ func (s *service) ListReviews(ctx context.Context, repo *Repository, pull *PullR
 // HasAppReview authenticates bot candidates in batches so forged markers cannot
 // cause one API request per review. Missing or mismatched data fails closed.
 func (s *service) HasAppReview(ctx context.Context, reviews []*PullRequestReview) (bool, error) {
+	authored, err := s.AppReviews(ctx, reviews)
+	return len(authored) > 0, err
+}
+
+// AppReviews returns authenticated App reviews in their input order. Authorship
+// is checked in batches; incomplete or mismatched responses fail closed.
+func (s *service) AppReviews(ctx context.Context, reviews []*PullRequestReview) ([]*PullRequestReview, error) {
 	var ids []string
 	for _, review := range reviews {
 		if review.GetUser().GetType() == "Bot" {
@@ -97,32 +113,37 @@ func (s *service) HasAppReview(ctx context.Context, reviews []*PullRequestReview
 		}
 	}
 
+	authored := make(map[string]bool, len(ids))
 	for batch := range slices.Chunk(ids, pageSize) {
 		body := PullRequestReviewAuthorsRequest{Query: reviewAuthorsQuery}
 		body.Variables.IDs = batch
 
 		request, err := s.client.installation.NewRequest(ctx, http.MethodPost, "graphql", body)
 		if err != nil {
-			return false, err
+			return nil, err
 		}
 		request.Header.Set(http.AcceptKey, media.JSON)
 
 		var response PullRequestReviewAuthorsResponse
 		if _, err := s.client.installation.Do(request, &response); err != nil {
-			return false, err
+			return nil, err
 		}
 		if err := response.Validate(batch); err != nil {
-			return false, err
+			return nil, err
 		}
 
 		for _, node := range response.Data.Nodes {
-			if *node.ViewerDidAuthor {
-				return true, nil
-			}
+			authored[node.ID] = *node.ViewerDidAuthor
 		}
 	}
 
-	return false, nil
+	var matches []*PullRequestReview
+	for _, review := range reviews {
+		if authored[review.GetNodeID()] {
+			matches = append(matches, review)
+		}
+	}
+	return matches, nil
 }
 
 func (s *service) validateReview(repo *Repository, pull *PullRequest, review *PullRequestReview) error {

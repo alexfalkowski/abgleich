@@ -13,6 +13,7 @@ import (
 type reviewResult struct {
 	Overview string          `json:"overview"`
 	Findings []reviewFinding `json:"findings"`
+	Complete bool            `json:"complete"`
 }
 
 type reviewFinding struct {

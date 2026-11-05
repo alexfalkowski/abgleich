@@ -19,6 +19,11 @@ type Config struct {
 	scheduler.Config `yaml:",inline" json:",inline" toml:",inline"`
 }
 
+// IsEnabled reports whether summary configuration is present.
+func (c *Config) IsEnabled() bool {
+	return c != nil
+}
+
 // GetInterval returns the summary interval, defaulting to thirty seconds when zero.
 // Config must be non-nil.
 func (c *Config) GetInterval() time.Duration {

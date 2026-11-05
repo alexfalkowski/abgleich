@@ -21,6 +21,11 @@ type Config struct {
 	scheduler.Config `yaml:",inline" json:",inline" toml:",inline"`
 }
 
+// IsEnabled reports whether security review configuration is present.
+func (c *Config) IsEnabled() bool {
+	return c != nil
+}
+
 // GetInterval returns the security review interval, defaulting to thirty seconds when zero.
 // Config must be non-nil.
 func (c *Config) GetInterval() time.Duration {

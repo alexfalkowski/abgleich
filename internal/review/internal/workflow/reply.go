@@ -16,6 +16,8 @@ type reviewComment struct {
 	HeadSHA    string
 	BaseSHA    string
 	Marker     string
+	Assessment string
+	Decision   string
 	Sources    []string
 	Missing    []string
 	RequestID  int64
@@ -69,6 +71,7 @@ func (c *Command) reply(task *reviewTask, completion *ai.Completion, review *rev
 
 	var text strings.Builder
 	text.WriteString(result.Overview)
+
 	var comments []*github.DraftReviewComment
 	for _, finding := range result.Findings {
 		if finding.canPlaceInline(review.Files) {
@@ -88,6 +91,18 @@ func (c *Command) reply(task *reviewTask, completion *ai.Completion, review *rev
 	output := *completion
 	output.Text = text.String()
 	source := review.source
+	marker := c.resultMarker(task)
+
+	event, assessment, decision := "COMMENT", "Incomplete review.", "Comment. Review completion was not confirmed or source was unavailable."
+	switch {
+	case len(result.Findings) > 0:
+		event, assessment, decision = "REQUEST_CHANGES", "Findings.", "Request changes."
+	case result.Complete && len(source.missing) == 0 && len(review.Files) > 0:
+		event, assessment, decision = "APPROVE", "No findings.", "Approve."
+	default:
+		marker = strings.Empty
+	}
+
 	body, err := render("review.md.tmpl", reviewComment{
 		Completion: &output,
 		Title:      c.definition.Title,
@@ -95,7 +110,9 @@ func (c *Command) reply(task *reviewTask, completion *ai.Completion, review *rev
 		Sources:    source.inspected,
 		HeadSHA:    task.pullRequest.GetHead().GetSHA(),
 		BaseSHA:    task.pullRequest.GetBase().GetSHA(),
-		Marker:     c.resultMarker(task),
+		Marker:     marker,
+		Assessment: assessment,
+		Decision:   decision,
 		RequestID:  task.commandComment.GetID(),
 	})
 	if err != nil {
@@ -103,7 +120,7 @@ func (c *Command) reply(task *reviewTask, completion *ai.Completion, review *rev
 	}
 
 	return &github.PullRequestReviewRequest{
-		Body: new(body), Comments: comments,
+		Body: new(body), Comments: comments, Event: new(event),
 	}, nil
 }
 

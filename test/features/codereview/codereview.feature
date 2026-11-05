@@ -1,7 +1,7 @@
 @github @manual @commands @codereview
-Feature: Request an advisory code review
+Feature: Request a code review with a GitHub verdict
   Maintainers can request a first review of GitHub pull request patches.
-  Reviews remain advisory and do not change pull request automation.
+  Reviews report findings and select a verdict without requesting merge automation.
 
   Background:
     Given AI code reviews are configured for this repository

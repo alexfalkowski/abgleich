@@ -1,4 +1,4 @@
-// Package review composes optional advisory code and security reviews. It owns
+// Package review composes optional code and security reviews with GitHub verdicts. It owns
 // combined configuration and module wiring; code and sec own prompts, model
 // settings, and independent command/job registration. The internal workflow
 // shares consent, source context, inference, result identity, and safe publication.

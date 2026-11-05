@@ -1,7 +1,7 @@
 @github @manual @commands @secreview
-Feature: Request an advisory security review
+Feature: Request a security review with a GitHub verdict
   Maintainers can request a first security review of GitHub pull request patches.
-  Reviews remain advisory and do not change pull request automation.
+  Reviews report findings and select a verdict without requesting merge automation.
 
   Background:
     Given AI security reviews are configured for this repository

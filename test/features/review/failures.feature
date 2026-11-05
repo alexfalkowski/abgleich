@@ -1,5 +1,5 @@
 @github @manual @commands @codereview @secreview @review
-Feature: Explain failed advisory reviews
+Feature: Explain failed reviews
   Maintainers can see why a review failed and operators can trace the failed provider request.
 
   Scenario Outline: Explain a rejected provider request without exposing its contents

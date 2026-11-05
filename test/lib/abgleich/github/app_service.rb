@@ -136,14 +136,14 @@ module Abgleich
 
     post '/repos/:owner/:repository/pulls/:number/reviews' do
       payload = JSON.parse(request.body.read)
-      halt 422 unless payload.fetch('event') == 'COMMENT'
+      halt 422 unless %w[COMMENT APPROVE REQUEST_CHANGES].include?(payload.fetch('event'))
 
       repository = "#{params.fetch('owner')}/#{params.fetch('repository')}"
       review = Abgleich.github.publish_review(repository, params.fetch('number').to_i, payload)
       halt 503 if Abgleich.github.failure == 'lost reply response'
 
       status 201
-      review.to_json
+      (Abgleich.github.failure == 'review publication:wrong state' ? review.merge(state: 'PENDING') : review).to_json
     end
 
     get '/repos/:owner/:repository/pulls/:number/reviews' do
