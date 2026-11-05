@@ -10,7 +10,7 @@ module Abgleich
         @request_mutex.synchronize do
           @request_counts = { active_scans: 0, peak_scans: 0, mutation_requests: 0, installation_requests: 0,
                               installation_checks: 0, repository_discoveries: 0,
-                              comment_reads: 0, pull_request_reads: 0, source_reads: 0,
+                              comment_reads: 0, pull_request_reads: 0, source_reads: 0, source_tree_reads: 0,
                               review_history_reads: 0, review_authorship_requests: 0 }
         end
       end

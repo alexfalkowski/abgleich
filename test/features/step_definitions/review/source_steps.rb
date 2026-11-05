@@ -91,6 +91,16 @@ Then('the reviewer should discover the dependency packages and inspect one') do
   expect(body).to include('Inspected source', 'example.com/library@v1.0.0/pkg/alpha/query.go')
 end
 
+Then(/^the (code|security) review should finish after correcting the dependency path$/) do |kind|
+  body = review_text(kind)
+  source = review_source_results
+  expect(source).to include('Source not found: example.com/library@v1.0.0/pkg/missing')
+  expect(source).to include(a_string_including('dependency-alpha-context'))
+  expect(body).to include('Inspected source', 'example.com/library@v1.0.0/pkg/alpha/query.go')
+  expect(body).not_to include('Unavailable source', 'example.com/library@v1.0.0/pkg/missing')
+  expect_no_automation_mutations
+end
+
 Then('the code review should receive the declared Go language reference') do
   review = wait_for_review('code')
   expect(Abgleich.github.reference_requests).to eq([{ version: '1.22', authorization: nil }])

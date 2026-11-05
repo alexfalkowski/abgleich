@@ -7,4 +7,8 @@
 // Webhook verifies raw GitHub deliveries; worker and comment requests share Service.
 // Snapshot completeness, label membership, and timeline timestamp extraction
 // belong here; callers decide whether those facts authorize automation.
+// Service composes accepted-action logging and caching decorators. Only
+// validated source trees and blobs at pinned revisions use go-service's in-memory
+// ttlcache backend. Other backends are bypassed for source reads; mutable GitHub
+// state is always read fresh and cache errors fall back to GitHub.
 package github

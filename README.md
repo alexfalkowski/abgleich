@@ -688,10 +688,36 @@ even if some files were returned successfully. All supplied patches are retained
 binary exclusions and public dependency/reference limitations remain explicit.
 See [review recovery](#-code-review-recovery) to reissue a failed request.
 
+To reuse validated GitHub source between code and security reviews, enable the
+existing go-service in-memory cache. Shared review-source retention supports
+`ttlcache` only:
+
+```yaml
+cache:
+  kind: ttlcache
+  max_entries: 1024
+  max_size: 4MB
+```
+
+Trees are keyed by repository identity and commit; file contents and binary
+exclusions by repository identity and blob SHA, allowing unchanged files to be
+reused across commits. Entries expire after 15 minutes. Go-service owns the backend
+and retention limits; source larger than a cache value limit
+is still read completely without retention. Cache errors fall back to GitHub.
+Omitting `cache` or configuring another backend disables shared review-source
+retention; source is read directly from GitHub. The in-memory cache clears on restart.
+Each review independently records inspected source and omissions. Authorization,
+PR state, patches, and review history remain fresh reads, and simultaneous cache
+misses can fetch the same source independently.
+
 Source options alone enable neither review command. Dependency lookup follows
 the modules, versions, and replacements in the reviewed `go.mod`; archives must
 match its `go.sum`. Version-specific replacements take precedence over wildcard replacements.
 This lookup inspects the declared dependency, without resolving a complete build graph.
+A path confirmed absent from its verified module archive returns "not found" to
+the reviewer without marking source unavailable. The reviewer can correct the
+lookup and complete its assessment; unreadable source and unverified archives
+still prevent approval.
 Local replacements, workspaces, vendored source, dependencies in other
 languages, and private dependencies require repository source inspection. Lookup
 uses `https://proxy.golang.org` without GitHub or AI credentials. Override
@@ -699,12 +725,14 @@ uses `https://proxy.golang.org` without GitHub or AI credentials. Override
 module names. Go references use `https://go.dev/doc`; `review.go_docs` may select
 a trusted documentation mirror. These requests also carry no credentials.
 No arbitrary URLs or model-selected versions are accepted.
+Public dependency archives and language references remain cached per request.
 
 The conversation runs within the existing inference/job deadlines, without local
 provider-request or source-call limits. Source reads have no local byte, file-count,
 or archive-size caps; directory/package reads include all immediate matching files.
-Source and caches stay in memory, so large reviews can increase memory usage and
-exceed provider context limits or worker deadlines. Unavailable source is reported.
+Working source and request-local caches stay in memory, so large reviews can
+increase memory usage and exceed provider context limits or worker deadlines.
+Unavailable source is reported.
 
 Comments list inspected source and failed reads independently of model prose.
 Token details sum actual usage across all provider requests; missing usage on any
@@ -779,6 +807,8 @@ scheduler:
 | `review.sec.timeout` | `2m` | Deadline for a complete security-review job run. |
 | `review.module_proxy` | `https://proxy.golang.org` | Trusted credential-free Go module source endpoint. |
 | `review.go_docs` | `https://go.dev/doc` | Trusted versioned Go release-note source or mirror. |
+| `cache.max_entries` | `1024` | Maximum entries in the configured in-memory cache. |
+| `cache.max_size` | `4MB` | Maximum encoded cache value size; larger source remains readable without caching. |
 | `github.client.timeout` | `1m` | Deadline for an individual GitHub HTTP request. |
 | `github.url` | `https://api.github.com/` | REST API base URL, shared with GraphQL. |
 | `github.webhook.timeout` | `5s` | Complete synchronous delivery budget; must be positive and below `10s`. |

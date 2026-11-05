@@ -1,0 +1,98 @@
+@github @manual @commands @codereview @secreview
+Feature: Reduce GitHub source reads across reviews
+  Maintainers can request independent reviews without downloading the same source again.
+  Reused source remains tied to its repository and verified contents.
+
+  Background:
+    Given repository source and public Go dependencies are available for review
+    And review source caching is enabled
+    And the reviewer needs "a batch of related files"
+    And a pull request from "the repository" for branch "contribution" is "waiting for checks"
+
+  Scenario Outline: Reuse source between independent review commands
+    Given the pull request has already received a <previous> review
+    When a maintainer with "write" access comments "/ab <command>"
+    Then the <kind> review should account for all reused source
+    And GitHub should have served 1 source tree and 2 source downloads
+
+    Examples:
+      | previous | command    | kind     |
+      | code     | secreview  | security |
+      | security | codereview | code     |
+
+  Scenario: Reuse unchanged files after new commits
+    Given the pull request has already received a code review
+    And the reviewed contribution has new commits
+    When a maintainer with "write" access comments "/ab codereview"
+    Then the code review should account for all reused source
+    And GitHub should have served 2 source trees and 2 source downloads
+
+  Scenario: Fetch changed source after new commits
+    Given the pull request has already received a code review
+    And the contribution updates its related helper
+    When a maintainer with "write" access comments "/ab codereview"
+    Then the code review should account for all reused source
+    And the reviewer should receive the updated helper
+    And GitHub should have served 2 source trees and 3 source downloads
+
+  Scenario: Keep source from separate repositories independent
+    Given the pull request has already received a code review
+    And another repository has a contribution with identical files
+    When the maintainer requests code review in the other repository
+    Then the code review should account for all reused source
+    And GitHub should have served 2 source trees and 4 source downloads
+
+  Scenario: Exclude a symbolic link even when its earlier contents are cached
+    Given the pull request has already received a code review
+    And the reviewed contribution has new commits
+    And related source is "behind a symbolic link"
+    When a maintainer with "write" access comments "/ab codereview"
+    Then the code review should exclude the previously read symbolic link
+    And GitHub should have served 2 source trees and 2 source downloads
+
+  Scenario: Recover after a failed source download
+    Given a previous code review could not retrieve repository source
+    When a maintainer with "write" access comments "/ab secreview"
+    Then the security review should account for all reused source
+    And GitHub should have served 1 source tree and 3 source downloads
+
+  Scenario: Disclose binary exclusions again when source is reused
+    Given related source is "binary"
+    And the pull request has already received a code review
+    When a maintainer with "write" access comments "/ab secreview"
+    Then the security review should disclose "binary file"
+    And the security review decision should be "COMMENTED"
+    And GitHub should have served 1 source tree and 2 source downloads
+
+  Scenario: Recheck consent even when the requested source is already available
+    Given the pull request has already received a code review
+    And the security requester loses write access during investigation
+    When a maintainer with "write" access comments "/ab secreview"
+    Then the security review should stop before sharing reused related source
+    And GitHub should have served 1 source tree and 2 source downloads
+
+  Scenario: Keep independent reviews available together
+    When maintainers request both reviews together
+    Then the code review should account for all reused source
+    And the security review should account for all reused source
+
+  Scenario: Keep reviews available without shared caching
+    Given review source caching is omitted
+    And the pull request has already received a code review
+    When a maintainer with "write" access comments "/ab secreview"
+    Then the security review should account for all reused source
+    And GitHub should have served 2 source trees and 4 source downloads
+
+  Scenario: Read complete source that exceeds the cache value limit
+    Given review source exceeds the cache value limit
+    And the pull request has already received a code review
+    When a maintainer with "write" access comments "/ab secreview"
+    Then the security review should account for all reused source
+    And GitHub should have served 2 source trees and 4 source downloads
+
+  Scenario: Keep reviews available with another shared cache backend
+    Given a different shared cache backend is configured
+    And the pull request has already received a code review
+    When a maintainer with "write" access comments "/ab secreview"
+    Then the security review should account for all reused source
+    And GitHub should have served 2 source trees and 4 source downloads

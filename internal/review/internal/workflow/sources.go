@@ -52,7 +52,7 @@ func NewSources(cfg *Config, connections *client.Factory) (*Sources, error) {
 }
 
 // Sources provides public dependency files and language references without
-// credentials. Each review session owns its pinned repository source and caches.
+// credentials. Dependency archives and references stay local to each review.
 type Sources struct {
 	client *http.Client
 	proxy  string

@@ -1,0 +1,61 @@
+environment: development
+cache:
+  kind: redis
+  options:
+    # Source reads must bypass this unused backend rather than waiting for retries.
+    url: redis://127.0.0.1:0?min_retry_backoff=10s&max_retry_backoff=10s
+github:
+  client:
+    timeout: 1m
+    retry:
+      attempts: 2
+      backoff: 10ms
+  owner: alexfalkowski
+  app:
+    id: 42
+    installation_id: 99
+    private_key: file:secrets/github-app-private-key.pem
+  url: http://localhost:11001/github/
+  webhook:
+    secret: file:secrets/github-webhook-secret
+    timeout: 2s
+scheduler:
+  interval: 1s
+  timeout: 2s
+health:
+  duration: 50ms
+  timeout: 1s
+id:
+  kind: uuid
+telemetry:
+  logger:
+    kind: json
+    level: debug
+  metrics:
+    kind: prometheus
+  tracer:
+    kind: otlp
+    url: http://localhost:4318/v1/traces
+transport:
+  http:
+    address: tcp://:11000
+    timeout: 5s
+    max_receive_size: 1048576B
+ai:
+  provider: openai
+  openai:
+    api_key: file:secrets/openai-api-key
+    url: http://localhost:11001/openai/v1/
+review:
+  code:
+    model: test-review
+    reasoning_effort: high
+    interval: 100ms
+    timeout: 20s
+  sec:
+    model: test-security
+    reasoning_effort: high
+    interval: 100ms
+    timeout: 20s
+  go_docs: http://localhost:11001/modules/docs
+  module_proxy: http://localhost:11001/modules

@@ -16,10 +16,6 @@ import (
 )
 
 func (s *service) ReadSourceFiles(ctx context.Context, repo *Repository, revision string, files []*TreeEntry) (map[string]string, error) {
-	if strings.IsEmpty(revision) || strings.IsEmpty(repo.GetNodeID()) {
-		return nil, errors.New("github: source revision or repository identity missing")
-	}
-
 	payload, err := newSourceFilesRequest(repo, revision, files)
 	if err != nil {
 		return nil, err
@@ -86,15 +82,15 @@ func (r *sourceFilesResponse) files(repo *Repository, files []*TreeEntry) (map[s
 }
 
 func newSourceFilesRequest(repo *Repository, revision string, files []*TreeEntry) (*sourceFilesRequest, error) {
+	if err := validateSourceRequest(repo, revision, files); err != nil {
+		return nil, err
+	}
+
 	variables := map[string]string{"owner": repo.GetOwner().GetLogin(), "repository": repo.GetName()}
 	parameters := []string{"$owner: String!", "$repository: String!"}
 
 	var fields []string
 	for index, file := range files {
-		if !regularTreeEntry(file) || !fs.ValidPath(file.GetPath()) || strings.Contains(file.GetPath(), "\\") || strings.IsEmpty(file.GetSHA()) {
-			return nil, errors.New("github: invalid source tree entry")
-		}
-
 		alias := "file" + strconv.Itoa(index)
 		variables[alias] = revision + ":" + file.GetPath()
 		parameters = append(parameters, "$"+alias+": String!")
@@ -111,6 +107,21 @@ func newSourceFilesRequest(repo *Repository, revision string, files []*TreeEntry
 		Variables: variables,
 		Query:     strings.Concat("query SourceFiles(", strings.Join(", ", parameters...), ") {\n", strings.Join("\n", fields...), "\n}"),
 	}, nil
+}
+
+// validateSourceRequest preserves source identity and regular-file checks even
+// when a decorator can satisfy the entire request from cached data.
+func validateSourceRequest(repo *Repository, revision string, files []*TreeEntry) error {
+	if strings.IsEmpty(revision) || strings.IsEmpty(repo.GetNodeID()) {
+		return errors.New("github: source revision or repository identity missing")
+	}
+
+	for _, file := range files {
+		if !regularTreeEntry(file) || !fs.ValidPath(file.GetPath()) || strings.Contains(file.GetPath(), "\\") || strings.IsEmpty(file.GetSHA()) {
+			return errors.New("github: invalid source tree entry")
+		}
+	}
+	return nil
 }
 
 func decodeSourceBlob(blob *sourceBlob, expectedSHA string) (string, error) {

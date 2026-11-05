@@ -1,6 +1,7 @@
 package github
 
 import (
+	"github.com/alexfalkowski/go-service/v2/cache/config"
 	"github.com/alexfalkowski/go-service/v2/context"
 	"github.com/alexfalkowski/go-service/v2/errors"
 	"github.com/alexfalkowski/go-service/v2/strings"
@@ -12,22 +13,31 @@ const pageSize = 100
 
 // NewService constructs shared worker and webhook access through the App client.
 // Construction does not contact GitHub; each sweep discovers fresh remote state.
-func NewService(cfg *Config, client *Client, log *logger.Logger) Service {
-	return &loggingService{Service: &service{config: cfg, client: client}, logger: log}
+// Shared source retention uses ttlcache only; other backends are bypassed.
+func NewService(cfg *Config, cacheCfg *config.Config, client *Client, log *logger.Logger) Service {
+	var remote Service = &service{config: cfg, client: client}
+	if cacheCfg.IsEnabled() && cacheCfg.Kind == "ttlcache" {
+		remote = &cachingService{Service: remote}
+	}
+	return &loggingService{Service: remote, logger: log}
 }
 
 // Service owns repository discovery, identity checks, REST reads, and guarded
 // mutations. Callers own pull request eligibility, rebase, and merge policy.
 type Service interface {
-	// ReadSourceFiles batches regular entries from ListSourceFiles at a fixed
+	// ReadSourceFiles batches uncached regular entries from ListSourceFiles at a fixed
 	// revision. Only complete UTF-8 blobs matching the repository, tree SHA and
 	// byte size are returned, keyed by path. Binary entries are omitted; failed,
-	// missing, or inconsistent responses reject the group. Reads do not retry.
+	// missing, or inconsistent responses reject the group. Validated blobs are
+	// cached by repository identity and blob SHA when ttlcache is configured.
+	// Reads do not retry.
 	ReadSourceFiles(ctx context.Context, repo *Repository, revision string, files []*TreeEntry) (map[string]string, error)
 
 	// ListSourceFiles returns regular entries, including their blob identities,
-	// from a complete recursive tree. Truncated trees and missing identities are
-	// errors; symlinks and submodules are excluded.
+	// from a complete recursive tree at an immutable commit SHA. Validated trees
+	// are cached by repository identity and revision when ttlcache is configured.
+	// Truncated trees and missing
+	// identities are errors; symlinks and submodules are excluded.
 	ListSourceFiles(ctx context.Context, repo *Repository, revision string) ([]*TreeEntry, error)
 
 	// ListBranches collects complete, validated branch pagination before cleanup.
