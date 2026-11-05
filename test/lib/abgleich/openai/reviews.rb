@@ -2,6 +2,10 @@
 
 module Abgleich
   class OpenAIService
+    REVIEW_COMPLETION = {
+      'review incomplete' => { complete: false }, 'review missing completion' => {}, 'review invalid completion' => { complete: 'yes' }
+    }.freeze
+
     INLINE_FINDINGS = [
       { body: 'The updated result loses successful work.', path: 'main.go', line: 2, side: 'RIGHT' },
       { body: 'The removed guard allowed successful work.', path: 'worker.go', line: 2, side: 'LEFT' }
@@ -102,7 +106,7 @@ module Abgleich
 
     def source_final_reply(payload, outputs)
       source = outputs.map { |item| item.fetch('output') }.join("\n")
-      text = { overview: source_review_text(source), findings: [] }.to_json
+      text = { overview: source_review_text(source), findings: [], complete: true }.to_json
       { id: 'resp_source_final', object: 'response', status: 'completed', model: payload.fetch('model'),
         output: response_output(response_content(text, nil), nil), usage: token_usage(nil) }
     end
@@ -125,13 +129,14 @@ module Abgleich
       return '' if mode == 'review an empty answer'
       return '{' if mode == 'review malformed JSON'
 
+      mode = payload.fetch('model') == 'test-security' ? 'review no findings' : nil if mode == 'review conflicting verdicts'
       text = payload.fetch('model') == 'test-security' ? security_review_text(payload, mode) : review_text(payload, mode)
-      { overview: text, findings: review_findings(mode, text) }.to_json
+      { overview: text, findings: review_findings(mode, text) }.merge(REVIEW_COMPLETION.fetch(mode, { complete: true })).to_json
     end
 
     def review_findings(mode, text)
       case mode
-      when 'review no findings' then []
+      when 'review no findings', 'review incomplete', 'review missing completion' then []
       when 'review inline findings' then INLINE_FINDINGS
       when 'review mixed locations' then MIXED_LOCATION_FINDINGS
       when 'review hostile text' then [{ body: text, path: 'main.go', line: 2, side: 'RIGHT' }]
@@ -147,10 +152,11 @@ module Abgleich
         'An attacker who controls query can alter the SQL statement and read unintended records. Use parameterized queries.'
     end
 
-    # Plain review text is advisory; the fake does not establish model accuracy.
+    # Fake review text does not establish model accuracy.
     def review_text(_payload, mode)
       case mode
-      when 'review no findings' then 'No supported findings in the supplied patches. Full files and unchanged callers were not reviewed.'
+      when 'review no findings' then 'No supported findings within the inspected scope.'
+      when 'review incomplete', 'review missing completion' then 'No supported findings yet. Changed callers remain unreviewed.'
       when 'review an empty answer' then ''
       when 'review hostile text'
         '<script>alert(1)</script> @everyone [click](https://untrusted.invalid) ' \

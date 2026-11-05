@@ -1,5 +1,5 @@
 @github @manual @commands @codereview @secreview @review
-Feature: Discuss advisory findings beside the changed code
+Feature: Discuss findings beside the changed code
   Maintainers receive one review overview and a separate conversation for each located finding.
 
   Scenario Outline: Place findings on both sides of a contribution
@@ -95,7 +95,7 @@ Feature: Discuss advisory findings beside the changed code
     And the reviewer reports "findings on added and removed lines"
     And the pull request has already received a code review
     When a maintainer with "write" access comments "/ab secreview"
-    Then both advisory commands should have their own review conversations
+    Then both review commands should have their own conversations
 
   Scenario Outline: Decline review when native history is incomplete
     Given AI code reviews are configured for this repository

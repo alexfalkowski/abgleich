@@ -4,6 +4,8 @@ module Abgleich
   class GitHubRepository
     # Concurrent authorization changes and result history for code review requests.
     module Reviews
+      REVIEW_STATES = { 'COMMENT' => 'COMMENTED', 'APPROVE' => 'APPROVED', 'REQUEST_CHANGES' => 'CHANGES_REQUESTED' }.freeze
+
       def record_reference_request(version, authorization)
         @mutex.synchronize { (@state[:reference_requests] ||= []) << { version:, authorization: } }
       end
@@ -66,7 +68,7 @@ module Abgleich
           reviews = (@state[:reviews] ||= [])
           id = 20_000 + reviews.length
           review = { id:, node_id: "PRR_#{id}", body: payload.fetch('body'), commit_id: payload.fetch('commit_id'),
-                     state: 'COMMENTED', submitted_at: Time.now.utc.iso8601,
+                     state: REVIEW_STATES.fetch(payload.fetch('event', 'COMMENT')), submitted_at: Time.now.utc.iso8601,
                      pull_request_url: "http://localhost:11001/github/repos/#{repository}/pulls/#{number}",
                      user: { id: 9000, login: 'abgleich[bot]', type: 'Bot' },
                      comments: payload.fetch('comments', []), viewer_did_author: true }
@@ -84,21 +86,20 @@ module Abgleich
       end
 
       def change_native_review_author(author)
-        @mutex.synchronize do
-          review = @state.fetch(:reviews).last
-          review[:viewer_did_author] = false
-          review[:user] = { id: 123, login: 'maintainer', type: 'User' } if author == 'a human'
-        end
+        change_native_review(:viewer_did_author, false)
+        change_native_review(:user, { id: 123, login: 'maintainer', type: 'User' }) if author == 'a human'
+      end
+
+      def change_native_review(field, value)
+        @mutex.synchronize { @state.fetch(:reviews).last[field] = value }
       end
 
       def withdraw_review_reply
         @mutex.synchronize do
-          if @state.fetch(:reviews, []).any?
-            @state[:reviews].pop
-          else
-            reply = @state[:replies].pop
-            @state[:comments].delete(reply.fetch(:id))
-          end
+          return @state[:reviews].pop if @state.fetch(:reviews, []).any?
+
+          reply = @state[:replies].pop
+          @state[:comments].delete(reply.fetch(:id))
         end
       end
 

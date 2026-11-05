@@ -7,6 +7,7 @@ import (
 	"github.com/alexfalkowski/abgleich/internal/commands"
 	"github.com/alexfalkowski/abgleich/internal/github"
 	"github.com/alexfalkowski/go-service/v2/context"
+	"github.com/alexfalkowski/go-service/v2/di"
 	"github.com/alexfalkowski/go-service/v2/errors"
 	"github.com/alexfalkowski/go-service/v2/strings"
 )
@@ -16,18 +17,37 @@ const (
 	summaryHeading = "### 🤖 Abgleich summary\n"
 )
 
+// CommandParams supplies summary configuration and command-processing dependencies.
+type CommandParams struct {
+	// In marks this struct as an injected dependency group.
+	di.In
+
+	// Config enables summaries and selects their model and schedule.
+	Config *Config
+	// GitHub provides repository access and authenticated summary publication.
+	GitHub github.Service
+	// Provider generates summaries using the feature-owned prompt and model.
+	Provider ai.Provider
+	// Authorizer rechecks human command identity and current write permission.
+	Authorizer *commands.Authorizer
+}
+
 // NewCommand constructs optional summaries using the configured provider.
-func NewCommand(cfg *Config, service github.Service, provider ai.Provider, authorizer *commands.Authorizer) (*Command, error) {
-	if cfg != nil && provider == nil {
+// Omitted configuration returns nil; enabled summaries require a provider.
+func NewCommand(params CommandParams) (*Command, error) {
+	if !params.Config.IsEnabled() {
+		return nil, nil
+	}
+	if params.Provider == nil {
 		return nil, errors.New("summarise: requires AI configuration")
 	}
 
 	return &Command{
-		config:     cfg,
-		github:     service,
-		provider:   provider,
+		config:     params.Config,
+		github:     params.GitHub,
+		provider:   params.Provider,
 		queue:      commands.NewQueue(),
-		authorizer: authorizer,
+		authorizer: params.Authorizer,
 	}, nil
 }
 
@@ -43,9 +63,10 @@ type Command struct {
 }
 
 // Handle authorizes the current comment and queues a summary. Existing summaries
-// and queued requests are acknowledged without another provider call.
+// and queued requests are acknowledged without another provider call. A nil
+// receiver declines disabled summaries while preserving command reaction feedback.
 func (c *Command) Handle(ctx context.Context, event *github.IssueCommentEvent) (bool, error) {
-	if c.config == nil {
+	if c == nil {
 		return false, nil
 	}
 

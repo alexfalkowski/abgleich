@@ -34,7 +34,7 @@ module Abgleich
 
     # Wait for publication before inspecting a successful result's contents.
     def wait_for_review(kind)
-      wait_for { reviews_for(kind) }.not_to be_empty, "expected an advisory #{kind} review"
+      wait_for { reviews_for(kind) }.not_to be_empty, "expected a #{kind} review"
       reviews_for(kind).last
     end
 
@@ -68,7 +68,7 @@ module Abgleich
 
     def expect_review_scope(body)
       expect(body).to match(/patch/i), 'expected the review to identify its changed-file context'
-      expect(body).to include('read-only lookups', 'Code and tests were not executed', 'Findings are advisory')
+      expect(body).to include('read-only lookups', 'Code and tests were not executed', 'does not certify security')
       expect(body).not_to include('Citations were checked'), 'expected no claim of source citation validation'
     end
 

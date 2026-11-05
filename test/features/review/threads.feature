@@ -1,5 +1,5 @@
 @github @manual @commands @codereview @secreview @review
-Feature: Retire outdated advisory conversations
+Feature: Retire outdated review conversations
   Existing App conversations are maintained without another review request or AI inference.
 
   Scenario Outline: Retire only conversations made outdated by new commits

@@ -3,10 +3,10 @@ package sec
 import (
 	_ "embed"
 
-	"github.com/alexfalkowski/abgleich/internal/ai"
-	"github.com/alexfalkowski/abgleich/internal/commands"
 	"github.com/alexfalkowski/abgleich/internal/github"
 	"github.com/alexfalkowski/abgleich/internal/review/internal/workflow"
+	"github.com/alexfalkowski/go-service/v2/context"
+	"github.com/alexfalkowski/go-service/v2/di"
 )
 
 const securityReviewCommand = "secreview"
@@ -14,24 +14,36 @@ const securityReviewCommand = "secreview"
 //go:embed prompt.txt
 var instructions string
 
+// CommandParams supplies security review configuration and shared workflow dependencies.
+type CommandParams struct {
+	// In marks this struct as an injected dependency group.
+	di.In
+
+	// Config enables security reviews and selects their model and schedule.
+	Config *Config
+	// Workflow constructs commands sharing source access and verdict publication.
+	Workflow *workflow.Factory
+}
+
 // NewCommand constructs the optional security review using the shared workflow.
-// Omitted configuration disables work; enabled reviews require a provider.
-func NewCommand(cfg *Config, service github.Service, provider ai.Provider, sources *workflow.Sources, authorizer *commands.Authorizer) (*Command, error) {
-	if cfg == nil {
-		return &Command{}, nil
+// Omitted configuration returns nil; enabled reviews require a provider.
+func NewCommand(params CommandParams) (*Command, error) {
+	if !params.Config.IsEnabled() {
+		return nil, nil
 	}
 
-	command, err := workflow.NewCommand(workflow.Definition{
+	command, err := params.Workflow.NewCommand(workflow.Definition{
 		Name:            securityReviewCommand,
 		Title:           "Security review",
-		Model:           cfg.Model,
-		ReasoningEffort: cfg.ReasoningEffort,
+		Model:           params.Config.Model,
+		ReasoningEffort: params.Config.ReasoningEffort,
 		Instructions:    instructions,
-	}, service, provider, sources, authorizer)
+	})
 	if err != nil {
 		return nil, err
 	}
-	return &Command{Command: command, config: cfg}, nil
+
+	return &Command{Command: command, config: params.Config}, nil
 }
 
 // Command keeps security review configuration and registration feature-owned.
@@ -40,4 +52,14 @@ type Command struct {
 	// Command supplies shared consent, source access, publication, and a queue dedicated to security reviews.
 	*workflow.Command
 	config *Config
+}
+
+// Handle declines disabled reviews through a nil receiver, preserving command
+// reaction feedback. Enabled commands delegate authorization to the workflow.
+func (c *Command) Handle(ctx context.Context, event *github.IssueCommentEvent) (bool, error) {
+	if c == nil {
+		return false, nil
+	}
+
+	return c.Command.Handle(ctx, event)
 }

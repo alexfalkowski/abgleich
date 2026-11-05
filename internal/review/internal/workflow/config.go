@@ -13,9 +13,14 @@ type Config struct {
 	ModuleProxy string `yaml:"module_proxy,omitempty" json:"module_proxy,omitempty" toml:"module_proxy,omitempty" validate:"omitempty,http_url"`
 }
 
+// IsEnabled reports whether shared review source configuration is present.
+func (c *Config) IsEnabled() bool {
+	return c != nil
+}
+
 // GetGoDocs selects official Go release notes, or an operator-trusted mirror.
 func (c *Config) GetGoDocs() string {
-	if c == nil || strings.IsEmpty(c.GoDocs) {
+	if !c.IsEnabled() || strings.IsEmpty(c.GoDocs) {
 		return "https://go.dev/doc"
 	}
 
@@ -24,7 +29,7 @@ func (c *Config) GetGoDocs() string {
 
 // GetModuleProxy returns the configured trusted proxy or the public Go proxy.
 func (c *Config) GetModuleProxy() string {
-	if c == nil || strings.IsEmpty(c.ModuleProxy) {
+	if !c.IsEnabled() || strings.IsEmpty(c.ModuleProxy) {
 		return "https://proxy.golang.org"
 	}
 

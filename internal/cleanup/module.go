@@ -9,7 +9,7 @@ import (
 var Module = di.Module(di.Constructor(NewReconciler), di.Register(registerSchedule))
 
 func registerSchedule(schedules *scheduler.Scheduler, reconciler *Reconciler) error {
-	if reconciler.config == nil {
+	if reconciler == nil {
 		return nil
 	}
 

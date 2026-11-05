@@ -1,6 +1,6 @@
 @github @manual @commands @codereview @review
 Feature: Review large contributions with incomplete information
-  The advisory review uses pull request metadata and every available changed-file patch.
+  The review uses pull request metadata and every available changed-file patch.
   Missing patches remain explicit and incomplete pagination prevents inference.
 
   Background:

@@ -29,7 +29,7 @@ Feature: Keep security review recoverable and independent
     Then the request should be temporarily declined
     And ordinary automation should continue while those security reviews wait
 
-  Scenario: Request all advisory tasks for the same revision
+  Scenario: Request all AI tasks for the same revision
     Given security reviews and summaries are independently enabled
     And the pull request has already been summarised
     And the pull request has already received a code review
@@ -37,7 +37,7 @@ Feature: Keep security review recoverable and independent
     Then the security review should identify the request and revisions
     And exactly 3 requests should reach the AI service
 
-  Scenario: Keep security review from suppressing the other advisory tasks
+  Scenario: Keep security review from suppressing the other AI tasks
     Given security reviews and summaries are independently enabled
     And the pull request has already received a security review
     And the pull request has already received a code review

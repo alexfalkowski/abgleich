@@ -22,6 +22,11 @@ type Config struct {
 	scheduler.Config `yaml:",inline" json:",inline" toml:",inline"`
 }
 
+// IsEnabled reports whether branch cleanup configuration is present.
+func (c *Config) IsEnabled() bool {
+	return c != nil
+}
+
 // GetInterval returns the cleanup interval, defaulting to one day when zero.
 // Config must be non-nil.
 func (c *Config) GetInterval() time.Duration {

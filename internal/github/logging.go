@@ -31,6 +31,7 @@ func (s *loggingService) AddReview(ctx context.Context, repo *Repository, pull *
 	s.logger.Info("published pull request review",
 		"repository", repo.GetFullName(),
 		"pull_request", pull.GetNumber(),
+		"event", review.GetEvent(),
 		"sha", pull.GetHead().GetSHA())
 
 	return nil

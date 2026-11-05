@@ -6,6 +6,7 @@ import (
 	"github.com/alexfalkowski/go-service/v2/context"
 	"github.com/alexfalkowski/go-service/v2/errors"
 	"github.com/alexfalkowski/go-service/v2/time"
+	"github.com/alexfalkowski/go-sync"
 )
 
 const inferenceBudgetDivisor = 2
@@ -110,16 +111,17 @@ func (c *Command) publishReview(ctx context.Context, task *reviewTask, completio
 		return c.reportFailure(ctx, task, "Result validation", err)
 	}
 
-	task, err = c.recheck(ctx, task)
-	if err != nil || task == nil {
+	result := make(chan error, 1)
+	err = c.publication.Schedule(ctx, sync.Hook{OnRun: func(ctx context.Context) error {
+		result <- c.submitReview(ctx, task, publication)
+		return nil
+	}})
+	if err != nil {
 		return err
 	}
 
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-
-	return c.github.AddReview(ctx, task.repository, task.pullRequest, publication)
+	// The feature owns this operation through completion, including cancellation.
+	return <-result
 }
 
 // recheck returns a refreshed task only while its authorized revisions still match.
@@ -150,6 +152,7 @@ func (c *Command) guard(ctx context.Context, task *reviewTask) error {
 	if err != nil {
 		return err
 	}
+
 	sameRevision := current != nil && !c.revisionChanged(task, current)
 	if !sameRevision {
 		return errors.New("review: authorization or revision changed")

@@ -26,9 +26,14 @@ const (
 var errRepositorySource = errors.New("review: could not retrieve complete repository source")
 
 // NewSources constructs a credential-free connection to the trusted Go proxy.
+// Omitted configuration returns nil because no review feature needs source access.
 // Archive redirects may reach the Go proxy's HTTPS storage bucket. It never
 // executes Go or extracts archives to the filesystem.
 func NewSources(cfg *Config, connections *client.Factory) (*Sources, error) {
+	if !cfg.IsEnabled() {
+		return nil, nil
+	}
+
 	if !validSourceEndpoint(cfg.GetModuleProxy()) || !validSourceEndpoint(cfg.GetGoDocs()) {
 		return nil, errors.New("review: invalid public source endpoint")
 	}

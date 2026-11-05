@@ -63,7 +63,7 @@ Then(/^the (code|security) review should contain one overview$/) do |kind|
   expect(reviews.length).to eq(1), 'expected one submitted review containing every finding'
   review = reviews.first
   pull = Abgleich.github.pull_state('contribution')
-  expect(review).to include(state: 'COMMENTED', commit_id: pull.dig(:head, :sha))
+  expect(review).to include(state: 'CHANGES_REQUESTED', commit_id: pull.dig(:head, :sha))
   expect(review.fetch(:body)).to include(pull.dig(:head, :sha), pull.dig(:base, :sha), '#issuecomment-', ':v2:')
   expect_no_automation_mutations
 end
@@ -123,7 +123,7 @@ Then('the existing native review should prevent another model call') do
   expect(Abgleich.github.native_reviews).to eq(@native_review_history), 'expected no duplicate native review'
 end
 
-Then('both advisory commands should have their own review conversations') do
+Then('both review commands should have their own conversations') do
   wait_for { Abgleich.github.native_reviews.length }.to eq(2)
   %w[code security].each do |kind|
     review = reviews_for(kind).last

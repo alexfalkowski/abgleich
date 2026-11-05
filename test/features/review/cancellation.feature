@@ -1,5 +1,5 @@
 @github @manual @commands @codereview @secreview @review
-Feature: Explain canceled advisory reviews
+Feature: Explain canceled reviews
   Maintainers know when an accepted review can no longer be published.
 
   Scenario Outline: Explain cancellation of work queued behind another review

@@ -14,7 +14,7 @@ func registerCommand(dispatcher *commands.Dispatcher, command *Command) error {
 }
 
 func registerSchedule(schedules *scheduler.Scheduler, command *Command) error {
-	if command.config == nil {
+	if command == nil {
 		return nil
 	}
 

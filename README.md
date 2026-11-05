@@ -8,7 +8,7 @@
 Abgleich enables auto-merge or merges ready Dependabot and labeled pull requests,
 and rebases stale auto-merge branches across a GitHub account's opted-in repositories.
 Optional features provide branch cleanup, automation status, AI PR summaries,
-and advisory code and security reviews.
+and AI code and security reviews with GitHub verdicts.
 GitHub performs all repository mutations; the worker never clones repositories or
 executes Git.
 
@@ -222,7 +222,7 @@ explicit credentials, `store: false`, and no automatic inference retries.
 ### 🔬 AI code reviews
 
 With [code reviews configured](#-code-review-settings), post `/ab codereview` to
-request an advisory review of an open, non-draft PR, including fork contributions.
+request a review of an open, non-draft PR, including fork contributions.
 A new, unedited human comment from a current writer or administrator authorizes
 sharing PR metadata, patches, whole changed-file text, and relevant repository
 source with OpenAI, including private source. No topic, auto-merge setting, label, or removal of `hold` is needed.
@@ -240,21 +240,50 @@ source tools without GitHub credentials. Each review uses one conversation bound
 response storage or automatic retries, and no review-specific output-token cap.
 Large changes can exceed provider context limits or worker deadlines.
 
-The App submits one native `COMMENT` review with an overview and a separate inline
+The App submits one native review with an overview and a separate inline
 conversation for each finding that can be placed on the supplied diff. Findings
 without a reliable diff location remain in the overview with their claimed
 location, when supplied. A review with no supported findings still publishes its
-overview. Every body contains escaped model text, with links and mentions inactive.
+overview. The worker selects the verdict from the structured result:
+
+| Assessment | GitHub verdict |
+| --- | --- |
+| One or more supported findings, including overview-only findings | `REQUEST_CHANGES` |
+| No findings, explicit model completion, and no worker-recorded missing patches or unavailable source | `APPROVE` |
+| No findings with incomplete investigation or missing context | `COMMENT`; approval withheld |
+
+The overview shows the worker's assessment and decision separately from model
+prose. Incomplete comments have no successful-result marker and allow a new
+manual request on the same revisions. Findings still request changes when other
+source is unavailable. Model completion is a self-report, not proof of coverage.
+Every body contains escaped model text, with links and mentions inactive.
 Review text is published without credential redaction.
 Details identify the request, head/base SHAs, model, and actual token
 usage, or unavailable usage; no dollar costs are estimated. Missing patches are
 disclosed, along with the source actually inspected and any unavailable reads.
-Citations are not verified, and code/tests are not executed. Findings may be incorrect or incomplete
-and never approve, request changes, label, merge, or rebase. Open inline
+Citations are not verified, and code/tests are not executed. Findings may be incorrect
+or incomplete; an approval records no supported findings within the inspected scope.
+Reviews never label, merge, or rebase. Open inline
 conversations can block merging when the repository requires conversation
 resolution. A review targets the analyzed head; a push after the final check can
 still make it outdated. Evaluate approved data before
 [broad use](#-code-review-evaluation).
+
+Code and security reviews share one GitHub reviewer identity. Final verdict checks
+and publication are serialized within the worker process. A clean review comments
+instead of approving while the other feature's latest decisive App assessment
+still requests changes, including across new revisions and restarts. A later
+complete clean assessment or explicit human dismissal clears that feature's
+findings; incomplete comments do not. Both commands keep independent inference
+and queues. This does not require both reviews to run before the first approval.
+
+GitHub's [review and branch rules](https://docs.github.com/en/pull-requests/how-tos/review-pull-requests/reviewing-proposed-changes-in-a-pull-request)
+determine whether a request for changes blocks merging and whether an App approval
+satisfies review requirements. Require CI and human/code-owner reviews separately
+where needed, and enable stale-approval dismissal for changed commits. There is no
+atomic review-state guard: another instance or review after the final read can race
+publication. These verdicts apply to new requests after upgrading; existing
+authenticated results are reused without retroactively changing their verdicts.
 
 Authorization, comment identity, PR eligibility, and both branch identities and
 revisions are rechecked before submission and publication. Changes discard stale
@@ -285,7 +314,7 @@ resolution, so changes after the final state and ownership check can race it.
 ### 🛡️ AI security reviews
 
 With [security reviews configured](#-security-review-settings), post `/ab secreview`
-to request a focused advisory security review, including on fork PRs and private
+to request a focused security review, including on fork PRs and private
 repositories. A new, unedited human comment from a current writer or administrator
 consents to sharing PR metadata, patches, whole changed files, and relevant
 repository source with OpenAI.
@@ -306,7 +335,8 @@ slot before inference. It publishes the same native overview and inline
 conversations described for [code reviews](#-ai-code-reviews), and follows their
 safeguards for source handling, inference budgets, escaped replies, token usage,
 and consent/branch rechecks. It uses the same source-lookup conversation bounded by its deadline,
-without response storage, inference retries, fallback, or a review-specific output-token cap. It never approves, labels,
+without response storage, inference retries, fallback, or a review-specific output-token cap. It uses the same
+[verdict rules](#-ai-code-reviews) and never labels,
 merges, rebases, or executes code. Successful results are identified separately
 from summaries and code reviews for each PR head/base pair; all three can run for
 the same revision. See [security-review recovery](#-security-review-recovery).
@@ -362,8 +392,8 @@ auto-merge uses `enablePullRequestAutoMerge` with `mergeMethod: SQUASH`; immedia
 merges use REST with `merge_method: squash`. Immediate readiness requires
 `mergeable: true` and `mergeable_state: clean` or `unstable`: optional check
 failures permit merging, while unknown readiness or blocking requirements defer
-it. GitHub enforces required checks, reviews, and rules; Abgleich never approves
-or bypasses them. Disabled squash merging produces an operator-visible error
+it. GitHub enforces required checks, reviews, and rules; merge automation never
+approves reviews or bypasses rules. Disabled squash merging produces an operator-visible error
 rather than a fallback method. Other authors' auto-merge PRs retain their method.
 
 Each PR gets at most one mutation attempt per scheduled or event check.
@@ -594,7 +624,7 @@ review:
 provider-supported effort; omission preserves the model default. Higher effort and a longer job timeout
 can increase latency and token usage and must be evaluated with the selected model.
 Omitting `review.code` disables
-the command and its job; `ai` alone enables no advisory feature.
+the command and its job; `ai` alone enables no AI feature.
 Configured reviews require a usable AI provider or startup fails. Omit `ai`,
 `summarise`, `review.code`, and `review.sec` to run without AI. Existing App permissions cover source
 reads; no new credential is required. Read the [source-sharing notice](#-ai-code-reviews)
@@ -817,6 +847,8 @@ repository, branch, and SHA. Retain these for recovery; ambiguous responses can
 leave successful actions without acceptance logs.
 `resolved pull request review thread` includes repository, PR, and thread identity without
 comment contents.
+`published pull request review` includes repository, PR, reviewed head SHA, and
+the submitted `event` (`COMMENT`, `APPROVE`, or `REQUEST_CHANGES`).
 
 Monitor `ai generation` for task (including `codereview` and `secreview`), model, duration, and successful token usage.
 Success logs at info and failure at error. Provider failures add `http_status`,
@@ -873,6 +905,10 @@ the worker reads complete discussion and native review history for matching App
 results; human or other-App lookalikes do not count. Deduplication includes task, case-insensitive
 target repository, PR identity, head, and base. A matching result reuses its
 original usage; new head or base revisions permit another manual review.
+Submitted approvals, requests for changes, comments with success markers, and
+dismissed results all prevent duplicate inference. Incomplete comments carry no
+success marker; retry with a new command after addressing missing context or
+increasing the relevant [review budget](#-code-review-settings).
 Existing ordinary App results remain valid and can still be deleted before a
 fresh request. Submitted native reviews are not pending reviews and cannot be
 reset through these commands; use a new revision for a fresh review. Inference may repeat when
@@ -894,7 +930,7 @@ Post a new `/ab secreview` after pending work is lost on restart or an attempt
 fails. The [code-review recovery rules](#-code-review-recovery) also apply here:
 complete discussion lookup, authenticated App results, revision-specific reuse,
 and no automatic retry of ambiguous publication. Security results use their own
-`secreview` marker, so other advisory tasks do not suppress a security review.
+`secreview` marker, so other tasks do not suppress a security review.
 
 #### 🧹 Cleanup recovery
 
@@ -997,7 +1033,7 @@ sequenceDiagram
         opt Request queued
             S->>F: Process queued request
             F->>G: Collect feature context<br/>Recheck authorization, revisions, and existing results
-            F->>A: Generate advisory result
+            F->>A: Generate result
             A-->>F: Generated result
             F->>G: Validate output and recheck state/results<br/>Publish reply if still eligible
         end
@@ -1063,6 +1099,11 @@ findings, misses, false positives, latency, and token usage. Validate source
 selection as well as final answers: useful context must be found automatically. Live calls require separate authorization
 and never run in CI. Retain the complete inputs, lookup transcripts, raw answers,
 and grading notes so the results can be inspected and reproduced.
+Before relying on approvals, measure false approvals on known faulty changes,
+missed high-severity bugs, and false requests for changes on clean controls.
+Include incomplete-context cases and caller/dependency bugs requiring automatic
+source discovery. Re-evaluate after model, prompt, or source-selection changes;
+fake-provider scenarios establish verdict integration only.
 
 ### 🛡️ Security-review evaluation
 
