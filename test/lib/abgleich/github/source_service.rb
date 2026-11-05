@@ -18,6 +18,10 @@ module Abgleich
       def record_source_read
         @request_mutex.synchronize { @request_counts[:source_reads] += 1 }
       end
+
+      def record_source_tree_read
+        @request_mutex.synchronize { @request_counts[:source_tree_reads] += 1 }
+      end
     end
 
     get '/repos/:owner/:repository/contents/*' do
@@ -36,6 +40,7 @@ module Abgleich
     end
 
     get '/repos/:owner/:repository/git/trees/:revision' do
+      GitHubService.record_source_tree_read
       paths = %w[main.go worker.go test.go helpers/guard.go go.mod go.sum]
       paths.concat((1..source_directory_size).map { |index| "helpers/part#{index}.go" })
       paths << 'go.work' if Abgleich.github.failure == 'source managed by a Go workspace'
@@ -123,6 +128,9 @@ module Abgleich
 
     def source_helper
       return '' if ['source empty related file', 'source missing empty file text'].include?(Abgleich.github.failure)
+      if Abgleich.github.failure == 'source changed helper'
+        return "package worker\n// updated-helper-context\nfunc Allowed() bool { return false }\n"
+      end
 
       "package worker\n// helper-context\nfunc Allowed() bool { return true }\n"
     end

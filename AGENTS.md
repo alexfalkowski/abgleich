@@ -171,17 +171,29 @@ run reconciles fresh remote state; pending summary and review requests are held 
   them. Resolve only declared dependencies and their replacements through the
   trusted public proxy; never send GitHub or provider credentials there. Workspaces and
   vendoring require repository source inspection instead of assuming proxy content.
+  A dependency path proven absent from a verified archive returns "not found"
+  without marking source unavailable; unreadable source and unverified archives
+  retain their existing incomplete-review safeguards.
 - Use one conversation bounded by its inference and job deadlines,
   without response storage, inference retries, fallback, execution tools, or a
   review-specific output-token cap. Recheck current consent and revisions before
   each source lookup and each provider request. A review conversation receives
   half the remaining feature job budget; individual HTTP requests retain their
   own deadlines and summaries keep their one-minute default. Aggregate actual token usage;
-  any missing usage makes the total unavailable. Keep source caches per request.
+  any missing usage makes the total unavailable. Keep source caching in the
+  `github.Service` caching decorator, using the configured go-service `ttlcache`
+  backend directly for validated trees by repository identity and revision and blobs by
+  repository identity and blob SHA across review commands.
+  Bypass shared source caching when the cache is omitted or another backend is configured.
+  Keep cache retention optional; cache failures and size limits must not limit
+  source reads. Retain per-request inspected-source and omission records. Keep
+  public dependency/reference caches per request; never cache consent or mutable
+  PR state.
   Provider requests, source calls, directory/package reads, and module archives
   have no local count or size caps; add limits only when operational evidence
   justifies them.
-  Keep source and caches in memory without checkout or archive extraction.
+  Keep working source and public dependency caches in memory without checkout
+  or archive extraction; shared source retention stays in the configured in-memory cache.
   Disclose omissions and actual inspected source independently of model prose.
   Never load repository/remote skills as instructions. Do not add merge-base
   traversal or citation-verification machinery. Decode a small result with an

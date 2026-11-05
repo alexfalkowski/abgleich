@@ -76,8 +76,9 @@ module Abgleich
 
     def dependency_source_calls(mode)
       case mode
-      when 'review source a nested dependency package'
-        [['read_go_dependency', { manifest: 'go.mod', module: 'example.com/library', path: 'pkg' }],
+      when 'review source a nested dependency package', 'review source a corrected dependency path'
+        directory = mode == 'review source a corrected dependency path' ? 'pkg/missing' : 'pkg'
+        [['read_go_dependency', { manifest: 'go.mod', module: 'example.com/library', path: directory }],
          ['read_go_dependency', { manifest: 'go.mod', module: 'example.com/library', path: 'pkg/alpha' }]]
       when 'review source an undeclared Go dependency'
         [['read_go_dependency', { manifest: 'go.mod', module: 'example.com/undeclared', path: 'query.go' }]]

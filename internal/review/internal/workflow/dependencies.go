@@ -190,7 +190,8 @@ func (s *sourceSession) dependencySource(archive *zip.Reader, key, requested str
 	}
 
 	if len(names) == 0 {
-		return s.unavailable(key + "/" + requested)
+		// The verified archive proves absence; a guessed path is not missing source.
+		return strings.Concat("Source not found: ", key, "/", requested)
 	}
 
 	slices.Sort(names)

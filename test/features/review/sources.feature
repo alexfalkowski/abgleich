@@ -285,3 +285,15 @@ Feature: Follow changed behavior into related source
     Then the code review should explain the related implementation
     And the reviewer should receive complete files at the reviewed revisions
     And public dependency access should omit credentials
+
+  Scenario Outline: Complete a review after correcting a nonexistent dependency path
+    Given the reviewer needs "a corrected dependency path"
+    When a maintainer with "write" access comments "/ab <command>"
+    Then the <kind> review should finish after correcting the dependency path
+    And the <kind> review decision should be "APPROVED"
+    And public dependency access should omit credentials
+
+    Examples:
+      | command    | kind     |
+      | codereview | code     |
+      | secreview  | security |
