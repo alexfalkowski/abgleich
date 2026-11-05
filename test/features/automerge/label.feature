@@ -1,10 +1,10 @@
 @github @manual @merges @labels
 Feature: Request squash merging with the automerge label
   Maintainers opt pull requests into squash merging with the automerge label.
-  Fork branches remain under their authors' control.
+  Merge automation ignores forks because their contributions do not run CI.
 
-  Scenario Outline: Enable labeled auto-merge while requirements are pending
-    Given a pull request from "<source>" for branch "contribution" is "waiting for checks"
+  Scenario: Enable labeled auto-merge while requirements are pending
+    Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
     And branch "contribution" has the "bug" label
     And branch "contribution" has the "automerge" label
     When the worker checks auto-merge branches
@@ -13,13 +13,8 @@ Feature: Request squash merging with the automerge label
     And the worker should report "enabled pull request auto-merge" for branch "contribution"
     And only one merge action should occur for branch "contribution"
 
-    Examples:
-      | source         |
-      | a fork         |
-      | the repository |
-
   Scenario Outline: Merge a ready labeled pull request
-    Given a pull request from "<source>" for branch "contribution" is "<condition>"
+    Given a pull request from "the repository" for branch "contribution" is "<condition>"
     And branch "contribution" has the "automerge" label
     When the worker checks auto-merge branches
     Then branch "contribution" should be squash-merged
@@ -28,14 +23,12 @@ Feature: Request squash merging with the automerge label
     And only one merge action should occur for branch "contribution"
 
     Examples:
-      | source         | condition               |
-      | a fork         | ready to merge          |
-      | the repository | ready to merge          |
-      | a fork         | failing optional checks |
-      | the repository | failing optional checks |
+      | condition               |
+      | ready to merge          |
+      | failing optional checks |
 
   Scenario Outline: Require the exact opt-in label
-    Given a pull request from "a fork" for branch "contribution" is "ready to merge"
+    Given a pull request from "the repository" for branch "contribution" is "ready to merge"
     And branch "contribution" has the "<label>" label
     When the worker checks auto-merge branches
     Then no pull request mutations should be requested
@@ -54,7 +47,7 @@ Feature: Request squash merging with the automerge label
     And the branch check should succeed
 
   Scenario Outline: Preserve common pull request eligibility
-    Given a pull request from "a fork" for branch "contribution" is "<condition>"
+    Given a pull request from "the repository" for branch "contribution" is "<condition>"
     And branch "contribution" has the "automerge" label
     When the worker checks auto-merge branches
     Then no pull request mutations should be requested
@@ -66,7 +59,7 @@ Feature: Request squash merging with the automerge label
       | closed    |
 
   Scenario Outline: Leave pending requirements to GitHub
-    Given a pull request from "a fork" for branch "contribution" is "<condition>"
+    Given a pull request from "the repository" for branch "contribution" is "<condition>"
     And branch "contribution" has the "automerge" label
     When the worker checks auto-merge branches
     Then branch "contribution" should have squash auto-merge enabled
@@ -89,13 +82,19 @@ Feature: Request squash merging with the automerge label
     And the branch check should succeed
     And enabling auto-merge and rebasing should occur in separate checks
 
-  Scenario: Leave a labeled fork branch under the contributor's control
-    Given a pull request from "a fork" for branch "contribution" is "behind its base"
+  Scenario Outline: Ignore labeled fork contributions regardless of readiness
+    Given a pull request from "a fork" for branch "contribution" is "<condition>"
     And branch "contribution" has the "automerge" label
     When the worker checks auto-merge branches
-    Then branch "contribution" should have squash auto-merge enabled
-    And only one merge action should occur for branch "contribution"
-    And no rebase should be requested
+    Then no pull request mutations should be requested
+    And the branch check should succeed
+
+    Examples:
+      | condition               |
+      | waiting for checks      |
+      | ready to merge          |
+      | failing optional checks |
+      | behind its base         |
 
   Scenario: Preserve an existing fork auto-merge
     Given a pull request from "a fork" for branch "contribution" is "behind with auto-merge enabled"
@@ -106,7 +105,7 @@ Feature: Request squash merging with the automerge label
 
   Scenario: Preserve repository opt-in
     Given the repository has auto-merge disabled
-    And a pull request from "a fork" for branch "contribution" is "ready to merge"
+    And a pull request from "the repository" for branch "contribution" is "ready to merge"
     And branch "contribution" has the "automerge" label
     When the worker checks auto-merge branches
     Then no pull request mutations should be requested
@@ -114,14 +113,14 @@ Feature: Request squash merging with the automerge label
 
   Scenario: Respect the repository's merge methods
     Given the repository has squash merging disabled
-    And a pull request from "a fork" for branch "contribution" is "ready to merge"
+    And a pull request from "the repository" for branch "contribution" is "ready to merge"
     And branch "contribution" has the "automerge" label
     When the worker checks auto-merge branches
     Then the branch check should fail without affecting worker health
     And no pull request mutations should be requested
 
   Scenario Outline: Recheck labeled pull requests before acting
-    Given a pull request from "a fork" for branch "contribution" is "<condition>"
+    Given a pull request from "the repository" for branch "contribution" is "<condition>"
     And branch "contribution" has the "automerge" label
     And its "<field>" changes before labeled automation
     When the worker checks auto-merge branches
@@ -143,7 +142,7 @@ Feature: Request squash merging with the automerge label
       | waiting for checks | labels          |
 
   Scenario: Enable labeled auto-merge when requirements change before merging
-    Given a pull request from "a fork" for branch "contribution" is "ready to merge"
+    Given a pull request from "the repository" for branch "contribution" is "ready to merge"
     And branch "contribution" has the "automerge" label
     And its "readiness" changes before labeled automation
     When the worker checks auto-merge branches
@@ -151,7 +150,7 @@ Feature: Request squash merging with the automerge label
     And only one merge action should occur for branch "contribution"
 
   Scenario Outline: Guard labeled actions against a concurrent push
-    Given a pull request from "a fork" for branch "contribution" is "<condition>"
+    Given a pull request from "the repository" for branch "contribution" is "<condition>"
     And branch "contribution" has the "automerge" label
     And GitHub reports "concurrent push"
     When the worker checks auto-merge branches
@@ -164,7 +163,7 @@ Feature: Request squash merging with the automerge label
       | waiting for checks |
 
   Scenario Outline: Respect revoked auto-merge authorization
-    Given a pull request from "a fork" for branch "contribution" is "<condition>"
+    Given a pull request from "the repository" for branch "contribution" is "<condition>"
     And branch "contribution" has the "automerge" label
     And GitHub disabled auto-merge for branch "contribution" "<revocation>"
     When the worker checks auto-merge branches
@@ -189,7 +188,7 @@ Feature: Request squash merging with the automerge label
     And the branch check should succeed
 
   Scenario: Renew authorization by reapplying the label
-    Given a pull request from "a fork" for branch "contribution" is "waiting for checks"
+    Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
     And branch "contribution" has the "automerge" label
     And GitHub disabled auto-merge for branch "contribution" "and the label is reapplied"
     And the automation events span multiple pages
@@ -199,7 +198,7 @@ Feature: Request squash merging with the automerge label
     And the branch check should succeed
 
   Scenario: Read all history before deciding that the label authorizes a merge
-    Given a pull request from "a fork" for branch "contribution" is "ready to merge"
+    Given a pull request from "the repository" for branch "contribution" is "ready to merge"
     And branch "contribution" has the "automerge" label
     And GitHub disabled auto-merge for branch "contribution" "after the maintainer disables it"
     And the automation events span multiple pages
@@ -208,7 +207,7 @@ Feature: Request squash merging with the automerge label
     And the branch check should succeed
 
   Scenario Outline: Reject incomplete or untrusted automation history
-    Given a pull request from "a fork" for branch "contribution" is "ready to merge"
+    Given a pull request from "the repository" for branch "contribution" is "ready to merge"
     And branch "contribution" has the "automerge" label
     And GitHub disabled auto-merge for branch "contribution" "and the label is reapplied"
     And the automation events span multiple pages
@@ -233,7 +232,7 @@ Feature: Request squash merging with the automerge label
       | repeated automation history                 |
 
   Scenario: Require evidence that the label was applied
-    Given a pull request from "a fork" for branch "contribution" is "ready to merge"
+    Given a pull request from "the repository" for branch "contribution" is "ready to merge"
     And branch "contribution" has the "automerge" label
     And GitHub reports "no recorded label authorization"
     When the worker checks auto-merge branches
@@ -241,7 +240,7 @@ Feature: Request squash merging with the automerge label
     And the branch check should succeed
 
   Scenario: Read every contribution before acting on labels
-    Given a pull request from "a fork" for branch "first" is "waiting for checks"
+    Given a pull request from "the repository" for branch "first" is "waiting for checks"
     And branch "first" has the "automerge" label
     And a pull request from "the repository" for branch "second" is "ready to merge"
     And branch "second" has the "automerge" label
@@ -252,10 +251,10 @@ Feature: Request squash merging with the automerge label
     And the branch check should succeed
 
   Scenario: Continue after another labeled pull request fails
-    Given a pull request from "a fork" for branch "blocked" is "waiting for checks"
+    Given a pull request from "the repository" for branch "blocked" is "waiting for checks"
     And branch "blocked" has the "automerge" label
     And GitHub rejects automation on branch "blocked"
-    And a pull request from "a fork" for branch "ready" is "ready to merge"
+    And a pull request from "the repository" for branch "ready" is "ready to merge"
     And branch "ready" has the "automerge" label
     When the worker checks auto-merge branches
     Then the branch check should fail
@@ -270,18 +269,21 @@ Feature: Request squash merging with the automerge label
     And only one merge action should occur for branch "dependencies"
     And the branch check should succeed
 
-  Scenario Outline: Refuse a fork contribution with incomplete pull request metadata
-    Given a pull request from "a fork" for branch "contribution" is "waiting for checks"
+  Scenario: Refuse a contribution without its pull request node ID
+    Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
     And branch "contribution" has the "automerge" label
-    And GitHub reports "<metadata>"
+    And GitHub reports "missing node ID"
     When the worker checks auto-merge branches
     Then the branch check should fail without affecting worker health
     And no pull request mutations should be requested
 
-    Examples:
-      | metadata                |
-      | missing head repository |
-      | missing node ID         |
+  Scenario: Ignore a contribution whose head repository is unavailable
+    Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
+    And branch "contribution" has the "automerge" label
+    And GitHub reports "missing head repository"
+    When the worker checks auto-merge branches
+    Then no pull request mutations should be requested
+    And the branch check should succeed
 
   Scenario Outline: Hold labeled pull requests from either source
     Given a pull request from "<source>" for branch "contribution" is "<condition>"
@@ -299,7 +301,7 @@ Feature: Request squash merging with the automerge label
       | a fork         | ready to merge     |
 
   Scenario Outline: Observe a hold added before the final labeled action
-    Given a pull request from "a fork" for branch "contribution" is "<condition>"
+    Given a pull request from "the repository" for branch "contribution" is "<condition>"
     And branch "contribution" has the "automerge" label
     And the hold label is added before automation
     When the worker checks auto-merge branches
@@ -312,8 +314,8 @@ Feature: Request squash merging with the automerge label
       | waiting for checks |
       | ready to merge     |
 
-  Scenario: Removing a hold does not renew revoked fork authorization
-    Given a pull request from "a fork" for branch "contribution" is "waiting for checks"
+  Scenario: Removing a hold does not renew revoked authorization
+    Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
     And branch "contribution" has the "automerge" label
     And GitHub disabled auto-merge for branch "contribution" "after the maintainer disables it"
     And branch "contribution" has the "hold" label
@@ -324,7 +326,7 @@ Feature: Request squash merging with the automerge label
     And no pull request mutations should be requested
 
   Scenario: Removing a hold does not renew a removed positive label
-    Given a pull request from "a fork" for branch "contribution" is "waiting for checks"
+    Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
     And branch "contribution" has the "automerge" label
     And branch "contribution" has the "hold" label
     And the automerge label was removed from branch "contribution"

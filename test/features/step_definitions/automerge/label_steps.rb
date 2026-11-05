@@ -49,7 +49,7 @@ Given('the automation events span multiple pages') do
 end
 
 Given('the worker previously enabled labeled auto-merge before the contributor updated branch {string}') do |branch|
-  Abgleich.github.add_pull(branch, fork: true, auto_merge: false, current: true, labels: ['automerge'])
+  Abgleich.github.add_pull(branch, auto_merge: false, current: true, labels: ['automerge'])
   Nonnative.start
   wait_for { Abgleich.github.pull_state(branch).dig(:auto_merge, :merge_method) }.to eq('squash')
   Nonnative.stop

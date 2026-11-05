@@ -110,8 +110,11 @@ run reconciles fresh remote state; pending summary and review requests are held 
   Evaluate strategies in Dependabot, label, rebase order; stop after the first
   match, including errors and no-op outcomes. Automatic Dependabot merging and
   rebasing require both branches in the discovered repository. The exact
-  `automerge` label also permits fork PRs to enable squash auto-merge or squash-merge
-  when ready. Merge automation never approves reviews or bypasses rules.
+  `automerge` label and `/ab automerge` have the same requirement: ignore fork PRs
+  because fork contributions do not run CI. Status explains this exclusion;
+  summaries, reviews, and review-thread maintenance also ignore forks. Existing GitHub
+  auto-merge on forks is left unchanged. Merge automation never approves reviews
+  or bypasses rules.
   Attempt at most one mutation per PR per sweep. Finish repository discovery and each
   repository's pull request pagination before mutating;
   continue processing other pull requests after an individual failure.
@@ -130,7 +133,7 @@ run reconciles fresh remote state; pending summary and review requests are held 
 ## AI summaries
 
 - Keep summaries optional and advisory. Require configured AI summaries, an open
-  non-draft PR targeting the repository, an unedited human `/ab summarise` comment,
+  non-draft PR with both branches in the repository, an unedited human `/ab summarise` comment,
   and current write or admin permission. The authorized comment opts in to AI
   source sharing, independently of auto-merge settings, labels, and repository
   topics. Recheck authorization and both branch revisions before source submission
@@ -151,8 +154,8 @@ run reconciles fresh remote state; pending summary and review requests are held 
 - Keep `/ab codereview` and `/ab secreview` optional under
   `review.code` and `review.sec`, respectively. Follow the shared
   review workflow with separate queues and independent jobs. Require a fresh
-  unedited human comment, current write/admin permission, and an open non-draft PR,
-  including forks. Topic, `hold`, and auto-merge settings do not gate reviews.
+  unedited human comment, current write/admin permission, and an open non-draft PR
+  with both branches in the repository. Ignore forks. Topic, `hold`, and auto-merge settings do not gate reviews.
   Recheck comment identity and both branch identities/revisions before source
   submission and reply publication; discard stale results.
 - Include PR metadata, every available changed-file patch from complete GitHub
@@ -199,8 +202,9 @@ run reconciles fresh remote state; pending summary and review requests are held 
   publication still has a final-read race. Never request merge automation.
 - After draining its manual queue, each enabled review job uses its remaining
   deadline to reconcile its own App-rooted inline threads on open PRs, including
-  drafts and forks, independently of auto-merge, `hold`, topics, and old requester
-  consent. Resolve only unresolved threads GitHub marks outdated and the viewer
+  drafts, with both branches in the repository, independently of auto-merge, `hold`,
+  topics, and old requester consent. Ignore forks and recheck both branch repositories
+  before resolution. Resolve only unresolved threads GitHub marks outdated and the viewer
   can resolve; authenticate both root and parent review and match the feature's
   result namespace. Complete discovery and thread pagination before mutations,
   then refresh PR/thread identity, ownership, and state before each resolution.

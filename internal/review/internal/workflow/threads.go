@@ -62,7 +62,7 @@ func (c *Command) reconcilePullThreads(ctx context.Context, repository *github.R
 	if !c.github.IsBaseRepository(repository, pull) {
 		return errors.New("review: thread maintenance found a mismatched pull request")
 	}
-	if pull.GetState() != "open" {
+	if !c.eligibleForThreadMaintenance(repository, pull) {
 		return nil
 	}
 
@@ -98,7 +98,7 @@ func (c *Command) resolveThread(ctx context.Context, repository *github.Reposito
 	if !c.github.IsSamePullRequestIdentity(repository, current, pull) {
 		return errors.New("review: pull request identity changed before thread resolution")
 	}
-	if current.GetState() != "open" {
+	if !c.eligibleForThreadMaintenance(repository, current) {
 		return nil
 	}
 
@@ -114,6 +114,10 @@ func (c *Command) resolveThread(ctx context.Context, repository *github.Reposito
 	// GitHub has no expected-state guard for resolution. Changes after this
 	// final read can still race the mutation; outdated does not mean fixed.
 	return c.github.ResolveReviewThread(ctx, repository, current, fresh)
+}
+
+func (c *Command) eligibleForThreadMaintenance(repository *github.Repository, pull *github.PullRequest) bool {
+	return pull.GetState() == "open" && c.github.IsSameRepository(repository, pull)
 }
 
 func (c *Command) outdatedThread(thread *github.ReviewThread) bool {

@@ -60,7 +60,7 @@ Feature: Keep pull requests current when GitHub reports changes
       | ready to merge     |
 
   Scenario Outline: Apply current labeled policy to a repository notification
-    Given a pull request from "<source>" for branch "feature" is "<condition>"
+    Given a pull request from "the repository" for branch "feature" is "<condition>"
     And branch "feature" has the "automerge" label
     When GitHub delivers a "pull_request" notification with action "labeled"
     Then the event delivery should return HTTP 204
@@ -69,11 +69,23 @@ Feature: Keep pull requests current when GitHub reports changes
     And only one mutation request should have been sent
 
     Examples:
-      | source         | condition          | action                          |
-      | the repository | waiting for checks | enabled pull request auto-merge |
-      | the repository | ready to merge     | merged pull request             |
-      | a fork         | waiting for checks | enabled pull request auto-merge |
-      | a fork         | ready to merge     | merged pull request             |
+      | condition          | action                          |
+      | waiting for checks | enabled pull request auto-merge |
+      | ready to merge     | merged pull request             |
+
+  Scenario Outline: Ignore labeled forks on repository notifications
+    Given a pull request from "a fork" for branch "feature" is "<condition>"
+    And branch "feature" has the "automerge" label
+    When GitHub delivers a "pull_request" notification with action "labeled"
+    Then the event delivery should return HTTP 204
+    And exactly 1 event check should finish
+    And no event mutations should reach GitHub
+
+    Examples:
+      | condition                      |
+      | waiting for checks             |
+      | ready to merge                 |
+      | behind with auto-merge enabled |
 
   Scenario: Check only the affected repository
     Given GitHub has repositories with stale auto-merge branches:

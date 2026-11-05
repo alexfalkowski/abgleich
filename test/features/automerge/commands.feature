@@ -6,18 +6,37 @@ Feature: Comment requests for auto-merge
   Background:
     Given GitHub App comment commands are configured
 
-  Scenario Outline: Request automation on an eligible contribution
-    Given a pull request from "<source>" for branch "contribution" is "waiting for checks"
+  Scenario: Request automation on an eligible contribution
+    Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
     When a maintainer with "write" access comments "  /ab automerge  "
     Then the comment delivery should return HTTP 204
     And the command comment should show "receipt and acceptance" feedback
     And branch "contribution" should have squash auto-merge enabled
     And exactly 1 label request should reach GitHub
 
+  Scenario Outline: Reject merge automation commands on fork contributions
+    Given a pull request from "a fork" for branch "contribution" is "<condition>"
+    When a maintainer with "write" access comments "/ab automerge"
+    Then the comment delivery should return HTTP 204
+    And the command comment should show "receipt and rejection" feedback
+    And exactly 0 label requests should reach GitHub
+    And no pull request mutations should be requested
+
     Examples:
-      | source         |
-      | the repository |
-      | a fork         |
+      | condition                       |
+      | waiting for checks              |
+      | ready to merge                  |
+      | waiting with auto-merge enabled |
+      | behind with auto-merge enabled  |
+
+  Scenario: An existing label cannot authorize a fork contribution
+    Given a pull request from "a fork" for branch "contribution" is "waiting for checks"
+    And branch "contribution" has the "automerge" label
+    When a maintainer with "write" access comments "/ab automerge"
+    Then the comment delivery should return HTTP 204
+    And the command comment should show "receipt and rejection" feedback
+    And exactly 0 label requests should reach GitHub
+    And no pull request mutations should be requested
 
   Scenario Outline: Enforce the comment author's current permissions
     Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
@@ -199,9 +218,10 @@ Feature: Comment requests for auto-merge
     And exactly 0 label requests should reach GitHub
 
     Examples:
-      | field       | status |
-      | head commit | 409    |
-      | draft       | 204    |
+      | field           | status |
+      | head commit     | 409    |
+      | draft           | 204    |
+      | head repository | 204    |
 
   Scenario: Recover a lost label response by reading the label on redelivery
     Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
@@ -229,7 +249,7 @@ Feature: Comment requests for auto-merge
     And the worker should remain healthy
 
   Scenario Outline: A comment cannot override a hold
-    Given a pull request from "a fork" for branch "contribution" is "<condition>"
+    Given a pull request from "the repository" for branch "contribution" is "<condition>"
     And branch "contribution" has the "hold" label
     When a maintainer with "write" access comments "/ab automerge"
     Then the comment delivery should return HTTP 204
@@ -244,7 +264,7 @@ Feature: Comment requests for auto-merge
       | waiting with auto-merge enabled |
 
   Scenario: Observe a hold added immediately before the command requests a label
-    Given a pull request from "a fork" for branch "contribution" is "waiting for checks"
+    Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
     And the hold label is added before the command labels the pull request
     When a maintainer with "write" access comments "/ab automerge"
     Then the comment delivery should return HTTP 204
@@ -284,11 +304,14 @@ Feature: Comment requests for auto-merge
         | the repository | a draft                         | automerge | Draft pull request             | Disabled   |
         | the repository | closed                          | automerge | Pull request is closed         | Disabled   |
         | the repository | waiting for checks              | automerge | Would enable squash auto-merge | Disabled   |
-        | a fork         | ready to merge                  | automerge | Would squash-merge             | Disabled   |
-        | a fork         | failing optional checks         | automerge | Would squash-merge             | Disabled   |
+        | the repository | ready to merge                  | automerge | Would squash-merge             | Disabled   |
+        | the repository | failing optional checks         | automerge | Would squash-merge             | Disabled   |
         | the repository | behind with auto-merge enabled  | bug       | Would request a rebase         | Enabled    |
         | the repository | waiting with auto-merge enabled | bug       | Branch is current              | Enabled    |
-        | a fork         | behind with auto-merge enabled  | bug       | Fork rebase unsupported        | Enabled    |
+        | a fork         | waiting for checks              | automerge | Fork pull request ignored      | Disabled   |
+        | a fork         | ready to merge                  | automerge | Fork pull request ignored      | Disabled   |
+        | a fork         | waiting for checks              | bug       | Fork pull request ignored      | Disabled   |
+        | a fork         | behind with auto-merge enabled  | bug       | Fork pull request ignored      | Enabled    |
         | the repository | waiting for checks              | bug       | No automation requested        | Disabled   |
 
     Scenario Outline: Explain repository settings that prevent automation
@@ -346,7 +369,7 @@ Feature: Comment requests for auto-merge
         | failing optional checks | Would squash-merge             |
 
     Scenario Outline: Explain the need to renew revoked label authorization
-      Given a pull request from "a fork" for branch "contribution" is "waiting for checks"
+      Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
       And branch "contribution" has the "automerge" label
       And GitHub disabled auto-merge for branch "contribution" "<revocation>"
       And the automation events span multiple pages
@@ -365,7 +388,7 @@ Feature: Comment requests for auto-merge
         | at the same time as the label is reapplied |
 
     Scenario: A label without its authorization history needs renewal
-      Given a pull request from "a fork" for branch "contribution" is "waiting for checks"
+      Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
       And branch "contribution" has the "automerge" label
       And GitHub reports "no recorded label authorization"
       When a maintainer with "write" access comments "/ab status"

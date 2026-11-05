@@ -17,7 +17,7 @@ Feature: Discuss findings beside the changed code
     Examples:
       | kind     | command    | source         |
       | code     | codereview | the repository |
-      | security | secreview  | a fork         |
+      | security | secreview  | the repository |
 
   Scenario: Preserve findings whose locations cannot be placed
     Given AI code reviews are configured for this repository
@@ -90,7 +90,7 @@ Feature: Discuss findings beside the changed code
 
   Scenario: Keep code and security conversations independent
     Given AI security reviews are configured for this repository
-    And a pull request from "a fork" for branch "contribution" is "waiting for checks"
+    And a pull request from "the repository" for branch "contribution" is "waiting for checks"
     And security reviews and summaries are independently enabled
     And the reviewer reports "findings on added and removed lines"
     And the pull request has already received a code review

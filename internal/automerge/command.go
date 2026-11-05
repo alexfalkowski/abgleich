@@ -99,7 +99,7 @@ func (c *Command) addLabel(ctx context.Context, repo *github.Repository, pull *g
 
 func (c *Command) eligibleForCommand(repo *github.Repository, pull *github.PullRequest) bool {
 	return eligibleRepository(repo) && repo.GetAllowSquashMerge() && strategy.Eligible(pull) &&
-		c.github.IsBaseRepository(repo, pull) && github.HasPullRequestNodeID(pull)
+		c.github.IsSameRepository(repo, pull) && github.HasPullRequestNodeID(pull)
 }
 
 func automationAlreadyRequested(pull *github.PullRequest) bool {
