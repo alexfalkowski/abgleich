@@ -28,8 +28,8 @@ module Abgleich
       def file_mode=(mode)
         @mutex.synchronize do
           @state[:file_mode] = mode
-          @state[:pulls].each_value { |pull| pull[:changed_files] = 21 } if mode == 'many files'
-          @state[:pulls].each_value { |pull| pull[:changed_files] = 4 } if mode == 'mixed patches'
+          count = { 'many files' => 21, 'mixed patches' => 4, 'no changed files' => 0 }[mode]
+          @state[:pulls].each_value { |pull| pull[:changed_files] = count } if count
           @state[:pulls].each_value { |pull| pull.delete(:changed_files) } if mode == 'missing file count'
         end
       end
@@ -53,7 +53,7 @@ module Abgleich
         paths << 'image.png' if file_mode == 'mixed patches'
         paths.pop if file_mode == 'incomplete file list'
         # An empty list must not substitute for an absent file count.
-        paths.clear if file_mode == 'missing file count'
+        paths.clear if ['missing file count', 'no changed files'].include?(file_mode)
         paths
       end
 

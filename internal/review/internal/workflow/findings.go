@@ -1,8 +1,6 @@
 package workflow
 
 import (
-	"fmt"
-
 	"github.com/alexfalkowski/abgleich/internal/github"
 	"github.com/alexfalkowski/go-service/v2/encoding/json"
 	"github.com/alexfalkowski/go-service/v2/errors"
@@ -11,16 +9,20 @@ import (
 )
 
 type reviewResult struct {
+	Complete *bool           `json:"complete"`
 	Overview string          `json:"overview"`
 	Findings []reviewFinding `json:"findings"`
-	Complete bool            `json:"complete"`
 }
 
 type reviewFinding struct {
-	Body string `json:"body"`
-	Path string `json:"path"`
-	Side string `json:"side"`
-	Line int    `json:"line"`
+	Title    string `json:"title"`
+	Severity string `json:"severity"`
+	Trigger  string `json:"trigger"`
+	Impact   string `json:"impact"`
+	Fix      string `json:"fix"`
+	Path     string `json:"path"`
+	Side     string `json:"side"`
+	Line     int    `json:"line"`
 }
 
 // canPlaceInline reports whether the finding's location is present on the requested side of GitHub's patch.
@@ -36,13 +38,6 @@ func (f *reviewFinding) canPlaceInline(files []*github.CommitFile) bool {
 		}
 	}
 	return false
-}
-
-func (f *reviewFinding) location() string {
-	if f.Path == "" && f.Line == 0 && f.Side == "" {
-		return ""
-	}
-	return fmt.Sprintf("Location unavailable on the diff: %s:%d (%s).\n", f.Path, f.Line, f.Side)
 }
 
 func patchContainsLine(patch string, lineNumber int, side string) bool {
@@ -73,13 +68,20 @@ func parseResult(text string) (*reviewResult, error) {
 		return nil, errors.New("review: invalid result JSON")
 	}
 
-	if strings.IsEmpty(strings.TrimSpace(result.Overview)) || result.Findings == nil {
-		return nil, errors.New("review: result requires an overview and findings array")
+	if strings.IsEmpty(strings.TrimSpace(result.Overview)) || result.Findings == nil || result.Complete == nil {
+		return nil, errors.New("review: result requires an overview, findings array, and completion boolean")
 	}
 
 	for _, finding := range result.Findings {
-		if strings.IsEmpty(strings.TrimSpace(finding.Body)) {
-			return nil, errors.New("review: finding requires a body")
+		switch finding.Severity {
+		case "P0", "P1", "P2", "P3":
+		default:
+			return nil, errors.New("review: finding requires a severity from P0 to P3")
+		}
+		for _, field := range []string{finding.Title, finding.Trigger, finding.Impact, finding.Fix} {
+			if strings.IsEmpty(strings.TrimSpace(field)) {
+				return nil, errors.New("review: finding requires a title, trigger, impact, and fix")
+			}
 		}
 	}
 

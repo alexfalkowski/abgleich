@@ -197,10 +197,25 @@ func (s *sourceSession) directory(ctx context.Context, directory string, paths [
 	}
 
 	if source.Len() == 0 {
-		return s.unavailable(directory)
+		return s.missingPath(directory)
 	}
 
 	return source.String()
+}
+
+// missingPath distinguishes absent paths from excluded source using the complete tree.
+func (s *sourceSession) missingPath(filename string) string {
+	if filename == "." {
+		return s.unavailable(filename)
+	}
+	for _, entry := range s.trees[s.headSHA] {
+		name := entry.GetPath()
+		if name == filename || strings.HasPrefix(name, filename+"/") ||
+			(entry.GetType() != "tree" && !github.IsRegularSourceFile(entry) && strings.HasPrefix(filename, name+"/")) {
+			return s.unavailable(filename)
+		}
+	}
+	return strings.Concat("Source not found: ", filename)
 }
 
 func (s *sourceSession) repositoryFile(ctx context.Context, filename string, base bool) (string, error) {
@@ -282,7 +297,7 @@ func (s *sourceSession) regularFiles(ctx context.Context, revision string, filen
 
 	var files []*github.TreeEntry
 	for _, filename := range filenames {
-		if entry := byPath[filename]; entry != nil {
+		if entry := byPath[filename]; github.IsRegularSourceFile(entry) {
 			files = append(files, entry)
 		} else {
 			contents[filename] = s.unavailable(strings.Concat(revision, ":", filename, " (regular file unavailable)"))
@@ -300,7 +315,9 @@ func (s *sourceSession) treeFiles(ctx context.Context, revision string) ([]strin
 
 	paths := make([]string, 0, len(entries))
 	for _, entry := range entries {
-		paths = append(paths, entry.GetPath())
+		if github.IsRegularSourceFile(entry) {
+			paths = append(paths, entry.GetPath())
+		}
 	}
 
 	return paths, nil

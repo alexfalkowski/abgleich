@@ -41,7 +41,7 @@ module Abgleich
 
     get '/repos/:owner/:repository/git/trees/:revision' do
       GitHubService.record_source_tree_read
-      paths = %w[main.go worker.go test.go helpers/guard.go go.mod go.sum]
+      paths = %w[main.go worker.go test.go helpers helpers/guard.go go.mod go.sum]
       paths.concat((1..source_directory_size).map { |index| "helpers/part#{index}.go" })
       paths << 'go.work' if Abgleich.github.failure == 'source managed by a Go workspace'
       paths << 'vendor/modules.txt' if Abgleich.github.failure == 'source vendored in the repository'
@@ -51,10 +51,14 @@ module Abgleich
         'source workspace in an unrelated directory' => 'tools/other/go.work'
       }[Abgleich.github.failure]
       paths.concat(%w[tools/app/go.mod tools/app/go.sum] << workspace) if workspace
+      paths << 'helpers/empty' if Abgleich.github.failure == 'source an empty directory'
       { sha: 'source-tree', truncated: Abgleich.github.failure == 'source missing part of the repository listing',
         tree: paths.map do |path|
           mode = Abgleich.github.failure == 'source behind a symbolic link' && path == 'helpers/guard.go' ? '120000' : '100644'
-          { path:, mode:, type: 'blob', sha: source_digest(source_content(path)) }
+          mode = '160000' if Abgleich.github.failure == 'source a submodule' && path == 'helpers/guard.go'
+          mode = '040000' if %w[helpers helpers/empty].include?(path)
+          type = { '160000' => 'commit', '040000' => 'tree' }.fetch(mode, 'blob')
+          { path:, mode:, type:, sha: source_digest(source_content(path)) }
         end }.to_json
     end
 

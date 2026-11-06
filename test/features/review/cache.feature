@@ -34,6 +34,20 @@ Feature: Reduce GitHub source reads across reviews
     And GitHub should have served 2 source trees and 2 source downloads
 
   @codereview
+  Scenario: Preserve excluded path evidence when another review reuses the tree
+    Given related source is "behind a symbolic link"
+    And the reviewer needs "a file beneath an excluded path"
+    And the pull request has already received a code review
+    When a maintainer with "write" access comments "/ab secreview"
+    Then the code review should disclose "helpers/guard.go/private.go"
+    And the code review decision should be "COMMENTED"
+    And the security review should disclose "helpers/guard.go/private.go"
+    And the security review decision should be "COMMENTED"
+    And the excluded repository path "helpers/guard.go/private.go" should not be fetched
+    And the symbolic link should not be followed
+    And GitHub should have served 1 source tree and 1 source download
+
+  @codereview
   Scenario: Fetch changed source after new commits
     Given the pull request has already received a code review
     And the contribution updates its related helper

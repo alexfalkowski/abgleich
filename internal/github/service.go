@@ -33,11 +33,12 @@ type Service interface {
 	// Reads do not retry.
 	ReadSourceFiles(ctx context.Context, repo *Repository, revision string, files []*TreeEntry) (map[string]string, error)
 
-	// ListSourceFiles returns regular entries, including their blob identities,
-	// from a complete recursive tree at an immutable commit SHA. Validated trees
-	// are cached by repository identity and revision when ttlcache is configured.
-	// Truncated trees and missing
-	// identities are errors; symlinks and submodules are excluded.
+	// ListSourceFiles returns all entries from a complete recursive tree at an
+	// immutable commit SHA, retaining directories, symlinks, and submodules as
+	// metadata without following them. ReadSourceFiles accepts only entries passing
+	// IsRegularSourceFile. Truncated trees, invalid or duplicate paths, and missing
+	// regular-file blob identities are errors. Validated trees are cached by
+	// repository identity and revision when ttlcache is configured.
 	ListSourceFiles(ctx context.Context, repo *Repository, revision string) ([]*TreeEntry, error)
 
 	// ListBranches collects complete, validated branch pagination before cleanup.

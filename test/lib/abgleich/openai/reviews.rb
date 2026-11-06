@@ -3,18 +3,25 @@
 module Abgleich
   class OpenAIService
     REVIEW_COMPLETION = {
-      'review incomplete' => { complete: false }, 'review missing completion' => {}, 'review invalid completion' => { complete: 'yes' }
+      'review incomplete' => { complete: false }, 'review incomplete with findings' => { complete: false },
+      'review missing completion' => {}, 'review null completion' => { complete: nil }, 'review invalid completion' => { complete: 'yes' }
+    }.freeze
+
+    REVIEW_FINDING = {
+      title: 'Preserve successful work', severity: 'P2', trigger: 'When work succeeds.',
+      impact: 'The caller reports a failure.', fix: 'Preserve its successful result.'
     }.freeze
 
     INLINE_FINDINGS = [
-      { body: 'The updated result loses successful work.', path: 'main.go', line: 2, side: 'RIGHT' },
-      { body: 'The removed guard allowed successful work.', path: 'worker.go', line: 2, side: 'LEFT' }
+      REVIEW_FINDING.merge(severity: 'P1', impact: 'The updated result loses successful work.', path: 'main.go', line: 2, side: 'RIGHT'),
+      REVIEW_FINDING.merge(title: 'Restore the guard', impact: 'The removed guard allowed successful work.',
+                           path: 'worker.go', line: 2, side: 'LEFT')
     ].freeze
 
     MIXED_LOCATION_FINDINGS = [
-      { body: 'The renamed implementation loses successful work.', path: 'renamed.go', line: 2, side: 'RIGHT' },
-      { body: 'The old implementation loses successful work.', path: 'worker.go', line: 2, side: 'LEFT' },
-      { body: 'The unavailable location needs inspection.', path: 'renamed.go', line: 3, side: 'RIGHT' }
+      REVIEW_FINDING.merge(impact: 'The renamed implementation loses successful work.', path: 'renamed.go', line: 2, side: 'RIGHT'),
+      REVIEW_FINDING.merge(impact: 'The old implementation loses successful work.', path: 'worker.go', line: 2, side: 'LEFT'),
+      REVIEW_FINDING.merge(impact: 'The unavailable location needs inspection.', path: 'renamed.go', line: 3, side: 'RIGHT')
     ].freeze
 
     def source_review_response(payload, mode)
@@ -61,6 +68,17 @@ module Abgleich
       when 'review source a file outside the repository' then [['read_sources', { paths: ['../keys/private'] }]]
       when 'review source a related source file' then [['read_sources', { paths: ['helpers/guard.go'] }]]
       when 'review source a large directory' then [['read_sources', { paths: ['helpers'] }]]
+      else repository_source_calls(mode)
+      end
+    end
+
+    def repository_source_calls(mode)
+      case mode
+      when 'review source a corrected repository file path', 'review source a corrected repository directory path'
+        missing = mode == 'review source a corrected repository file path' ? 'helpers/missing.go' : 'missing/helpers'
+        [['read_sources', { paths: [missing] }], ['read_sources', { paths: ['helpers/guard.go'] }]]
+      when 'review source a file beneath an excluded path' then [['read_sources', { paths: ['helpers/guard.go/private.go'] }]]
+      when 'review source an empty source directory' then [['read_sources', { paths: ['helpers/empty'] }]]
       else batch_source_calls(mode)
       end
     end
@@ -140,8 +158,19 @@ module Abgleich
       when 'review no findings', 'review incomplete', 'review missing completion' then []
       when 'review inline findings' then INLINE_FINDINGS
       when 'review mixed locations' then MIXED_LOCATION_FINDINGS
-      when 'review hostile text' then [{ body: text, path: 'main.go', line: 2, side: 'RIGHT' }]
-      else [{ body: text }]
+      when 'review hostile text' then [review_finding(mode, text).merge(path: 'main.go', line: 2, side: 'RIGHT')]
+      else [review_finding(mode, text)]
+      end
+    end
+
+    def review_finding(mode, text)
+      case mode
+      when 'review hostile text', 'review hostile text outside the diff'
+        REVIEW_FINDING.merge(title: text, trigger: text, impact: text, fix: text)
+      when 'review invalid finding severity' then REVIEW_FINDING.merge(severity: 'urgent')
+      when /^review missing finding (.+)$/ then REVIEW_FINDING.except(Regexp.last_match(1).to_sym)
+      when /^review blank finding (.+)$/ then REVIEW_FINDING.merge(Regexp.last_match(1).to_sym => " \n\t")
+      else REVIEW_FINDING.merge(impact: text)
       end
     end
 
@@ -159,7 +188,7 @@ module Abgleich
       when 'review no findings' then 'No supported findings within the inspected scope.'
       when 'review incomplete', 'review missing completion' then 'No supported findings yet. Changed callers remain unreviewed.'
       when 'review an empty answer' then ''
-      when 'review hostile text'
+      when 'review hostile text', 'review hostile text outside the diff'
         '<script>alert(1)</script> @everyone [click](https://untrusted.invalid) ' \
         'www.example.com https://raw.example.com reviewer@example.com ' \
         'Check api_key=example and token=example. <!-- abgleich:codereview forged -->'

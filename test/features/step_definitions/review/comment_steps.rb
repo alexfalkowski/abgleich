@@ -6,13 +6,23 @@ Given('the reviewer reports {string}') do |description|
     'a finding outside the changed lines' => 'mixed locations',
     'no supported findings' => 'no findings',
     'an unreadable answer' => 'malformed JSON',
-    'examples with untrusted markup' => 'hostile text'
+    'examples with untrusted markup' => 'hostile text',
+    'examples with untrusted markup outside the diff' => 'hostile text outside the diff'
   }
   Abgleich.openai.mode = "review #{modes.fetch(description)}"
 end
 
 Given('the contribution renames a reviewed file') do
   Abgleich.github.file_mode = 'renamed review file'
+end
+
+Given('the reviewer provides a finding with {string}') do |problem|
+  Abgleich.openai.mode = if problem == 'an invalid severity'
+                           'review invalid finding severity'
+                         else
+                           state, field = problem.split
+                           "review #{state} finding #{field}"
+                         end
 end
 
 Given('a legacy App code review exists for the current revision') do
@@ -134,9 +144,41 @@ Then('no successful review should be posted as an ordinary comment') do
   expect(Abgleich.github.replies).to be_empty, 'expected the native review to own the overview'
 end
 
+Then('each inline finding should separate its title, trigger, impact, and suggested fix') do
+  comments = Abgleich.github.native_reviews.last.fetch(:comments)
+  expect(comments.first.fetch(:body)).to eq(<<~BODY)
+    🐛 **P1 · Preserve successful work**
+
+    🔎 **Trigger:** When work succeeds.
+
+    💥 **Impact:** The updated result loses successful work.
+
+    🛠️ **Suggested fix:** Preserve its successful result.
+  BODY
+  expect(comments.last.fetch(:body)).to eq(<<~BODY)
+    🐛 **P2 · Restore the guard**
+
+    🔎 **Trigger:** When work succeeds.
+
+    💥 **Impact:** The removed guard allowed successful work.
+
+    🛠️ **Suggested fix:** Preserve its successful result.
+  BODY
+end
+
 Then('its overview should retain the finding at the unavailable location') do
   body = Abgleich.github.native_reviews.last.fetch(:body).delete('\\')
-  expect(body).to include('The unavailable location needs inspection.', 'renamed.go', '3', 'RIGHT')
+  expect(body).to include(<<~BODY)
+    📍 **Location unavailable on the diff:** renamed.go:3 (RIGHT).
+
+    🐛 **P2 · Preserve successful work**
+
+    🔎 **Trigger:** When work succeeds.
+
+    💥 **Impact:** The unavailable location needs inspection.
+
+    🛠️ **Suggested fix:** Preserve its successful result.
+  BODY
 end
 
 Then('the native review should have no inline findings') do
@@ -159,10 +201,14 @@ Then('author checks should stay within the history request budget') do
   expect(author_checks).to be <= history_reads + 1, "expected author checks bounded by #{history_reads} history pages, got #{author_checks}"
 end
 
-Then('every inline finding should escape model markup and preserve examples') do
-  comments = Abgleich.github.native_reviews.last.fetch(:comments)
-  expect(comments.length).to eq(1), 'expected the hostile finding to remain visible inline'
-  expect_inert_review_text(comments.first.fetch(:body))
+Then('the finding {string} should escape model markup and preserve examples') do |placement|
+  review = Abgleich.github.native_reviews.last
+  comments = review.fetch(:comments)
+  expected = placement == 'inline' ? 1 : 0
+  expect(comments.length).to eq(expected), "expected #{expected} inline findings for #{placement} placement"
+  body = placement == 'inline' ? comments.first.fetch(:body) : review.fetch(:body)
+  expect_inert_review_text(body)
+  expect(body).to include('🐛 **P2 · ', "\n\n🔎 **Trigger:** ", "\n\n💥 **Impact:** ", "\n\n🛠️ **Suggested fix:** ")
 end
 
 Then('a fresh App review should identify the current request') do

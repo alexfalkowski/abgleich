@@ -9,23 +9,23 @@ Feature: Submit review decisions grounded in the inspected changes
     And the AI <kind> review answer has "<answer>"
     When a maintainer with "write" access comments "/ab <command>"
     Then the <kind> review decision should be "<decision>"
+    And the <kind> review assessment should be "<assessment>"
+    And the <kind> review decision should explain "<reason>"
     And no review should change merge automation
 
     @codereview
     Examples:
-      | kind     | command    | answer             | decision          |
-      | code     | codereview | inline findings    | CHANGES_REQUESTED |
-      | code     | codereview | no findings        | APPROVED          |
-      | code     | codereview | incomplete         | COMMENTED         |
-      | code     | codereview | missing completion | COMMENTED         |
+      | kind | command    | answer          | decision          | assessment        | reason                      |
+      | code | codereview | inline findings | CHANGES_REQUESTED | Findings          | Request changes.            |
+      | code | codereview | no findings     | APPROVED          | No findings       | Approve.                    |
+      | code | codereview | incomplete      | COMMENTED         | Review unfinished | the reviewer did not finish |
 
     @secreview
     Examples:
-      | kind     | command    | answer             | decision          |
-      | security | secreview  | inline findings    | CHANGES_REQUESTED |
-      | security | secreview  | no findings        | APPROVED          |
-      | security | secreview  | incomplete         | COMMENTED         |
-      | security | secreview  | missing completion | COMMENTED         |
+      | kind     | command   | answer          | decision          | assessment        | reason                      |
+      | security | secreview | inline findings | CHANGES_REQUESTED | Findings          | Request changes.            |
+      | security | secreview | no findings     | APPROVED          | No findings       | Approve.                    |
+      | security | secreview | incomplete      | COMMENTED         | Review unfinished | the reviewer did not finish |
 
   Scenario Outline: Withhold approval when the worker records missing context
     Given AI <kind> reviews are configured for this repository
@@ -34,19 +34,59 @@ Feature: Submit review decisions grounded in the inspected changes
     And the AI <kind> review answer has "no findings"
     When a maintainer with "write" access comments "/ab <command>"
     Then the <kind> review decision should be "COMMENTED"
-    And the <kind> review should disclose "Source unavailable"
+    And the <kind> review assessment should be "Review completed with limitations"
+    And the <kind> review decision should explain "worker recorded the limitations below"
+    And the <kind> review should disclose "<limitation>"
+    And the <kind> review should identify "<limitation>" before its overview
+    And the incomplete review should have no success marker
 
     @codereview
     Examples:
-      | kind     | command    | context            |
-      | code     | codereview | changed-file patch |
-      | code     | codereview | binary source      |
+      | kind | command    | context            | limitation                        |
+      | code | codereview | changed-file patch | patch for main.go                 |
+      | code | codereview | binary source      | (binary file)                     |
+      | code | codereview | changed-file list  | GitHub returned no changed files. |
 
     @secreview
     Examples:
-      | kind     | command    | context            |
-      | security | secreview  | changed-file patch |
-      | security | secreview  | binary source      |
+      | kind     | command   | context            | limitation                        |
+      | security | secreview | changed-file patch | patch for main.go                 |
+      | security | secreview | binary source      | (binary file)                     |
+      | security | secreview | changed-file list  | GitHub returned no changed files. |
+
+  Scenario Outline: Disclose source limitations even when the reviewer did not finish
+    Given AI <kind> reviews are configured for this repository
+    And a pull request from "the repository" for branch "contribution" is "waiting for checks"
+    And the review cannot inspect "changed-file patch"
+    And the AI <kind> review answer has "incomplete"
+    When a maintainer with "write" access comments "/ab <command>"
+    Then the <kind> review assessment should be "Review unfinished"
+    And the <kind> review overview should explain remaining work
+    And the <kind> review decision should be "COMMENTED"
+    And the <kind> review should identify "patch for main.go" before its overview
+    And the incomplete review should have no success marker
+
+    @codereview
+    Examples:
+      | kind | command    |
+      | code | codereview |
+
+    @secreview
+    Examples:
+      | kind     | command   |
+      | security | secreview |
+
+  @codereview
+  Scenario: Show every limitation when patches and source are unavailable
+    Given AI code reviews are configured for this repository
+    And a pull request from "the repository" for branch "contribution" is "waiting for checks"
+    And the review cannot inspect "patches and binary source"
+    And the AI code review answer has "no findings"
+    When a maintainer with "write" access comments "/ab codereview"
+    Then the code review assessment should be "Review completed with limitations"
+    And the code review decision should be "COMMENTED"
+    And the code review should identify "patch for main.go" before its overview
+    And the code review should identify "(binary file)" before its overview
 
   Scenario Outline: Reuse a submitted verdict after restarting
     Given AI <kind> reviews are configured for this repository
@@ -60,15 +100,15 @@ Feature: Submit review decisions grounded in the inspected changes
 
     @codereview
     Examples:
-      | kind     | command    | answer          | decision          |
-      | code     | codereview | no findings     | APPROVED          |
-      | code     | codereview | inline findings | CHANGES_REQUESTED |
+      | kind | command    | answer          | decision          |
+      | code | codereview | no findings     | APPROVED          |
+      | code | codereview | inline findings | CHANGES_REQUESTED |
 
     @secreview
     Examples:
-      | kind     | command    | answer          | decision          |
-      | security | secreview  | no findings     | APPROVED          |
-      | security | secreview  | inline findings | CHANGES_REQUESTED |
+      | kind     | command   | answer          | decision          |
+      | security | secreview | no findings     | APPROVED          |
+      | security | secreview | inline findings | CHANGES_REQUESTED |
 
   Scenario Outline: Keep the other review's findings blocking after a restart
     Given AI <kind> reviews are configured for this repository
@@ -83,13 +123,13 @@ Feature: Submit review decisions grounded in the inspected changes
 
     @codereview
     Examples:
-      | kind     | command    | other    |
-      | code     | codereview | security |
+      | kind | command    | other    |
+      | code | codereview | security |
 
     @secreview
     Examples:
-      | kind     | command    | other    |
-      | security | secreview  | code     |
+      | kind     | command   | other |
+      | security | secreview | code  |
 
   @codereview
   Scenario: Preserve security findings when the author pushes new commits
@@ -115,13 +155,13 @@ Feature: Submit review decisions grounded in the inspected changes
 
     @codereview
     Examples:
-      | kind     | command    | other    |
-      | code     | codereview | security |
+      | kind | command    | other    |
+      | code | codereview | security |
 
     @secreview
     Examples:
-      | kind     | command    | other    |
-      | security | secreview  | code     |
+      | kind     | command   | other |
+      | security | secreview | code  |
 
   @secreview
   Scenario: Allow approval after both reviewers find the revised contribution clean
@@ -143,14 +183,28 @@ Feature: Submit review decisions grounded in the inspected changes
     Then the code review decision should be "CHANGES_REQUESTED"
     And the clean security review should preserve the code review's decision
 
-  @codereview
-  Scenario: Reject an invalid completion indicator
-    Given AI code reviews are configured for this repository
+  Scenario Outline: Reject a missing or invalid completion indicator
+    Given AI <kind> reviews are configured for this repository
     And a pull request from "the repository" for branch "contribution" is "waiting for checks"
-    And the AI code review answer has "invalid completion"
-    When a maintainer with "write" access comments "/ab codereview"
-    Then the code review should fail without publishing findings
+    And the AI <kind> review answer has "<answer>"
+    When a maintainer with "write" access comments "/ab <command>"
+    Then the <kind> review should fail without publishing findings
+    And its failure comment should explain "unreadable or invalid review result" with recovery advice
     And no native review should be submitted
+
+    @codereview
+    Examples:
+      | kind | command    | answer             |
+      | code | codereview | missing completion |
+      | code | codereview | null completion    |
+      | code | codereview | invalid completion |
+
+    @secreview
+    Examples:
+      | kind     | command   | answer             |
+      | security | secreview | missing completion |
+      | security | secreview | null completion    |
+      | security | secreview | invalid completion |
 
   Scenario Outline: Retry an incomplete review on the same commits
     Given AI <kind> reviews are configured for this repository
@@ -165,13 +219,35 @@ Feature: Submit review decisions grounded in the inspected changes
 
     @codereview
     Examples:
-      | kind     | command    |
-      | code     | codereview |
+      | kind | command    |
+      | code | codereview |
 
     @secreview
     Examples:
-      | kind     | command    |
-      | security | secreview  |
+      | kind     | command   |
+      | security | secreview |
+
+  Scenario Outline: Retry a completed review after its context limitations are resolved
+    Given AI <kind> reviews are configured for this repository
+    And a pull request from "the repository" for branch "contribution" is "waiting for checks"
+    And the review cannot inspect "changed-file patch"
+    And the AI <kind> review answer has "no findings"
+    And the pull request has already received a <kind> review
+    And the <kind> review can inspect the missing context again
+    When a maintainer with "write" access comments "/ab <command>"
+    Then the <kind> review decision should be "APPROVED"
+    And the incomplete review should have no success marker
+    And exactly 2 requests should reach the AI service
+
+    @codereview
+    Examples:
+      | kind | command    |
+      | code | codereview |
+
+    @secreview
+    Examples:
+      | kind     | command   |
+      | security | secreview |
 
   @secreview
   Scenario Outline: Ignore requests for changes from unauthenticated lookalikes
@@ -226,18 +302,21 @@ Feature: Submit review decisions grounded in the inspected changes
     Given AI <kind> reviews are configured for this repository
     And a pull request from "the repository" for branch "contribution" is "waiting for checks"
     And the review cannot inspect "changed-file patch"
+    And the AI <kind> review answer has "<answer>"
     When a maintainer with "write" access comments "/ab <command>"
     Then the <kind> review decision should be "CHANGES_REQUESTED"
 
     @codereview
     Examples:
-      | kind     | command    |
-      | code     | codereview |
+      | kind | command    | answer                   |
+      | code | codereview | inline findings          |
+      | code | codereview | incomplete with findings |
 
     @secreview
     Examples:
-      | kind     | command    |
-      | security | secreview  |
+      | kind     | command   | answer                   |
+      | security | secreview | inline findings          |
+      | security | secreview | incomplete with findings |
 
   @codereview
   Scenario: An incomplete security reassessment leaves earlier findings blocking
@@ -264,10 +343,10 @@ Feature: Submit review decisions grounded in the inspected changes
 
     @codereview
     Examples:
-      | kind     | command    | answer          |
-      | code     | codereview | no findings     |
+      | kind | command    | answer      |
+      | code | codereview | no findings |
 
     @secreview
     Examples:
-      | kind     | command    | answer          |
-      | security | secreview  | inline findings |
+      | kind     | command   | answer          |
+      | security | secreview | inline findings |

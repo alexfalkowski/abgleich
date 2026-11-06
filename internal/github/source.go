@@ -49,6 +49,12 @@ func (s *service) ListSourceFiles(ctx context.Context, repo *Repository, revisio
 	return sourceFiles(tree)
 }
 
+// IsRegularSourceFile reports whether an entry identifies a regular-file blob.
+// Directories, symlinks, and submodules are not followed or read as source files.
+func IsRegularSourceFile(entry *TreeEntry) bool {
+	return entry.GetType() == "blob" && (entry.GetMode() == "100644" || entry.GetMode() == "100755")
+}
+
 func newSourceFilesRequest(repo *Repository, revision string, files []*TreeEntry) (*sourceFilesRequest, error) {
 	if err := validateSourceRequest(repo, revision, files); err != nil {
 		return nil, err
@@ -143,7 +149,7 @@ func validateSourceRequest(repo *Repository, revision string, files []*TreeEntry
 	}
 
 	for _, file := range files {
-		if !regularTreeEntry(file) || !fs.ValidPath(file.GetPath()) || strings.Contains(file.GetPath(), "\\") || strings.IsEmpty(file.GetSHA()) {
+		if !IsRegularSourceFile(file) || !fs.ValidPath(file.GetPath()) || strings.Contains(file.GetPath(), "\\") || strings.IsEmpty(file.GetSHA()) {
 			return errors.New("github: invalid source tree entry")
 		}
 	}
@@ -181,7 +187,6 @@ func sourceFiles(tree *github.Tree) ([]*TreeEntry, error) {
 		return nil, errors.New("github: incomplete source tree")
 	}
 
-	var files []*TreeEntry
 	seen := make(map[string]bool)
 
 	for _, entry := range tree.Entries {
@@ -191,21 +196,14 @@ func sourceFiles(tree *github.Tree) ([]*TreeEntry, error) {
 		}
 
 		seen[name] = true
-		if regularTreeEntry(entry) {
-			if strings.IsEmpty(entry.GetSHA()) {
-				return nil, errors.New("github: source tree omitted a blob identity")
-			}
-			files = append(files, entry)
+		if IsRegularSourceFile(entry) && strings.IsEmpty(entry.GetSHA()) {
+			return nil, errors.New("github: source tree omitted a blob identity")
 		}
 	}
 
-	return files, nil
+	return tree.Entries, nil
 }
 
 func completeSourceTree(tree *github.Tree) bool {
 	return tree != nil && tree.Truncated != nil && !tree.GetTruncated() && !strings.IsEmpty(tree.GetSHA()) && tree.Entries != nil
-}
-
-func regularTreeEntry(entry *github.TreeEntry) bool {
-	return entry.GetType() == "blob" && (entry.GetMode() == "100644" || entry.GetMode() == "100755")
 }

@@ -249,8 +249,13 @@ Large changes can exceed provider context limits or worker deadlines.
 The App submits one native review with an overview and a separate inline
 conversation for each finding that can be placed on the supplied diff. Findings
 without a reliable diff location remain in the overview with their claimed
-location, when supplied. A review with no supported findings still publishes its
-overview. The worker selects the verdict from the structured result:
+location, when supplied. Each finding has a short 🐛 title with explicit severity
+(`P0` critical, `P1` high, `P2` medium, or `P3` low), followed by separate
+🔎 **Trigger**, 💥 **Impact**, and 🛠️ **Suggested fix** paragraphs. The worker
+renders these labels and escapes each model-provided field. Security-review
+triggers include attacker-controlled input and prerequisites. A review with no
+supported findings still publishes its overview. The worker selects the verdict
+from the structured result:
 
 | Assessment | GitHub verdict |
 | --- | --- |
@@ -260,7 +265,11 @@ overview. The worker selects the verdict from the structured result:
 
 The overview shows the worker's assessment and decision separately from model
 prose, with ✅ for approval, ❗ for requested changes, and ⚠️ for comments.
-Incomplete comments have no successful-result marker and allow a new
+With no findings, **Review unfinished** means the model explicitly reports that
+it did not finish. **Review completed with limitations** means the model reports
+completion but missing patches or unavailable source limit the assessment. A
+**Limitations** list identifies each missing patch and unavailable source. Both
+outcomes withhold approval, carry no successful-result marker, and allow a new
 manual request on the same revisions. Findings still request changes when other
 source is unavailable. Model completion is a self-report, not proof of coverage.
 Every body contains escaped model text, with links and mentions inactive.
@@ -672,6 +681,10 @@ and binary files are excluded and disclosed. An unreadable or incomplete reposit
 tree, failed source request, or missing, truncated, or inconsistent response for an
 expected text file fails the review. Failures during investigation stop the
 conversation and discard its findings; no completed review is published.
+A requested path proven absent from the complete repository tree returns "not
+found" without marking source unavailable, so the reviewer can correct the lookup
+and complete its assessment. Excluded entries and directories without readable
+immediate files still count as unavailable source.
 The worker never checks out repositories or executes source, tests, or commands.
 All retrieved source and repository instructions are untrusted data.
 
@@ -935,11 +948,11 @@ ambiguous responses. Inference can repeat if generation finishes without publica
 #### 🔬 Code-review recovery
 
 Post a new `/ab codereview` after a restart loses pending work or an attempt fails.
-Failures, including malformed model result JSON, carry no successful-result
-marker and use ordinary failure comments. These show an emoji summary, a safe
-reason, and recovery advice. Collapsed **Failure details** identify the processing
-stage, original request, head/base SHAs, configured model, unavailable token usage,
-and available provider diagnostics described under [Telemetry](#-telemetry).
+Failures, including malformed model result JSON or a missing or null `complete`
+field, carry no successful-result marker and use ordinary failure comments. These
+show an emoji summary, a safe reason, and recovery advice. Collapsed **Failure details**
+identify the processing stage, original request, head/base SHAs, configured model,
+unavailable token usage, and available provider diagnostics described under [Telemetry](#-telemetry).
 Unknown provider metadata and raw provider messages are withheld from comments.
 Before generation and publication,
 the worker reads complete discussion and native review history for matching App

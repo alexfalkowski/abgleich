@@ -353,6 +353,46 @@ Feature: Follow changed behavior into related source
     And the reviewer should receive complete files at the reviewed revisions
     And public dependency access should omit credentials
 
+  Scenario Outline: Complete a review after correcting a nonexistent repository path
+    Given the reviewer needs "<lookup>"
+    When a maintainer with "write" access comments "/ab <command>"
+    Then the <kind> review should finish after correcting the repository path "<path>"
+    And the <kind> review decision should be "APPROVED"
+
+    @codereview
+    Examples:
+      | command    | kind | lookup                                | path               |
+      | codereview | code | a corrected repository file path      | helpers/missing.go |
+      | codereview | code | a corrected repository directory path | missing/helpers    |
+
+    @secreview
+    Examples:
+      | command   | kind     | lookup                                | path               |
+      | secreview | security | a corrected repository file path      | helpers/missing.go |
+      | secreview | security | a corrected repository directory path | missing/helpers    |
+
+  Scenario Outline: Keep excluded repository paths from permitting approval
+    Given related source is "<source>"
+    And the reviewer needs "<lookup>"
+    When a maintainer with "write" access comments "/ab <command>"
+    Then the <kind> review should disclose "<path>"
+    And the <kind> review decision should be "COMMENTED"
+    And the incomplete review should have no success marker
+    And the excluded repository path "<path>" should not be fetched
+    And no unverified helper source should be shared
+
+    @codereview
+    Examples:
+      | command    | kind | source                 | lookup                          | path                        |
+      | codereview | code | behind a symbolic link | a file beneath an excluded path | helpers/guard.go/private.go |
+      | codereview | code | a submodule            | a related source file           | helpers/guard.go            |
+
+    @secreview
+    Examples:
+      | command   | kind     | source             | lookup                          | path                        |
+      | secreview | security | a submodule        | a file beneath an excluded path | helpers/guard.go/private.go |
+      | secreview | security | an empty directory | an empty source directory       | helpers/empty               |
+
   Scenario Outline: Complete a review after correcting a nonexistent dependency path
     Given the reviewer needs "a corrected dependency path"
     When a maintainer with "write" access comments "/ab <command>"
