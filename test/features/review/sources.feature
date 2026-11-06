@@ -126,7 +126,6 @@ Feature: Follow changed behavior into related source
     @codereview
     Examples:
       | command    | kind     | problem                                    | limitation            | scope      | proxy requests |
-      | codereview | code     | binary                                     | Source unavailable    | repository | 0              |
       | codereview | code     | unverified against the dependency checksum | checksum mismatch     | dependency | 1              |
       | codereview | code     | managed by a Go workspace                  | workspace or vendored | dependency | 0              |
 
@@ -134,6 +133,15 @@ Feature: Follow changed behavior into related source
     Examples:
       | command    | kind     | problem                                    | limitation            | scope      | proxy requests |
       | secreview  | security | vendored in the repository                 | workspace or vendored | dependency | 0              |
+
+  @codereview
+  Scenario: Approve after a related directory lookup excludes an unchanged binary asset
+    Given related source is "a binary asset"
+    And the reviewer needs "a large directory"
+    When a maintainer with "write" access comments "/ab codereview"
+    Then the code review decision should be "APPROVED"
+    And the code review should disclose the excluded binary file "helpers/favicon.png"
+    And the code review should have no context limitations
 
   @codereview
   Scenario: Refuse source behind a symbolic link

@@ -42,6 +42,8 @@ module Abgleich
     get '/repos/:owner/:repository/git/trees/:revision' do
       GitHubService.record_source_tree_read
       paths = %w[main.go worker.go test.go helpers helpers/guard.go go.mod go.sum]
+      paths << 'image.png' if Abgleich.github.summary_paths.include?('image.png')
+      paths << 'helpers/favicon.png' if Abgleich.github.failure == 'source a binary asset'
       paths.concat((1..source_directory_size).map { |index| "helpers/part#{index}.go" })
       paths << 'go.work' if Abgleich.github.failure == 'source managed by a Go workspace'
       paths << 'vendor/modules.txt' if Abgleich.github.failure == 'source vendored in the repository'
@@ -96,7 +98,8 @@ module Abgleich
       return nil if Abgleich.github.failure == 'source missing checksum file' && filename == 'go.sum'
 
       content = source_content(filename)
-      { type: 'Blob', content:, size: content.bytesize, sha: source_digest(content), binary: false, truncated: false }
+      binary = content.include?("\x00")
+      { type: 'Blob', content: binary ? nil : content, size: content.bytesize, sha: source_digest(content), binary:, truncated: false }
         .merge(source_blob_changes(content))
     end
 
@@ -123,6 +126,7 @@ module Abgleich
       return directory_source(filename) if source_directory_size.positive? && filename.start_with?('helpers/part')
 
       case filename
+      when 'image.png', 'helpers/favicon.png' then "\x00binary-asset-context"
       when 'go.mod', 'tools/app/go.mod' then source_manifest
       when 'go.sum', 'tools/app/go.sum' then source_checksum
       when 'helpers/guard.go' then source_helper

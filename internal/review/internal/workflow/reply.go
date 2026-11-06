@@ -21,6 +21,7 @@ type reviewReply struct {
 	Findings   []reviewFinding
 	Sources    []string
 	Missing    []string
+	Binary     []string
 	RequestID  int64
 }
 
@@ -76,7 +77,6 @@ func (c *Command) reply(task *reviewTask, completion *ai.Completion, review *rev
 		missing = append(missing, "GitHub returned no changed files.")
 	}
 	marker := strings.Empty
-
 	event, assessment, decision := "COMMENT", "Review unfinished.", "Comment. Approval withheld because the reviewer did not finish. See the overview for remaining work."
 	switch {
 	case len(result.Findings) > 0:
@@ -94,6 +94,7 @@ func (c *Command) reply(task *reviewTask, completion *ai.Completion, review *rev
 		Title:      c.definition.Title,
 		Missing:    missing,
 		Sources:    review.source.inspected,
+		Binary:     review.source.binary,
 		HeadSHA:    task.pullRequest.GetHead().GetSHA(),
 		BaseSHA:    task.pullRequest.GetBase().GetSHA(),
 		Marker:     marker,

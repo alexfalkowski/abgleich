@@ -2,15 +2,14 @@ package workflow
 
 import (
 	"archive/zip"
-	"io"
-	"io/fs"
 	"path"
-	"slices"
 	"unicode/utf8"
 
 	"github.com/alexfalkowski/go-service/v2/bytes"
 	"github.com/alexfalkowski/go-service/v2/context"
 	"github.com/alexfalkowski/go-service/v2/errors"
+	"github.com/alexfalkowski/go-service/v2/io"
+	"github.com/alexfalkowski/go-service/v2/slices"
 	"github.com/alexfalkowski/go-service/v2/strings"
 	"golang.org/x/mod/modfile"
 	"golang.org/x/mod/module"
@@ -22,8 +21,8 @@ type dependencyRef struct {
 }
 
 func (s *sourceSession) dependency(ctx context.Context, args dependencyRequest) (string, error) {
-	validManifest := path.Base(args.Manifest) == "go.mod" && fs.ValidPath(args.Manifest)
-	validPath := fs.ValidPath(args.Path) && !strings.Contains(args.Path, "\\")
+	validManifest := path.Base(args.Manifest) == "go.mod" && io.ValidPath(args.Manifest)
+	validPath := io.ValidPath(args.Path) && !strings.Contains(args.Path, "\\")
 	if !validManifest || !validPath {
 		return strings.Empty, errors.New("review: invalid dependency path")
 	}
@@ -212,7 +211,7 @@ func (s *sourceSession) dependencyFile(file *zip.File) string {
 	}
 	defer reader.Close()
 
-	content, err := io.ReadAll(reader)
+	content, _, err := io.ReadAll(reader)
 	if err != nil || !utf8.Valid(content) || bytes.ContainsRune(content, 0) {
 		return s.unavailable(label)
 	}

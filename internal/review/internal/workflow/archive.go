@@ -2,13 +2,12 @@ package workflow
 
 import (
 	"archive/zip"
-	"io"
-	"io/fs"
 	"net/url"
 
 	"github.com/alexfalkowski/go-service/v2/bytes"
 	"github.com/alexfalkowski/go-service/v2/context"
 	"github.com/alexfalkowski/go-service/v2/errors"
+	"github.com/alexfalkowski/go-service/v2/io"
 	"github.com/alexfalkowski/go-service/v2/strings"
 	"golang.org/x/mod/module"
 	"golang.org/x/mod/sumdb/dirhash"
@@ -43,7 +42,7 @@ func verifiedArchive(content []byte, prefix, checksum string) (*zip.Reader, erro
 	var names []string
 	files := make(map[string]*zip.File)
 	for _, file := range archive.File {
-		valid := file.Mode().IsRegular() && fs.ValidPath(file.Name) && strings.HasPrefix(file.Name, prefix)
+		valid := file.Mode().IsRegular() && io.ValidPath(file.Name) && strings.HasPrefix(file.Name, prefix)
 		if !valid || files[file.Name] != nil {
 			return nil, errors.New("review: invalid module archive")
 		}

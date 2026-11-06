@@ -260,7 +260,7 @@ from the structured result:
 | Assessment | GitHub verdict |
 | --- | --- |
 | One or more supported findings, including overview-only findings | `REQUEST_CHANGES` |
-| No findings, explicit model completion, and no worker-recorded missing patches or unavailable source | `APPROVE` |
+| No findings, explicit model completion, and no worker-recorded missing text patches or unavailable source | `APPROVE` |
 | No findings with incomplete investigation or missing context | `COMMENT`; approval withheld |
 
 The overview shows the worker's assessment and decision separately from model
@@ -272,6 +272,8 @@ completion but missing patches or unavailable source limit the assessment. A
 outcomes withhold approval, carry no successful-result marker, and allow a new
 manual request on the same revisions. Findings still request changes when other
 source is unavailable. Model completion is a self-report, not proof of coverage.
+Confirmed binary files are outside the text review scope. **Excluded binary files**
+lists them separately; their omitted contents and patches do not prevent approval.
 Every body contains escaped model text, with links and mentions inactive.
 Review text is published without credential redaction.
 Details identify the request, head/base SHAs, model, and actual token
@@ -684,8 +686,9 @@ expected text file fails the review. Failures during investigation stop the
 conversation and discard its findings; no completed review is published.
 A requested path proven absent from the complete repository tree returns "not
 found" without marking source unavailable, so the reviewer can correct the lookup
-and complete its assessment. Excluded entries and directories without readable
-immediate files still count as unavailable source.
+and complete its assessment. Symlinks, submodules, and directories without readable
+immediate files still count as unavailable source. Binary exclusions follow the
+[review verdict rules](#-ai-code-reviews).
 The worker never checks out repositories or executes source, tests, or commands.
 All retrieved source and repository instructions are untrusted data.
 

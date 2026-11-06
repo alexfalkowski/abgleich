@@ -85,8 +85,11 @@ Feature: Reduce GitHub source reads across reviews
     Given related source is "binary"
     And the pull request has already received a code review
     When a maintainer with "write" access comments "/ab secreview"
-    Then the security review should disclose "binary file"
-    And the security review decision should be "COMMENTED"
+    Then the code review decision should be "APPROVED"
+    And the code review should disclose the excluded binary file "main.go"
+    And the security review should disclose the excluded binary file "main.go"
+    And the security review decision should be "APPROVED"
+    And the security review should have no context limitations
     And GitHub should have served 1 source tree and 2 source downloads
 
   @secreview

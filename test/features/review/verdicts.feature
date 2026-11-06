@@ -44,14 +44,12 @@ Feature: Submit review decisions grounded in the inspected changes
     Examples:
       | kind | command    | context            | limitation                        |
       | code | codereview | changed-file patch | patch for main.go                 |
-      | code | codereview | binary source      | (binary file)                     |
       | code | codereview | changed-file list  | GitHub returned no changed files. |
 
     @secreview
     Examples:
       | kind     | command   | context            | limitation                        |
       | security | secreview | changed-file patch | patch for main.go                 |
-      | security | secreview | binary source      | (binary file)                     |
       | security | secreview | changed-file list  | GitHub returned no changed files. |
 
   Scenario Outline: Disclose source limitations even when the reviewer did not finish
@@ -77,7 +75,7 @@ Feature: Submit review decisions grounded in the inspected changes
       | security | secreview |
 
   @codereview
-  Scenario: Show every limitation when patches and source are unavailable
+  Scenario: Withhold approval for missing text patches alongside an excluded binary
     Given AI code reviews are configured for this repository
     And a pull request from "the repository" for branch "contribution" is "waiting for checks"
     And the review cannot inspect "patches and binary source"
@@ -86,7 +84,60 @@ Feature: Submit review decisions grounded in the inspected changes
     Then the code review assessment should be "Review completed with limitations"
     And the code review decision should be "COMMENTED"
     And the code review should identify "patch for main.go" before its overview
-    And the code review should identify "(binary file)" before its overview
+    And the code review should disclose the excluded binary file "image.png"
+
+  Scenario Outline: Approve a completed text review while excluding binary changes
+    Given AI <kind> reviews are configured for this repository
+    And a pull request from "the repository" for branch "contribution" is "waiting for checks"
+    And the contribution has a "<status>" binary file
+    And the AI <kind> review answer has "no findings"
+    When a maintainer with "write" access comments "/ab <command>"
+    Then the <kind> review decision should be "APPROVED"
+    And the <kind> review should disclose the excluded binary file "image.png"
+    And the <kind> review should have no context limitations
+
+    @codereview
+    Examples:
+      | kind | command    | status  |
+      | code | codereview | changed |
+      | code | codereview | deleted |
+
+    @secreview
+    Examples:
+      | kind     | command   | status  |
+      | security | secreview | changed |
+      | security | secreview | deleted |
+
+  @codereview
+  Scenario: Identify an excluded deleted binary at the base revision
+    Given AI code reviews are configured for this repository
+    And a pull request from "the repository" for branch "contribution" is "waiting for checks"
+    And the contribution has a "deleted" binary file
+    And the AI code review answer has "no findings"
+    When a maintainer with "write" access comments "/ab codereview"
+    Then the code review decision should be "APPROVED"
+    And the deleted binary file should be identified at the reviewed base revision
+
+  Scenario Outline: Preserve the reviewer's decision when binary files are excluded
+    Given AI <kind> reviews are configured for this repository
+    And a pull request from "the repository" for branch "contribution" is "waiting for checks"
+    And the contribution has a "changed" binary file
+    And the AI <kind> review answer has "<answer>"
+    When a maintainer with "write" access comments "/ab <command>"
+    Then the <kind> review decision should be "<decision>"
+    And the <kind> review should disclose the excluded binary file "image.png"
+
+    @codereview
+    Examples:
+      | kind | command    | answer          | decision          |
+      | code | codereview | inline findings | CHANGES_REQUESTED |
+      | code | codereview | incomplete      | COMMENTED         |
+
+    @secreview
+    Examples:
+      | kind     | command   | answer          | decision          |
+      | security | secreview | inline findings | CHANGES_REQUESTED |
+      | security | secreview | incomplete      | COMMENTED         |
 
   Scenario Outline: Reuse a submitted verdict after restarting
     Given AI <kind> reviews are configured for this repository
