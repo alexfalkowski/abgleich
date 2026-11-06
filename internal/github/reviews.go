@@ -6,8 +6,6 @@ import (
 
 	"github.com/alexfalkowski/go-service/v2/context"
 	"github.com/alexfalkowski/go-service/v2/errors"
-	"github.com/alexfalkowski/go-service/v2/net/http"
-	"github.com/alexfalkowski/go-service/v2/net/http/media"
 	"github.com/alexfalkowski/go-service/v2/strings"
 	"github.com/google/go-github/v93/github"
 )
@@ -118,14 +116,8 @@ func (s *service) AppReviews(ctx context.Context, reviews []*PullRequestReview) 
 		body := PullRequestReviewAuthorsRequest{Query: reviewAuthorsQuery}
 		body.Variables.IDs = batch
 
-		request, err := s.client.installation.NewRequest(ctx, http.MethodPost, "graphql", body)
-		if err != nil {
-			return nil, err
-		}
-		request.Header.Set(http.AcceptKey, media.JSON)
-
 		var response PullRequestReviewAuthorsResponse
-		if _, err := s.client.installation.Do(request, &response); err != nil {
+		if err := s.graphql(ctx, body, &response); err != nil {
 			return nil, err
 		}
 		if err := response.Validate(batch); err != nil {
@@ -164,6 +156,7 @@ func (s *service) validateReview(repo *Repository, pull *PullRequest, review *Pu
 type PullRequestReviewAuthorsRequest struct {
 	// Query contains the GraphQL operation submitted with these variables.
 	Query string `json:"query"`
+
 	// Variables binds the operation's GraphQL arguments.
 	Variables struct {
 		// IDs lists review node IDs whose authenticated authorship must be checked.
@@ -180,10 +173,12 @@ type PullRequestReviewAuthorsResponse struct {
 		Nodes []*struct {
 			// ViewerDidAuthor reports authenticated viewer authorship; nil cannot establish ownership.
 			ViewerDidAuthor *bool `json:"viewer_did_author"`
+
 			// ID identifies the review whose authorship was returned.
 			ID string `json:"id"`
 		} `json:"nodes"`
 	} `json:"data"`
+
 	// Errors retains GraphQL failures even when the HTTP response succeeds.
 	Errors Errors `json:"errors"`
 }

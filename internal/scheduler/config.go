@@ -22,6 +22,7 @@ type Schedule interface {
 type Config struct {
 	// Interval sets the cadence between scheduled starts; zero uses fifteen minutes unless overridden by the feature.
 	Interval time.Duration `yaml:"interval,omitempty" json:"interval,omitempty" toml:"interval,omitempty" validate:"omitempty,gt=0"`
+
 	// Timeout bounds a complete run; zero uses five minutes unless overridden by the feature.
 	Timeout time.Duration `yaml:"timeout,omitempty" json:"timeout,omitempty" toml:"timeout,omitempty" validate:"omitempty,gt=0"`
 }

@@ -4,6 +4,7 @@ import (
 	"embed"
 	"text/template"
 
+	"github.com/alexfalkowski/abgleich/internal/markdown"
 	"github.com/alexfalkowski/go-service/v2/errors"
 	"github.com/alexfalkowski/go-service/v2/strings"
 )
@@ -12,7 +13,7 @@ import (
 var reviewFiles embed.FS
 
 var reviewTemplates = template.Must(template.New("review").Funcs(template.FuncMap{
-	"markdown": markdownText,
+	"markdown": markdown.Inert,
 	"lower":    strings.ToLower,
 }).ParseFS(reviewFiles, "*.tmpl"))
 

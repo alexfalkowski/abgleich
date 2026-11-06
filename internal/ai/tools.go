@@ -13,19 +13,18 @@ import (
 
 // conversation owns only provider protocol state; features own tool authority.
 type conversation struct {
-	params        responses.ResponseNewParams
-	provider      *provider
-	tools         map[string]Tool
-	seen          map[string]bool
-	usage         *Usage
-	input         responses.ResponseInputParam
-	prompt        Prompt
-	usageComplete bool
+	params   responses.ResponseNewParams
+	provider *provider
+	tools    map[string]Tool
+	seen     map[string]bool
+	usage    *Usage
+	input    responses.ResponseInputParam
+	prompt   Prompt
 }
 
 func (p *provider) generate(ctx context.Context, prompt Prompt, params responses.ResponseNewParams) (*Completion, error) {
 	c := &conversation{
-		provider: p, prompt: prompt, params: params, usageComplete: true,
+		provider: p, prompt: prompt, params: params, usage: &Usage{},
 		tools: make(map[string]Tool), seen: make(map[string]bool),
 		input: responses.ResponseInputParam{responses.ResponseInputItemParamOfMessage(prompt.Input, responses.EasyInputMessageRoleUser)},
 	}
@@ -186,24 +185,19 @@ func (c *conversation) call(ctx context.Context, requested []responses.ResponseF
 }
 
 func (c *conversation) recordUsage(current *Usage) {
-	switch {
-	case current == nil:
-		c.usage, c.usageComplete = nil, false
-	case !c.usageComplete:
+	if c.usage == nil {
 		return
-	case c.usage == nil:
-		c.usage = current
-	default:
-		if c.usage.InputTokens > math.MaxInt64-current.InputTokens || c.usage.OutputTokens > math.MaxInt64-current.OutputTokens {
-			c.usage, c.usageComplete = nil, false
-			return
-		}
-
-		c.usage.InputTokens += current.InputTokens
-		c.usage.CachedInputTokens += current.CachedInputTokens
-		c.usage.CacheWriteTokens += current.CacheWriteTokens
-		c.usage.OutputTokens += current.OutputTokens
 	}
+
+	if current == nil || c.usage.InputTokens > math.MaxInt64-current.InputTokens || c.usage.OutputTokens > math.MaxInt64-current.OutputTokens {
+		c.usage = nil
+		return
+	}
+
+	c.usage.InputTokens += current.InputTokens
+	c.usage.CachedInputTokens += current.CachedInputTokens
+	c.usage.CacheWriteTokens += current.CacheWriteTokens
+	c.usage.OutputTokens += current.OutputTokens
 }
 
 func validateResponse(response *responses.Response) error {

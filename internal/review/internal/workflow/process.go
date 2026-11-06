@@ -106,14 +106,14 @@ func (c *Command) generateReview(ctx context.Context, task *reviewTask, review *
 }
 
 func (c *Command) publishReview(ctx context.Context, task *reviewTask, completion *ai.Completion, review *reviewContext) error {
-	publication, err := c.reply(task, completion, review)
+	reply, err := c.reply(task, completion, review)
 	if err != nil {
 		return c.reportFailure(ctx, task, "Result validation", err)
 	}
 
 	result := make(chan error, 1)
 	err = c.publication.Schedule(ctx, sync.Hook{OnRun: func(ctx context.Context) error {
-		result <- c.submitReview(ctx, task, publication)
+		result <- c.submitReview(ctx, task, reply)
 		return nil
 	}})
 	if err != nil {

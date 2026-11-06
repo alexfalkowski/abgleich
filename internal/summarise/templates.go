@@ -4,6 +4,7 @@ import (
 	"embed"
 	"text/template"
 
+	"github.com/alexfalkowski/abgleich/internal/markdown"
 	"github.com/alexfalkowski/go-service/v2/bytes"
 	"github.com/alexfalkowski/go-service/v2/strings"
 )
@@ -15,7 +16,7 @@ var summaryFiles embed.FS
 var instructions string
 
 var summaryTemplates = template.Must(template.New("summarise").Funcs(template.FuncMap{
-	"markdown": markdownText,
+	"markdown": markdown.Escape,
 }).ParseFS(summaryFiles, "*.tmpl"))
 
 func render(name string, value any) (string, error) {

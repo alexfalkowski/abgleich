@@ -34,8 +34,10 @@ const (
 type Decision struct {
 	// Policy identifies the strategy that selected the outcome.
 	Policy string
+
 	// Action is merge, enable, rebase, or empty when no mutation is justified.
 	Action string
+
 	// Reason records the evidence or limitation for feature-owned explanations.
 	Reason Reason
 }

@@ -20,14 +20,19 @@ var statusTemplate = template.Must(template.ParseFS(statusTemplates, "status.md.
 type Reply struct {
 	// Assessment supplies the observed automation policy and its explanation.
 	Assessment automerge.Assessment
+
 	// Emoji distinguishes unavailable assessments, possible actions, and paused outcomes.
 	Emoji string
+
 	// AutoMerge displays whether GitHub auto-merge is enabled at the observed snapshot.
 	AutoMerge string
+
 	// SHA identifies the validated head commit associated with the assessment.
 	SHA string
+
 	// CheckedAt records the assessment time formatted in UTC.
 	CheckedAt string
+
 	// RequestID links the reply to the authorizing status command comment.
 	RequestID int64
 }

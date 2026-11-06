@@ -32,10 +32,13 @@ type ProviderParams struct {
 
 	// Config enables the provider and selects credentials and HTTP settings.
 	Config *Config
+
 	// FS resolves the configured credential source once at startup.
 	FS *os.FS
+
 	// Logger records generation outcomes without source, response text, or credentials.
 	Logger *logger.Logger
+
 	// Connections creates the AI connection pool and registers its shutdown cleanup.
 	Connections *client.Factory
 }

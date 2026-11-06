@@ -21,6 +21,7 @@ type CommandParams struct {
 
 	// Config enables code reviews and selects their model and schedule.
 	Config *Config
+
 	// Workflow constructs commands sharing source access and verdict publication.
 	Workflow *workflow.Factory
 }

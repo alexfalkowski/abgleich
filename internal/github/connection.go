@@ -17,12 +17,16 @@ type ConnectionParams struct {
 
 	// Connections creates the GitHub connection pool and registers its shutdown cleanup.
 	Connections *client.Factory
+
 	// ID generates outbound request identifiers for the shared transport.
 	ID id.Generator
+
 	// Config supplies GitHub HTTP settings and the effective request timeout.
 	Config *Config
+
 	// Logger receives outbound HTTP transport logs.
 	Logger *logger.Logger
+
 	// UserAgent identifies this worker in outbound API requests.
 	UserAgent env.UserAgent
 }

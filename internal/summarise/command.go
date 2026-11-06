@@ -24,10 +24,13 @@ type CommandParams struct {
 
 	// Config enables summaries and selects their model and schedule.
 	Config *Config
+
 	// GitHub provides repository access and authenticated summary publication.
 	GitHub github.Service
+
 	// Provider generates summaries using the feature-owned prompt and model.
 	Provider ai.Provider
+
 	// Authorizer rechecks human command identity and current write permission.
 	Authorizer *commands.Authorizer
 }

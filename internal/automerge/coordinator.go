@@ -30,7 +30,7 @@ type Coordinator struct {
 	reconciler        *Reconciler
 	config            *scheduler.Config
 	logger            *logger.Logger
-	repositories      map[string]bool // A false entry is running; true entries have a pending pass.
+	repositories      map[string]bool // Entries have a pending pass, including during a running check.
 	wake              chan struct{}
 	reconcileRequests chan reconcileRequest
 	cancel            context.CancelFunc
@@ -123,17 +123,13 @@ func (c *Coordinator) process(ctx context.Context) {
 	repository := c.pending[0]
 	c.pending[0] = ""
 	c.pending = c.pending[1:]
-	c.repositories[repository] = false
+	delete(c.repositories, repository)
 	c.mutex.Unlock()
 
 	c.reconcileRepository(ctx, repository)
 
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
-
-	if !c.repositories[repository] {
-		delete(c.repositories, repository)
-	}
 
 	if len(c.pending) != 0 {
 		c.notify()

@@ -3,8 +3,6 @@ package github
 import (
 	"github.com/alexfalkowski/go-service/v2/context"
 	"github.com/alexfalkowski/go-service/v2/errors"
-	"github.com/alexfalkowski/go-service/v2/net/http"
-	"github.com/alexfalkowski/go-service/v2/net/http/media"
 	"github.com/alexfalkowski/go-service/v2/strings"
 )
 
@@ -57,8 +55,10 @@ func ValidatePullRequestMetadata(pull *PullRequest) error {
 type UpdatePullRequestBranchInput struct {
 	// PullRequestID identifies the target PR by its GraphQL node ID, rather than its numeric ID.
 	PullRequestID string `json:"pullRequestId"`
+
 	// ExpectedHeadOID guards the mutation against concurrent changes to the PR head commit.
 	ExpectedHeadOID string `json:"expectedHeadOid"`
+
 	// UpdateMethod selects the GitHub update strategy; the worker requests REBASE.
 	UpdateMethod string `json:"updateMethod"`
 }
@@ -68,6 +68,7 @@ type UpdatePullRequestBranchInput struct {
 type UpdatePullRequestBranchRequest struct {
 	// Query contains the GraphQL operation submitted with these variables.
 	Query string `json:"query"`
+
 	// Variables binds the operation's GraphQL arguments.
 	Variables struct {
 		// Input supplies the mutation arguments, including the target identity.
@@ -90,6 +91,7 @@ type UpdatePullRequestBranchResponse struct {
 			} `json:"pullRequest"`
 		} `json:"updatePullRequestBranch"`
 	} `json:"data"`
+
 	// Errors retains GraphQL failures even when the HTTP response succeeds.
 	Errors Errors `json:"errors"`
 }
@@ -113,8 +115,10 @@ func (r *UpdatePullRequestBranchResponse) Validate(expectedID string) error {
 type EnablePullRequestAutoMergeInput struct {
 	// PullRequestID identifies the target PR by its GraphQL node ID, rather than its numeric ID.
 	PullRequestID string `json:"pullRequestId"`
+
 	// ExpectedHeadOID guards the mutation against concurrent changes to the PR head commit.
 	ExpectedHeadOID string `json:"expectedHeadOid"`
+
 	// MergeMethod selects the eventual merge strategy; the worker requests SQUASH.
 	MergeMethod string `json:"mergeMethod"`
 }
@@ -123,6 +127,7 @@ type EnablePullRequestAutoMergeInput struct {
 type EnablePullRequestAutoMergeRequest struct {
 	// Query contains the GraphQL operation submitted with these variables.
 	Query string `json:"query"`
+
 	// Variables binds the operation's GraphQL arguments.
 	Variables struct {
 		// Input supplies the mutation arguments, including the target identity.
@@ -143,6 +148,7 @@ type EnablePullRequestAutoMergeResponse struct {
 			} `json:"pullRequest"`
 		} `json:"enablePullRequestAutoMerge"`
 	} `json:"data"`
+
 	// Errors retains GraphQL failures even when the HTTP response succeeds.
 	Errors Errors `json:"errors"`
 }
@@ -170,16 +176,8 @@ func (s *service) Rebase(ctx context.Context, pull *PullRequest) error {
 		PullRequestID: nodeID, ExpectedHeadOID: pull.GetHead().GetSHA(), UpdateMethod: "REBASE",
 	}
 
-	request, err := s.client.installation.NewRequest(ctx, http.MethodPost, "graphql", body)
-	if err != nil {
-		return err
-	}
-
-	request.Header.Set(http.AcceptKey, media.JSON)
-
 	var response UpdatePullRequestBranchResponse
-
-	if _, err := s.client.installation.Do(request, &response); err != nil {
+	if err := s.graphql(ctx, body, &response); err != nil {
 		return err
 	}
 
@@ -194,16 +192,8 @@ func (s *service) EnableAutoMerge(ctx context.Context, pull *PullRequest) error 
 		PullRequestID: pull.GetNodeID(), ExpectedHeadOID: pull.GetHead().GetSHA(), MergeMethod: "SQUASH",
 	}
 
-	request, err := s.client.installation.NewRequest(ctx, http.MethodPost, "graphql", body)
-	if err != nil {
-		return err
-	}
-
-	request.Header.Set(http.AcceptKey, media.JSON)
-
 	var response EnablePullRequestAutoMergeResponse
-
-	if _, err := s.client.installation.Do(request, &response); err != nil {
+	if err := s.graphql(ctx, body, &response); err != nil {
 		return err
 	}
 
