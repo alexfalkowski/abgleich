@@ -1,4 +1,4 @@
-@github @manual @commands @codereview @secreview @review
+@github @manual @commands @review
 Feature: Retire outdated review conversations
   Existing App conversations are maintained without another review request or AI inference.
 
@@ -17,11 +17,17 @@ Feature: Retire outdated review conversations
     And conversation "stale" should receive exactly 1 resolution request across later checks
     And no AI inference should be requested for conversation maintenance
 
+    @codereview
     Examples:
       | kind     |
       | code     |
+
+    @secreview
+    Examples:
+      | kind     |
       | security |
 
+  @codereview
   Scenario: Respect conversation ownership and enabled review namespaces
     Given AI code reviews are configured for this repository
     And a pull request from "the repository" for branch "contribution" is "waiting for checks"
@@ -47,6 +53,7 @@ Feature: Retire outdated review conversations
     And only conversation "owned" should receive a resolution request
     And no AI inference should be requested for conversation maintenance
 
+  @codereview
   Scenario: Rediscover older conversations after restart
     Given AI code reviews are configured for this repository
     And a pull request from "the repository" for branch "contribution" is "waiting for checks"
@@ -58,6 +65,7 @@ Feature: Retire outdated review conversations
     And conversation "older-page" should receive exactly 1 resolution request across later checks
     And no AI inference should be requested for conversation maintenance
 
+  @codereview
   Scenario Outline: Respect the refreshed conversation state
     Given AI code reviews are configured for this repository
     And a pull request from "the repository" for branch "contribution" is "waiting for checks"
@@ -75,6 +83,7 @@ Feature: Retire outdated review conversations
       | resolved       |
       | cannot resolve |
 
+  @codereview
   Scenario: Recover a failed resolution while other conversations progress
     Given AI code reviews are configured for this repository
     And a pull request from "the repository" for branch "contribution" is "waiting for checks"
@@ -90,6 +99,7 @@ Feature: Retire outdated review conversations
       | available    | true     |
     And no AI inference should be requested for conversation maintenance
 
+  @codereview
   Scenario: Read remote state after losing a resolution response
     Given AI code reviews are configured for this repository
     And a pull request from "the repository" for branch "contribution" is "waiting for checks"
@@ -104,6 +114,7 @@ Feature: Retire outdated review conversations
     And conversation "unconfirmed" should receive exactly 1 resolution request across later checks
     And no AI inference should be requested for conversation maintenance
 
+  @secreview
   Scenario: Maintain both enabled features on a draft without merge automation
     Given AI security reviews are configured for this repository
     And security reviews and summaries are independently enabled
@@ -120,6 +131,7 @@ Feature: Retire outdated review conversations
       | security     | true     |
     And no AI inference should be requested for conversation maintenance
 
+  @codereview
   Scenario: Leave conversations on closed pull requests untouched
     Given AI code reviews are configured for this repository
     And a pull request from "the repository" for branch "contribution" is "closed"
@@ -143,13 +155,19 @@ Feature: Retire outdated review conversations
       | fork         | false    |
     And no AI inference should be requested for conversation maintenance
 
+    @codereview
     Examples:
       | kind     | condition          |
       | code     | waiting for checks |
       | code     | a draft            |
+
+    @secreview
+    Examples:
+      | kind     | condition          |
       | security | waiting for checks |
       | security | a draft            |
 
+  @codereview
   Scenario: Recheck the branch repository before resolving a conversation
     Given AI code reviews are configured for this repository
     And a pull request from "the repository" for branch "contribution" is "waiting for checks"

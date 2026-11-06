@@ -1,4 +1,4 @@
-@github @manual @commands @codereview @secreview
+@github @manual @commands @review
 Feature: Follow changed behavior into related source
   Maintainers receive reviews grounded in complete changed files and related source.
   Source permissions and the reviewed revisions are respected during investigation.
@@ -13,11 +13,17 @@ Feature: Follow changed behavior into related source
     And the reviewer should receive complete files at the reviewed revisions
     And public dependency access should omit credentials
 
+    @codereview
     Examples:
       | command    | kind     |
       | codereview | code     |
+
+    @secreview
+    Examples:
+      | command    | kind     |
       | secreview  | security |
 
+  @codereview
   Scenario: Read a related source file directly
     Given the reviewer needs "a related source file"
     When a maintainer with "write" access comments "/ab codereview"
@@ -31,11 +37,17 @@ Feature: Follow changed behavior into related source
     And the review should use at most 6 pull request checks
     And the review should use at most 2 GitHub source reads
 
+    @codereview
     Examples:
       | command    | kind     |
       | codereview | code     |
+
+    @secreview
+    Examples:
+      | command    | kind     |
       | secreview  | security |
 
+  @codereview
   Scenario: Preserve useful context when a related path is invalid
     Given the reviewer needs "a batch with an invalid path"
     When a maintainer with "write" access comments "/ab codereview"
@@ -43,6 +55,7 @@ Feature: Follow changed behavior into related source
     And the code review should disclose "invalid repository path"
     And the rejected path or dependency should not be fetched
 
+  @codereview
   Scenario: Reject malformed requests for related files
     Given the reviewer needs "a malformed batch"
     When a maintainer with "write" access comments "/ab codereview"
@@ -54,15 +67,21 @@ Feature: Follow changed behavior into related source
     When a maintainer with "write" access comments "/ab <command>"
     Then the <kind> review should stop before sharing related source
 
+    @codereview
     Examples:
       | command    | kind     | change                   |
       | codereview | code     | permission revoked       |
       | codereview | code     | head changed             |
-      | secreview  | security | base changed             |
       | codereview | code     | request edited           |
-      | secreview  | security | request deleted          |
       | codereview | code     | request identity changed |
 
+    @secreview
+    Examples:
+      | command    | kind     | change                   |
+      | secreview  | security | base changed             |
+      | secreview  | security | request deleted          |
+
+  @codereview
   Scenario: Locate dependency source inside nested package directories
     Given the reviewer needs "a nested dependency package"
     When a maintainer with "write" access comments "/ab codereview"
@@ -73,6 +92,7 @@ Feature: Follow changed behavior into related source
     When a maintainer with "write" access comments "/ab <command>"
     Then <kind> review collection should fail before sharing source
 
+    @codereview
     Examples:
       | command    | kind     | problem                                |
       | codereview | code     | unavailable                            |
@@ -80,17 +100,21 @@ Feature: Follow changed behavior into related source
       | codereview | code     | missing part of the repository listing |
       | codereview | code     | truncated                              |
       | codereview | code     | missing binary metadata                |
-      | secreview  | security | missing truncation metadata            |
       | codereview | code     | missing text                           |
       | codereview | code     | missing byte size                      |
-      | secreview  | security | incorrect byte size                    |
       | codereview | code     | not a blob                             |
-      | secreview  | security | digest mismatch                        |
       | codereview | code     | from another repository                |
       | codereview | code     | malformed response                     |
-      | secreview  | security | missing response data                  |
       | codereview | code     | missing repository                     |
       | codereview | code     | query errors                           |
+
+    @secreview
+    Examples:
+      | command    | kind     | problem                                |
+      | secreview  | security | missing truncation metadata            |
+      | secreview  | security | incorrect byte size                    |
+      | secreview  | security | digest mismatch                        |
+      | secreview  | security | missing response data                  |
 
   Scenario Outline: Disclose unsupported source and public dependency limitations
     Given related source is "<problem>"
@@ -99,13 +123,19 @@ Feature: Follow changed behavior into related source
     And no unverified <scope> source should be shared
     And the public dependency proxy should receive <proxy requests> requests without credentials
 
+    @codereview
     Examples:
       | command    | kind     | problem                                    | limitation            | scope      | proxy requests |
       | codereview | code     | binary                                     | Source unavailable    | repository | 0              |
       | codereview | code     | unverified against the dependency checksum | checksum mismatch     | dependency | 1              |
       | codereview | code     | managed by a Go workspace                  | workspace or vendored | dependency | 0              |
+
+    @secreview
+    Examples:
+      | command    | kind     | problem                                    | limitation            | scope      | proxy requests |
       | secreview  | security | vendored in the repository                 | workspace or vendored | dependency | 0              |
 
+  @codereview
   Scenario: Refuse source behind a symbolic link
     Given related source is "behind a symbolic link"
     When a maintainer with "write" access comments "/ab codereview"
@@ -121,13 +151,18 @@ Feature: Follow changed behavior into related source
     And exactly 1 request should reach the AI service
     And no unverified helper source should be shared
 
+    @codereview
     Examples:
       | command    | kind     | problem                 |
       | codereview | code     | unavailable             |
-      | secreview  | security | query errors            |
       | codereview | code     | missing related file    |
-      | secreview  | security | from another repository |
       | codereview | code     | missing text            |
+
+    @secreview
+    Examples:
+      | command    | kind     | problem                 |
+      | secreview  | security | query errors            |
+      | secreview  | security | from another repository |
       | secreview  | security | digest mismatch         |
 
   Scenario Outline: Stop when a reference lookup cannot read its reviewed manifest or checksum
@@ -138,12 +173,18 @@ Feature: Follow changed behavior into related source
     And exactly 1 request should reach the AI service
     And the public dependency proxy should receive 0 requests without credentials
 
+    @codereview
     Examples:
       | command    | kind     | lookup                         | problem               |
       | codereview | code     | the declared Go language rules | unavailable           |
-      | secreview  | security | a nested dependency package    | unavailable           |
       | codereview | code     | a nested dependency package    | missing checksum file |
 
+    @secreview
+    Examples:
+      | command    | kind     | lookup                         | problem               |
+      | secreview  | security | a nested dependency package    | unavailable           |
+
+  @codereview
   Scenario: Inspect a large directory without a local file cap
     Given related source is "spread across many files"
     And the reviewer needs "a large directory"
@@ -151,12 +192,14 @@ Feature: Follow changed behavior into related source
     Then the reviewer should receive all 105 files from the directory
     And the review should use at most 2 GitHub source reads
 
+  @codereview
   Scenario: Read an empty regular file
     Given the reviewer needs "a related source file"
     And related source is "empty related file"
     When a maintainer with "write" access comments "/ab codereview"
     Then the reviewer should receive an empty regular file
 
+  @codereview
   Scenario: Distinguish missing text from an empty file
     Given the reviewer needs "a related source file"
     And related source is "missing empty file text"
@@ -164,6 +207,7 @@ Feature: Follow changed behavior into related source
     Then the code review should fail without publishing findings
     And exactly 1 request should reach the AI service
 
+  @codereview
   Scenario: Refuse a dependency redirect to an unrelated origin
     Given related source is "redirected to an unrelated origin"
     When a maintainer with "write" access comments "/ab codereview"
@@ -177,6 +221,7 @@ Feature: Follow changed behavior into related source
     Then the <kind> review should disclose "<limitation>"
     And the rejected path or dependency should not be fetched
 
+    @codereview
     Examples:
       | command    | kind | lookup                        | limitation                            |
       | codereview | code | a file outside the repository | invalid repository path               |
@@ -187,18 +232,25 @@ Feature: Follow changed behavior into related source
     When a maintainer with "write" access comments "/ab <command>"
     Then the <kind> review should stop before sharing related source
 
+    @codereview
     Examples:
       | command    | kind     | change             |
       | codereview | code     | permission revoked |
       | codereview | code     | head changed       |
+
+    @secreview
+    Examples:
+      | command    | kind     | change             |
       | secreview  | security | base changed       |
 
+  @secreview
   Scenario: Report unavailable total usage when one source round omits it
     Given the AI service omits usage for one round of investigation
     When a maintainer with "write" access comments "/ab secreview"
     Then the security review should show "Unavailable" in its usage details
     And public dependency access should omit credentials
 
+  @codereview
   Scenario: Inspect deleted source at the reviewed base
     Given the contribution contains "a deleted source file"
     When a maintainer with "write" access comments "/ab codereview"
@@ -206,6 +258,7 @@ Feature: Follow changed behavior into related source
     And the reviewer should receive complete files at the reviewed revisions
     And deleted source should be read from the reviewed base revision
 
+  @codereview
   Scenario: Permit a richer review after a patch-only result
     Given a patch-only review was published before source lookup was available
     When a maintainer with "write" access comments "/ab codereview"
@@ -213,16 +266,19 @@ Feature: Follow changed behavior into related source
     And the reviewer should receive complete files at the reviewed revisions
     And the source-enabled review should coexist with the old patch-only review
 
+  @secreview
   Scenario: Finish a review that needs several rounds of investigation
     Given the reviewer needs "several rounds of investigation"
     When a maintainer with "write" access comments "/ab secreview"
     Then the security review should use all requested source
 
+  @codereview
   Scenario: Answer source lookups requested together
     Given the reviewer needs "several related files"
     When a maintainer with "write" access comments "/ab codereview"
     Then the code review should use all requested source
 
+  @codereview
   Scenario: Stop source exploration when another matching result appears
     Given the pull request has already received a code review
     And the previous App code review is temporarily absent from the discussion
@@ -231,17 +287,20 @@ Feature: Follow changed behavior into related source
     Then the existing App code review should remain the only review
     And exactly 5 requests should reach the AI service
 
+  @codereview
   Scenario: Check language rules using the version declared by the repository
     Given the reviewer needs "the declared Go language rules"
     When a maintainer with "write" access comments "/ab codereview"
     Then the code review should receive the declared Go language reference
 
+  @codereview
   Scenario: Preserve language context when the reviewer requests it again
     Given the reviewer needs "the declared Go language rules again"
     When a maintainer with "write" access comments "/ab codereview"
     Then the code review should receive the declared Go language reference
     And both language lookups should receive the same complete reference
 
+  @codereview
   Scenario: Inspect the version-specific replacement before a wildcard replacement
     Given related source is "selected by a version-specific replacement"
     When a maintainer with "write" access comments "/ab codereview"
@@ -249,6 +308,7 @@ Feature: Follow changed behavior into related source
     And the reviewer should receive complete files at the reviewed revisions
     And public dependency access should omit credentials
 
+  @codereview
   Scenario: Inspect every file in a source directory
     Given related source is "spread across several files"
     When a maintainer with "write" access comments "/ab codereview"
@@ -262,9 +322,14 @@ Feature: Follow changed behavior into related source
     Then the command comment should show "receipt and rejection" feedback
     And the AI service should remain unused
 
+    @codereview
     Examples:
       | command    |
       | codereview |
+
+    @secreview
+    Examples:
+      | command    |
       | secreview  |
 
   Scenario Outline: Inspect workspace dependencies through repository source
@@ -274,11 +339,13 @@ Feature: Follow changed behavior into related source
     And no unverified dependency source should be shared
     And the public dependency proxy should receive 0 requests without credentials
 
+    @codereview
     Examples:
       | command    | kind | location                |
       | codereview | code | beside its manifest     |
       | codereview | code | in its parent directory |
 
+  @codereview
   Scenario: Keep public dependency lookup available outside an unrelated workspace
     Given the reviewed module has a workspace "in an unrelated directory"
     When a maintainer with "write" access comments "/ab codereview"
@@ -293,7 +360,12 @@ Feature: Follow changed behavior into related source
     And the <kind> review decision should be "APPROVED"
     And public dependency access should omit credentials
 
+    @codereview
     Examples:
       | command    | kind     |
       | codereview | code     |
+
+    @secreview
+    Examples:
+      | command    | kind     |
       | secreview  | security |

@@ -1,4 +1,4 @@
-@github @manual @commands @codereview @secreview @review
+@github @manual @commands @review
 Feature: Submit review decisions grounded in the inspected changes
   Maintainers receive requests for changes when the reviewer finds bugs.
   Approval requires a completed review without findings or unavailable context.
@@ -11,15 +11,20 @@ Feature: Submit review decisions grounded in the inspected changes
     Then the <kind> review decision should be "<decision>"
     And no review should change merge automation
 
+    @codereview
     Examples:
       | kind     | command    | answer             | decision          |
       | code     | codereview | inline findings    | CHANGES_REQUESTED |
-      | security | secreview  | inline findings    | CHANGES_REQUESTED |
       | code     | codereview | no findings        | APPROVED          |
-      | security | secreview  | no findings        | APPROVED          |
       | code     | codereview | incomplete         | COMMENTED         |
-      | security | secreview  | incomplete         | COMMENTED         |
       | code     | codereview | missing completion | COMMENTED         |
+
+    @secreview
+    Examples:
+      | kind     | command    | answer             | decision          |
+      | security | secreview  | inline findings    | CHANGES_REQUESTED |
+      | security | secreview  | no findings        | APPROVED          |
+      | security | secreview  | incomplete         | COMMENTED         |
       | security | secreview  | missing completion | COMMENTED         |
 
   Scenario Outline: Withhold approval when the worker records missing context
@@ -31,11 +36,16 @@ Feature: Submit review decisions grounded in the inspected changes
     Then the <kind> review decision should be "COMMENTED"
     And the <kind> review should disclose "Source unavailable"
 
+    @codereview
     Examples:
       | kind     | command    | context            |
       | code     | codereview | changed-file patch |
-      | security | secreview  | changed-file patch |
       | code     | codereview | binary source      |
+
+    @secreview
+    Examples:
+      | kind     | command    | context            |
+      | security | secreview  | changed-file patch |
       | security | secreview  | binary source      |
 
   Scenario Outline: Reuse a submitted verdict after restarting
@@ -48,11 +58,16 @@ Feature: Submit review decisions grounded in the inspected changes
     Then the original <kind> review should remain without another model call
     And the <kind> review decision should be "<decision>"
 
+    @codereview
     Examples:
       | kind     | command    | answer          | decision          |
       | code     | codereview | no findings     | APPROVED          |
-      | security | secreview  | no findings     | APPROVED          |
       | code     | codereview | inline findings | CHANGES_REQUESTED |
+
+    @secreview
+    Examples:
+      | kind     | command    | answer          | decision          |
+      | security | secreview  | no findings     | APPROVED          |
       | security | secreview  | inline findings | CHANGES_REQUESTED |
 
   Scenario Outline: Keep the other review's findings blocking after a restart
@@ -66,11 +81,17 @@ Feature: Submit review decisions grounded in the inspected changes
     Then the <kind> review decision should be "COMMENTED"
     And its decision should explain that the other review still requests changes
 
+    @codereview
     Examples:
       | kind     | command    | other    |
       | code     | codereview | security |
+
+    @secreview
+    Examples:
+      | kind     | command    | other    |
       | security | secreview  | code     |
 
+  @codereview
   Scenario: Preserve security findings when the author pushes new commits
     Given AI security reviews are configured for this repository
     And a pull request from "the repository" for branch "contribution" is "waiting for checks"
@@ -92,11 +113,17 @@ Feature: Submit review decisions grounded in the inspected changes
     When a maintainer with "write" access comments "/ab <command>"
     Then the <kind> review decision should be "CHANGES_REQUESTED"
 
+    @codereview
     Examples:
       | kind     | command    | other    |
       | code     | codereview | security |
+
+    @secreview
+    Examples:
+      | kind     | command    | other    |
       | security | secreview  | code     |
 
+  @secreview
   Scenario: Allow approval after both reviewers find the revised contribution clean
     Given AI security reviews are configured for this repository
     And a pull request from "the repository" for branch "contribution" is "waiting for checks"
@@ -106,6 +133,7 @@ Feature: Submit review decisions grounded in the inspected changes
     When a maintainer with "write" access comments "/ab secreview"
     Then the security review decision should be "APPROVED"
 
+  @codereview
   Scenario: Preserve findings when both reviews complete together
     Given AI code reviews are configured for this repository
     And a pull request from "the repository" for branch "contribution" is "waiting for checks"
@@ -115,6 +143,7 @@ Feature: Submit review decisions grounded in the inspected changes
     Then the code review decision should be "CHANGES_REQUESTED"
     And the clean security review should preserve the code review's decision
 
+  @codereview
   Scenario: Reject an invalid completion indicator
     Given AI code reviews are configured for this repository
     And a pull request from "the repository" for branch "contribution" is "waiting for checks"
@@ -134,11 +163,17 @@ Feature: Submit review decisions grounded in the inspected changes
     And the incomplete review should have no success marker
     And exactly 2 requests should reach the AI service
 
+    @codereview
     Examples:
       | kind     | command    |
       | code     | codereview |
+
+    @secreview
+    Examples:
+      | kind     | command    |
       | security | secreview  |
 
+  @secreview
   Scenario Outline: Ignore requests for changes from unauthenticated lookalikes
     Given AI security reviews are configured for this repository
     And a pull request from "the repository" for branch "contribution" is "waiting for checks"
@@ -153,6 +188,7 @@ Feature: Submit review decisions grounded in the inspected changes
       | a human     |
       | another App |
 
+  @codereview
   Scenario: Respect a maintainer's dismissal of the other review's findings
     Given AI code reviews are configured for this repository
     And a pull request from "the repository" for branch "contribution" is "waiting for checks"
@@ -163,6 +199,7 @@ Feature: Submit review decisions grounded in the inspected changes
     When a maintainer with "write" access comments "/ab codereview"
     Then the code review decision should be "APPROVED"
 
+  @codereview
   Scenario: Reuse a dismissed result after restarting
     Given AI code reviews are configured for this repository
     And a pull request from "the repository" for branch "contribution" is "waiting for checks"
@@ -172,6 +209,7 @@ Feature: Submit review decisions grounded in the inspected changes
     When a maintainer with "write" access comments "/ab codereview"
     Then the original code review should remain without another model call
 
+  @codereview
   Scenario: Withhold approval when the other review's authorship cannot be verified
     Given AI code reviews are configured for this repository
     And a pull request from "the repository" for branch "contribution" is "waiting for checks"
@@ -191,11 +229,17 @@ Feature: Submit review decisions grounded in the inspected changes
     When a maintainer with "write" access comments "/ab <command>"
     Then the <kind> review decision should be "CHANGES_REQUESTED"
 
+    @codereview
     Examples:
       | kind     | command    |
       | code     | codereview |
+
+    @secreview
+    Examples:
+      | kind     | command    |
       | security | secreview  |
 
+  @codereview
   Scenario: An incomplete security reassessment leaves earlier findings blocking
     Given AI security reviews are configured for this repository
     And a pull request from "the repository" for branch "contribution" is "waiting for checks"
@@ -218,7 +262,12 @@ Feature: Submit review decisions grounded in the inspected changes
     Then the <kind> review publication should be reported as failed
     And exactly 1 request should reach the AI service
 
+    @codereview
     Examples:
       | kind     | command    | answer          |
       | code     | codereview | no findings     |
+
+    @secreview
+    Examples:
+      | kind     | command    | answer          |
       | security | secreview  | inline findings |

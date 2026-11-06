@@ -257,8 +257,8 @@ Then('the summary should identify the request and the pull request revision') do
   expect(body).to include('The worker now processes requests predictably.', 'patches', 'not executed')
   expect(body).to include(Abgleich.github.pull_state('contribution').dig(:head, :sha))
   expect(body).to include("#issuecomment-#{@comment_event.fetch(:comment).fetch('id')}")
-  expect(body).to include('**Where to look**', summary_file_location('test.go')), 'expected a linked file above its reading instruction'
-  expect(body).to include('**What changes**', '- Requests wait in a background queue.'), 'expected scannable behaviour changes'
+  expect(body).to include('🔎 **Where to look**', summary_file_location('test.go')), 'expected a linked file above its reading instruction'
+  expect(body).to include('📝 **What changes**', '- Requests wait in a background queue.'), 'expected scannable behaviour changes'
   expect(Abgleich.openai.requests.last.fetch('input')).to include('File: test.go'), 'expected all changed files to be considered'
 end
 
@@ -345,7 +345,7 @@ end
 
 Then('the summary should link the available files before its context note') do
   body = wait_for_summary.fetch(:body)
-  expect(body).to include('**Missing context:**'), 'expected a summary with a context note'
+  expect(body).to include('⚠️ **Missing context:**'), 'expected a summary with a context note'
   %w[main.go worker.go test.go].each do |path|
     location = summary_file_location(path)
     expect(body).to include(location), "expected a reading link for #{path} despite the closing context note"
@@ -384,7 +384,7 @@ Then('its analysis details should stay collapsed') do
   body = Abgleich.github.replies.last.fetch(:body)
   expect(body.index('**Where to look**')).to be < body.index('<details>'), 'expected routine details after the reading guide'
   expect(body.index('**🔖 Commit:**')).to be > body.index('<details>'), 'expected the commit inside the collapsed details'
-  expect(body).to include("<summary>Summary details</summary>\n", '**🔖 Commit:**', 'not executed.', '</details>')
+  expect(body).to include("<summary>🔎 Summary details</summary>\n", '**🔖 Commit:**', 'not executed.', '</details>')
   File.write('reports/summary-preview.md', body)
 end
 

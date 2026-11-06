@@ -48,7 +48,8 @@ Then(/^the (code|security) review decision should be "([^"]*)"$/) do |kind, deci
   review = reviews_for(kind).last
   expect(review).to include(state: decision, commit_id: pull.dig(:head, :sha))
   text = { 'APPROVED' => 'Approve.', 'CHANGES_REQUESTED' => 'Request changes.', 'COMMENTED' => 'Comment.' }.fetch(decision)
-  expect(review.fetch(:body)).to include("**Decision:** #{text}")
+  emoji = { 'APPROVED' => '✅', 'CHANGES_REQUESTED' => '❗', 'COMMENTED' => '⚠️' }.fetch(decision)
+  expect(review.fetch(:body)).to include("#{emoji} **Decision:** #{text}", '**Assessment:**', '📝 **Overview**')
   expect_review_check(kind)
 end
 

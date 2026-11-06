@@ -2,32 +2,34 @@
 
 **Assessment:** {{.Assessment}}
 
-**Decision:** {{.Decision}}
+{{if eq .Event "APPROVE"}}✅{{else if eq .Event "REQUEST_CHANGES"}}❗{{else}}⚠️{{end}} **Decision:** {{.Decision}}
+
+📝 **Overview**
 
 {{.Completion.Text | markdown}}
 
 <details>
-<summary>{{.Title}} details</summary>
+<summary>🔎 {{.Title}} details</summary>
 
-**Head:** `{{.HeadSHA}}`
+🔖 **Head:** `{{.HeadSHA}}`
 
-**Base:** `{{.BaseSHA}}`
+🔖 **Base:** `{{.BaseSHA}}`
 
 [💬 {{.Title}} request](#issuecomment-{{.RequestID}})
 
-**Model:** {{.Completion.Model | markdown}}
+🧠 **Model:** {{.Completion.Model | markdown}}
 
-{{with .Completion.Usage}}**Tokens:** {{.InputTokens}} input ({{.CachedInputTokens}} cached, {{.CacheWriteTokens}} cache writes), {{.OutputTokens}} output including reasoning.
-{{else}}**Tokens:** Unavailable.
+{{with .Completion.Usage}}📊 **Tokens:** {{.InputTokens}} input ({{.CachedInputTokens}} cached, {{.CacheWriteTokens}} cache writes), {{.OutputTokens}} output including reasoning.
+{{else}}📊 **Tokens:** Unavailable.
 {{end}}
 
-**Scope:** Pull request metadata, all available changed-file patches, complete changed-file text where available, and source retrieved through read-only lookups. Missing patches and unavailable source limit the review. Code and tests were not executed. An approval records no supported findings in the inspected scope; it does not certify security or constitute a complete audit.
+🔍 **Scope:** Pull request metadata, all available changed-file patches, complete changed-file text where available, and source retrieved through read-only lookups. Missing patches and unavailable source limit the review. Code and tests were not executed. An approval records no supported findings in the inspected scope; it does not certify security or constitute a complete audit.
 
-{{with .Sources}}**Inspected source:**
+{{with .Sources}}📚 **Inspected source:**
 {{range .}}
 - {{. | markdown}}
 {{end}}{{end}}
-{{with .Missing}}**Unavailable source:**
+{{with .Missing}}⚠️ **Unavailable source:**
 {{range .}}
 - {{. | markdown}}
 {{end}}{{end}}

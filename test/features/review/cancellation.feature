@@ -1,4 +1,4 @@
-@github @manual @commands @codereview @secreview @review
+@github @manual @commands @review
 Feature: Explain canceled reviews
   Maintainers know when an accepted review can no longer be published.
 
@@ -12,9 +12,14 @@ Feature: Explain canceled reviews
     And the canceled review should not publish findings
     And exactly 1 request should reach the AI service
 
+    @codereview
     Examples:
       | kind     |
       | code     |
+
+    @secreview
+    Examples:
+      | kind     |
       | security |
 
   Scenario Outline: Explain cancellation before source submission
@@ -26,11 +31,16 @@ Feature: Explain canceled reviews
     And no <kind> review source should be shared
     And no completed <kind> review should be posted
 
+    @codereview
     Examples:
       | kind     | command    | state  | reason                          |
       | code     | codereview | merged | the pull request was merged     |
       | code     | codereview | closed | the pull request was closed     |
       | code     | codereview | draft  | the pull request became a draft |
+
+    @secreview
+    Examples:
+      | kind     | command    | state  | reason                          |
       | security | secreview  | merged | the pull request was merged     |
       | security | secreview  | closed | the pull request was closed     |
       | security | secreview  | draft  | the pull request became a draft |
@@ -44,11 +54,16 @@ Feature: Explain canceled reviews
     And no completed <kind> review should be posted
     And exactly 1 request should reach the AI service
 
+    @codereview
     Examples:
       | kind     | command    | state  | reason                          |
       | code     | codereview | merged | the pull request was merged     |
       | code     | codereview | closed | the pull request was closed     |
       | code     | codereview | draft  | the pull request became a draft |
+
+    @secreview
+    Examples:
+      | kind     | command    | state  | reason                          |
       | security | secreview  | merged | the pull request was merged     |
       | security | secreview  | closed | the pull request was closed     |
       | security | secreview  | draft  | the pull request became a draft |
@@ -61,9 +76,14 @@ Feature: Explain canceled reviews
     Then the <kind> review cancellation should explain "<reason>"
     And the <kind> review should stop before sharing related source
 
+    @codereview
     Examples:
       | kind     | command    | state  | reason                      |
       | code     | codereview | merged | the pull request was merged |
+
+    @secreview
+    Examples:
+      | kind     | command    | state  | reason                      |
       | security | secreview  | closed | the pull request was closed |
 
   Scenario Outline: Respect withdrawn consent when reporting cancellation
@@ -75,11 +95,16 @@ Feature: Explain canceled reviews
     And no completed <kind> review should be posted
     And no review cancellation comment should be posted
 
+    @codereview
     Examples:
       | kind     | command    | change             |
       | code     | codereview | permission revoked |
       | code     | codereview | request edited     |
       | code     | codereview | request deleted    |
+
+    @secreview
+    Examples:
+      | kind     | command    | change             |
       | security | secreview  | permission revoked |
       | security | secreview  | request edited     |
       | security | secreview  | request deleted    |
@@ -94,7 +119,12 @@ Feature: Explain canceled reviews
     And no <kind> review source should be shared
     And no completed <kind> review should be posted
 
+    @codereview
     Examples:
       | kind     | command    |
       | code     | codereview |
+
+    @secreview
+    Examples:
+      | kind     | command    |
       | security | secreview  |

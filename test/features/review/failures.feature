@@ -1,4 +1,4 @@
-@github @manual @commands @codereview @secreview @review
+@github @manual @commands @review
 Feature: Explain failed reviews
   Maintainers can see why a review failed and operators can trace the failed provider request.
 
@@ -18,10 +18,10 @@ Feature: Explain failed reviews
     And provider error contents should remain private
     And exactly 1 request should reach the AI service
 
+    @codereview
     Examples:
       | kind     | command    | problem                  | reason                   | status | code                      | type                  |
       | code     | codereview | rate limiting            | rate limited             | 429    | rate_limit_exceeded       | rate_limit_error      |
-      | security | secreview  | an unavailable provider  | server error             | 503    | server_error              | server_error          |
       | code     | codereview | invalid credentials      | rejected its credentials | 401    | invalid_api_key           | authentication_error  |
       | code     | codereview | insufficient quota       | quota or spending limit  | 429    | insufficient_quota        | insufficient_quota    |
       | code     | codereview | too much source          | context window           | 400    | context_length_exceeded   | invalid_request_error |
@@ -30,6 +30,12 @@ Feature: Explain failed reviews
       | code     | codereview | an unavailable model     | model or endpoint        | 404    | model_not_found           | invalid_request_error |
       | code     | codereview | unrecognized diagnostics | rejected the request     | 400    |                           |                       |
 
+    @secreview
+    Examples:
+      | kind     | command    | problem                  | reason                   | status | code                      | type                  |
+      | security | secreview  | an unavailable provider  | server error             | 503    | server_error              | server_error          |
+
+  @codereview
   Scenario Outline: Explain failures without a provider HTTP error
     Given AI code reviews are configured for this repository
     And a pull request from "the repository" for branch "contribution" is "waiting for checks"
