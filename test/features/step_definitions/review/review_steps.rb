@@ -122,6 +122,13 @@ Given(/^(code|security) reviews use infrequent thread maintenance$/) do |kind|
   Abgleich.github.seed_review_thread('waiting-maintenance', kind:)
 end
 
+Given('a repository sweep is waiting for GitHub') do
+  scans = Abgleich.github.progress.fetch(:scans)
+  Abgleich.github.pause_pull_listing
+  wait_for { Abgleich.github.progress.fetch(:scans) }.to be > scans, 'expected a repository sweep to be waiting for GitHub'
+  @review_sweep_checks = Abgleich.job_logs('automerge').length
+end
+
 Given(/^a (code|security) review request was interrupted by restart$/) do |kind|
   interrupt_review_request(kind)
 end
@@ -175,6 +182,13 @@ When(/^the maintainer asks for status while (code|security) review is running$/)
   expect(Abgleich.deliver_comment(event).code).to eq(204)
   expect(Process.clock_gettime(Process::CLOCK_MONOTONIC) - started).to be < 0.7
   expect(Abgleich.github.replies).to include(a_hash_including(body: a_string_including('### 🤖 Abgleich status')))
+end
+
+Then('the review should finish before repository scanning resumes') do
+  expect(Abgleich.job_logs('automerge').length).to eq(@review_sweep_checks), 'expected review publication before the blocked sweep finished'
+  Abgleich.github.resume_pull_listing
+  wait_for { Abgleich.job_logs('automerge').length }.to be > @review_sweep_checks, 'expected repository scanning to resume after the review'
+  expect_successful_check('automerge')
 end
 
 Then(/^a (code|security) review should arrive within (\d+) seconds$/) do |kind, seconds|
