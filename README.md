@@ -443,8 +443,9 @@ acceptance, not a completed check. Monitor event-check logs for the later outcom
 Each process handles one command at a time; concurrent commands receive 503.
 Automerge and status finish within the request; summaries, code reviews, and
 security reviews queue in memory and release the command slot before inference.
-The deadline also bounds waiting for
-installation requests or token renewal. Polling continues without webhooks;
+Authenticated API requests run independently, so a slow background request does
+not block command processing. Token acquisition is serialized, and the delivery
+deadline also bounds waiting for token renewal. Polling continues without webhooks;
 App API failures can block both. See [webhook recovery](#-webhook-recovery).
 
 ## ⚙️ Configuration
