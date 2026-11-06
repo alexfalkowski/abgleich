@@ -1,4 +1,4 @@
-@github @manual @commands @codereview @secreview @review
+@github @manual @commands @review
 Feature: Start manual reviews promptly
   Maintainers receive requested reviews without waiting for thread maintenance.
 
@@ -12,9 +12,14 @@ Feature: Start manual reviews promptly
     And manual <kind> review should leave scheduled maintenance pending
     And exactly 1 request should reach the AI service
 
+    @codereview
     Examples:
       | kind     | command    |
       | code     | codereview |
+
+    @secreview
+    Examples:
+      | kind     | command    |
       | security | secreview  |
 
   Scenario Outline: Drain requests queued behind active inference
@@ -26,7 +31,12 @@ Feature: Start manual reviews promptly
     And exactly 4 requests should reach the AI service
     And the worker should remain healthy
 
+    @codereview
     Examples:
       | kind     |
       | code     |
+
+    @secreview
+    Examples:
+      | kind     |
       | security |

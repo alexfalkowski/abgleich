@@ -3,25 +3,25 @@
 {{.Text | markdown}}
 
 {{if .Changes}}
-**What changes**
+📝 **What changes**
 
 {{range .Changes}}- {{. | markdown}}
 {{end}}
 {{end}}
 {{if .Locations}}
-**Where to look**
+🔎 **Where to look**
 
 {{range .Locations}}- [{{.Path | markdown}}]({{.URL}})\
   {{.Description | markdown}}
 {{end}}
 {{end}}
 {{if .Limits}}
-**Missing context:** {{.Limits | markdown}}
+⚠️ **Missing context:** {{.Limits | markdown}}
 
 {{end}}
 
 <details>
-<summary>Summary details</summary>
+<summary>🔎 Summary details</summary>
 
 **🔖 Commit:** `{{.HeadSHA}}`
 

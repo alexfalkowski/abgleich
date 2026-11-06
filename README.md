@@ -259,7 +259,8 @@ overview. The worker selects the verdict from the structured result:
 | No findings with incomplete investigation or missing context | `COMMENT`; approval withheld |
 
 The overview shows the worker's assessment and decision separately from model
-prose. Incomplete comments have no successful-result marker and allow a new
+prose, with ✅ for approval, ❗ for requested changes, and ⚠️ for comments.
+Incomplete comments have no successful-result marker and allow a new
 manual request on the same revisions. Findings still request changes when other
 source is unavailable. Model completion is a self-report, not proof of coverage.
 Every body contains escaped model text, with links and mentions inactive.
@@ -1115,8 +1116,11 @@ make features feature=features/automerge
 ```
 
 Use `make help` for commands and CI feature groups, such as
-`make features-dependabot` and `make features-summaries`. Run groups one at a time:
-the harness shares ports. Untagged features belong to the
+`make features-dependabot` and `make features-summaries`.
+`make features-codereview` and `make features-secreview` select separate scenarios
+and example groups, including their cases in the shared `features/review` files.
+Cases exercising both commands belong to one group so they run once across CI.
+Run groups one at a time: the harness shares ports. Untagged features belong to the
 worker group; group definitions live in [Makefile](Makefile).
 
 The Ruby Cucumber/Nonnative harness runs the worker against independent fake

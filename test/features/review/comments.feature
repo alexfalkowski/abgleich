@@ -1,4 +1,4 @@
-@github @manual @commands @codereview @secreview @review
+@github @manual @commands @review
 Feature: Discuss findings beside the changed code
   Maintainers receive one review overview and a separate conversation for each located finding.
 
@@ -14,11 +14,17 @@ Feature: Discuss findings beside the changed code
       | worker.go | 2    | LEFT  |
     And no successful review should be posted as an ordinary comment
 
+    @codereview
     Examples:
       | kind     | command    | source         |
       | code     | codereview | the repository |
+
+    @secreview
+    Examples:
+      | kind     | command    | source         |
       | security | secreview  | the repository |
 
+  @codereview
   Scenario: Preserve findings whose locations cannot be placed
     Given AI code reviews are configured for this repository
     And a pull request from "the repository" for branch "contribution" is "waiting for checks"
@@ -32,6 +38,7 @@ Feature: Discuss findings beside the changed code
       | worker.go  | 2    | LEFT  |
     And its overview should retain the finding at the unavailable location
 
+  @codereview
   Scenario: Publish an overview when no supported findings remain
     Given AI code reviews are configured for this repository
     And a pull request from "the repository" for branch "contribution" is "waiting for checks"
@@ -40,6 +47,7 @@ Feature: Discuss findings beside the changed code
     Then the code review should describe no findings within the inspected scope
     And the native review should have no inline findings
 
+  @codereview
   Scenario: Report malformed model output without submitting a review
     Given AI code reviews are configured for this repository
     And a pull request from "the repository" for branch "contribution" is "waiting for checks"
@@ -50,6 +58,7 @@ Feature: Discuss findings beside the changed code
     And exactly 1 request should reach the AI service
     And no native review should be submitted
 
+  @codereview
   Scenario: Keep review examples readable and model markup inert in every body
     Given AI code reviews are configured for this repository
     And a pull request from "the repository" for branch "contribution" is "waiting for checks"
@@ -58,6 +67,7 @@ Feature: Discuss findings beside the changed code
     Then the code review should escape model markup and preserve examples
     And every inline finding should escape model markup and preserve examples
 
+  @codereview
   Scenario: Reuse a legacy review after restart
     Given AI code reviews are configured for this repository
     And a pull request from "the repository" for branch "contribution" is "waiting for checks"
@@ -67,6 +77,7 @@ Feature: Discuss findings beside the changed code
     Then the original code review should remain without another model call
     And no native review should be submitted
 
+  @codereview
   Scenario Outline: Ignore native reviews belonging to another author
     Given AI code reviews are configured for this repository
     And a pull request from "the repository" for branch "contribution" is "waiting for checks"
@@ -80,6 +91,7 @@ Feature: Discuss findings beside the changed code
       | a human     |
       | another App |
 
+  @codereview
   Scenario: Find a completed native review beyond the first history page
     Given AI code reviews are configured for this repository
     And a pull request from "the repository" for branch "contribution" is "waiting for checks"
@@ -88,6 +100,7 @@ Feature: Discuss findings beside the changed code
     When a maintainer with "write" access comments "/ab codereview"
     Then the existing native review should prevent another model call
 
+  @secreview
   Scenario: Keep code and security conversations independent
     Given AI security reviews are configured for this repository
     And a pull request from "the repository" for branch "contribution" is "waiting for checks"
@@ -97,6 +110,7 @@ Feature: Discuss findings beside the changed code
     When a maintainer with "write" access comments "/ab secreview"
     Then both review commands should have their own conversations
 
+  @codereview
   Scenario Outline: Decline review when native history is incomplete
     Given AI code reviews are configured for this repository
     And a pull request from "the repository" for branch "contribution" is "waiting for checks"
@@ -126,13 +140,19 @@ Feature: Discuss findings beside the changed code
     And exactly 2 requests should reach the AI service
     And author checks should stay within the history request budget
 
+    @codereview
     Examples:
       | kind     | command    | author      |
       | code     | codereview | a human     |
       | code     | codereview | another App |
+
+    @secreview
+    Examples:
+      | kind     | command    | author      |
       | security | secreview  | a human     |
       | security | secreview  | another App |
 
+  @codereview
   Scenario Outline: Reject incomplete or unverified review authorship
     Given AI code reviews are configured for this repository
     And a pull request from "the repository" for branch "contribution" is "waiting for checks"
@@ -154,6 +174,7 @@ Feature: Discuss findings beside the changed code
       | duplicate identities |
       | GraphQL errors       |
 
+  @codereview
   Scenario: Find the App result after a full batch of forged markers
     Given AI code reviews are configured for this repository
     And a pull request from "the repository" for branch "contribution" is "waiting for checks"

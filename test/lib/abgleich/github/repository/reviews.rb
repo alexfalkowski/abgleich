@@ -55,7 +55,7 @@ module Abgleich
       end
 
       def review_cancellations(kind)
-        replies.select { |reply| reply.fetch(:body).start_with?("#{kind.capitalize} review canceled") }
+        replies.select { |reply| reply.fetch(:body).start_with?("⏹️ #{kind.capitalize} review canceled") }
       end
 
       def native_reviews_for(branch)

@@ -1,4 +1,4 @@
-@github @manual @commands @summaries @codereview @secreview
+@github @manual @commands
 Feature: Leave optional commands and jobs disabled unless configured
   Maintainers receive rejection feedback for disabled AI commands.
   Merge automation remains available without optional background jobs.
@@ -16,11 +16,20 @@ Feature: Leave optional commands and jobs disabled unless configured
     And only merge automation should run in the background
     And the worker should remain healthy
 
+    @codereview
     Examples:
       | command    | provider   |
       | codereview | configured |
       | codereview | omitted    |
+
+    @secreview
+    Examples:
+      | command    | provider   |
       | secreview  | configured |
       | secreview  | omitted    |
+
+    @summaries
+    Examples:
+      | command    | provider   |
       | summarise  | configured |
       | summarise  | omitted    |

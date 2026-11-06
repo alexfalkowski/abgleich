@@ -75,6 +75,6 @@ func (f *Factory) NewCommand(definition Definition) (*Command, error) {
 		publication:  f.publication,
 		queue:        commands.NewQueue(),
 		authorizer:   f.authorizer,
-		staleMessage: fmt.Sprintf("The pull request revision changed. Post a new /ab %s request.", definition.Name),
+		staleMessage: fmt.Sprintf("🔄 The pull request revision changed. Post a new /ab %s request.", definition.Name),
 	}, nil
 }

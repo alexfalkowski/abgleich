@@ -24,9 +24,9 @@ features-commands:
 features-codereview:
 	@$(MAKE) features tags="@codereview"
 
-# Run security-review configuration, prompt, and independent queue features.
+# Run security-review and shared review workflow features, including source access.
 features-secreview:
-	@$(MAKE) features tags="@secreview and not @codereview"
+	@$(MAKE) features tags="@secreview"
 
 # Run summary and comment reaction features.
 features-summaries:

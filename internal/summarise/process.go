@@ -8,8 +8,8 @@ import (
 )
 
 const (
-	staleMessage           = "The pull request revision changed. Post a new /ab summarise request."
-	failureMessage         = "Summary failed. Post a new /ab summarise request after recovery."
+	staleMessage           = "🔄 The pull request revision changed. Post a new /ab summarise request."
+	failureMessage         = "❌ Summary failed. Post a new /ab summarise request after recovery."
 	summaryOutputTokens    = 2048
 	inferenceBudgetDivisor = 2
 )
