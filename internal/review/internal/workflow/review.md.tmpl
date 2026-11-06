@@ -4,10 +4,19 @@
 
 {{if eq .Event "APPROVE"}}✅{{else if eq .Event "REQUEST_CHANGES"}}❗{{else}}⚠️{{end}} **Decision:** {{.Decision}}
 
+{{with .Missing}}⚠️ **Limitations:**
+{{range .}}
+- {{. | markdown}}
+{{end}}
+{{end}}
 📝 **Overview**
 
 {{.Completion.Text | markdown}}
 
+{{range .Findings}}{{if or .Path .Line .Side}}📍 **Location unavailable on the diff:** {{.Path | markdown}}:{{.Line}} ({{.Side | markdown}}).
+
+{{end}}{{template "finding.md.tmpl" .}}
+{{end}}
 <details>
 <summary>🔎 {{.Title}} details</summary>
 
@@ -26,10 +35,6 @@
 🔍 **Scope:** Pull request metadata, all available changed-file patches, complete changed-file text where available, and source retrieved through read-only lookups. Missing patches and unavailable source limit the review. Code and tests were not executed. An approval records no supported findings in the inspected scope; it does not certify security or constitute a complete audit.
 
 {{with .Sources}}📚 **Inspected source:**
-{{range .}}
-- {{. | markdown}}
-{{end}}{{end}}
-{{with .Missing}}⚠️ **Unavailable source:**
 {{range .}}
 - {{. | markdown}}
 {{end}}{{end}}

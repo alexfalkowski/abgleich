@@ -97,7 +97,18 @@ Then(/^the (code|security) review should finish after correcting the dependency 
   expect(source).to include('Source not found: example.com/library@v1.0.0/pkg/missing')
   expect(source).to include(a_string_including('dependency-alpha-context'))
   expect(body).to include('Inspected source', 'example.com/library@v1.0.0/pkg/alpha/query.go')
-  expect(body).not_to include('Unavailable source', 'example.com/library@v1.0.0/pkg/missing')
+  expect(body).not_to include('Limitations', 'example.com/library@v1.0.0/pkg/missing')
+  expect_no_automation_mutations
+end
+
+Then(/^the (code|security) review should finish after correcting the repository path "([^"]*)"$/) do |kind, path|
+  body = review_text(kind)
+  source = review_source_results
+  expect(source).to include(a_string_including("Source not found: #{path}"))
+  expect(source).to include(a_string_including('helper-context'))
+  expect(body).to include('Inspected source', 'helpers/guard.go', ':v2:')
+  expect(body).not_to include('Limitations', path)
+  expect(Abgleich.github.source_requests).not_to include(a_hash_including(path:))
   expect_no_automation_mutations
 end
 
@@ -117,7 +128,7 @@ end
 
 Then(/^the (code|security) review should disclose "([^"]*)"$/) do |kind, limitation|
   body = review_text(kind)
-  expect(body).to include('Unavailable source', limitation)
+  expect(body).to include('Limitations', limitation)
   expect_no_automation_mutations
 end
 
@@ -132,6 +143,10 @@ end
 
 Then('the symbolic link should not be followed') do
   expect(Abgleich.github.source_requests).not_to include(a_hash_including(path: 'helpers/guard.go'))
+end
+
+Then('the excluded repository path {string} should not be fetched') do |path|
+  expect(Abgleich.github.source_requests).not_to include(a_hash_including(path:))
 end
 
 Then('deleted source should be read from the reviewed base revision') do
@@ -183,7 +198,7 @@ Then('the reviewer should receive an empty regular file') do
   revision = Abgleich.github.pull_state('contribution').dig(:head, :sha)
   expect(review_source_results).to include("Source: helpers/guard.go at #{revision}\n\n")
   expect(body).to include('Inspected source', "#{revision}:helpers/guard.go")
-  expect(body).not_to include('Unavailable source')
+  expect(body).not_to include('Limitations')
 end
 
 Then('the reviewer should receive all {int} files from the directory') do |count|
@@ -203,6 +218,6 @@ Then(/^the (code|security) review should use all requested source$/) do |kind|
   expect(sources).to all(include('helpers/guard.go'))
   body = review.fetch(:body)
   expect(body).to include('Inspected related source paths')
-  expect(body).not_to include('Unavailable source')
+  expect(body).not_to include('Limitations')
   expect_no_automation_mutations
 end

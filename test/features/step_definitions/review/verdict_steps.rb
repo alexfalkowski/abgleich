@@ -5,11 +5,21 @@ Given('both review commands are enabled') do
 end
 
 Given('the review cannot inspect {string}') do |context|
-  if context == 'changed-file patch'
+  case context
+  when 'changed-file patch'
     Abgleich.github.file_mode = 'missing patch'
+  when 'changed-file list'
+    Abgleich.github.file_mode = 'no changed files'
+  when 'patches and binary source'
+    Abgleich.github.file_mode = 'missing patch'
+    Abgleich.github.fail_with('source binary')
   else
     Abgleich.github.fail_with('source binary')
   end
+end
+
+Given(/^the (code|security) review can inspect the missing context again$/) do |kind|
+  Abgleich.github.file_mode = "#{kind} review"
 end
 
 Given('the reviewed contribution has new commits') do
@@ -55,6 +65,27 @@ end
 
 Then('its decision should explain that the other review still requests changes') do
   expect(Abgleich.github.native_reviews.last.fetch(:body)).to include('Approval withheld because the other review still requests changes')
+end
+
+Then(/^the (code|security) review assessment should be "([^"]*)"$/) do |kind, assessment|
+  body = wait_for_review(kind).fetch(:body)
+  expect(body).to include("**Assessment:** #{assessment}.")
+  expect(body).not_to include('**Assessment:** Incomplete review.')
+end
+
+Then(/^the (code|security) review decision should explain "([^"]*)"$/) do |kind, reason|
+  body = review_text(kind)
+  expect(body.split('📝 **Overview**').first).to include(reason)
+end
+
+Then(/^the (code|security) review should identify "([^"]*)" before its overview$/) do |kind, limitation|
+  body = review_text(kind)
+  expect(body.split('📝 **Overview**').first).to include('Limitations', limitation)
+end
+
+Then(/^the (code|security) review overview should explain remaining work$/) do |kind|
+  overview = review_text(kind).split('📝 **Overview**').last.split('<details>').first
+  expect(overview).to include('Changed callers remain unreviewed.')
 end
 
 Then("the clean security review should preserve the code review's decision") do

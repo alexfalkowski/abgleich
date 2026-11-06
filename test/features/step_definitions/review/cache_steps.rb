@@ -49,14 +49,14 @@ Then(/^the (code|security) review should account for all reused source$/) do |ki
   revision = Abgleich.github.pull_state(@review_cache_branch || 'contribution').dig(:head, :sha)
   expected = %w[main.go worker.go test.go helpers/guard.go go.mod].map { |path| "#{revision}:#{path}" }
   expect(body).to include('Inspected source', *expected)
-  expect(body).not_to include('Unavailable source')
+  expect(body).not_to include('Limitations')
   model = kind == 'code' ? 'test-review' : 'test-security'
   payload = Abgleich.openai.requests.rfind { |request| request.fetch('model') == model }
   expect(payload.fetch('input').to_json).to include('complete-file-context', 'helper-context', 'module example.com/worker')
   expect_no_automation_mutations
 end
 
-Then('GitHub should have served {int} source tree(s) and {int} source downloads') do |trees, downloads|
+Then('GitHub should have served {int} source tree(s) and {int} source download(s)') do |trees, downloads|
   counts = Abgleich::GitHubService.request_counts
   expect(counts.fetch(:source_tree_reads)).to eq(trees), 'expected complete repository trees to be reused at the same commit'
   expect(counts.fetch(:source_reads)).to eq(downloads), 'expected only new verified blobs to be downloaded from GitHub'
@@ -69,7 +69,7 @@ end
 Then('the code review should exclude the previously read symbolic link') do
   review = wait_for_requested_review('code', @comment_event)
   body = review.fetch(:body).delete('\\').delete("\u200b")
-  expect(body).to include('Unavailable source', 'helpers/guard.go')
+  expect(body).to include('Limitations', 'helpers/guard.go')
   expect(review.fetch(:state)).to eq('COMMENTED'), 'expected excluded source to prevent approval'
   expect(review_source_results.join).not_to include('helper-context')
   expect_no_automation_mutations

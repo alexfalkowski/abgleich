@@ -12,31 +12,41 @@ Feature: Discuss findings beside the changed code
       | path      | line | side  |
       | main.go   | 2    | RIGHT |
       | worker.go | 2    | LEFT  |
+    And each inline finding should separate its title, trigger, impact, and suggested fix
     And no successful review should be posted as an ordinary comment
 
     @codereview
     Examples:
-      | kind     | command    | source         |
-      | code     | codereview | the repository |
+      | kind | command    | source         |
+      | code | codereview | the repository |
 
     @secreview
     Examples:
-      | kind     | command    | source         |
-      | security | secreview  | the repository |
+      | kind     | command   | source         |
+      | security | secreview | the repository |
 
-  @codereview
-  Scenario: Preserve findings whose locations cannot be placed
-    Given AI code reviews are configured for this repository
+  Scenario Outline: Preserve findings whose locations cannot be placed
+    Given AI <kind> reviews are configured for this repository
     And a pull request from "the repository" for branch "contribution" is "waiting for checks"
     And the contribution renames a reviewed file
     And the reviewer reports "a finding outside the changed lines"
-    When a maintainer with "write" access comments "/ab codereview"
-    Then the code review should contain one overview
+    When a maintainer with "write" access comments "/ab <command>"
+    Then the <kind> review should contain one overview
     And the inline findings should be:
       | path       | line | side  |
       | renamed.go | 2    | RIGHT |
       | worker.go  | 2    | LEFT  |
     And its overview should retain the finding at the unavailable location
+
+    @codereview
+    Examples:
+      | kind | command    |
+      | code | codereview |
+
+    @secreview
+    Examples:
+      | kind     | command   |
+      | security | secreview |
 
   @codereview
   Scenario: Publish an overview when no supported findings remain
@@ -58,14 +68,63 @@ Feature: Discuss findings beside the changed code
     And exactly 1 request should reach the AI service
     And no native review should be submitted
 
-  @codereview
-  Scenario: Keep review examples readable and model markup inert in every body
-    Given AI code reviews are configured for this repository
+  Scenario Outline: Keep review examples readable and model markup inert in every body
+    Given AI <kind> reviews are configured for this repository
     And a pull request from "the repository" for branch "contribution" is "waiting for checks"
-    And the reviewer reports "examples with untrusted markup"
-    When a maintainer with "write" access comments "/ab codereview"
-    Then the code review should escape model markup and preserve examples
-    And every inline finding should escape model markup and preserve examples
+    And the reviewer reports "<answer>"
+    When a maintainer with "write" access comments "/ab <command>"
+    Then the <kind> review should escape model markup and preserve examples
+    And the finding "<placement>" should escape model markup and preserve examples
+
+    @codereview
+    Examples:
+      | kind | command    | answer                                          | placement   |
+      | code | codereview | examples with untrusted markup                  | inline      |
+      | code | codereview | examples with untrusted markup outside the diff | in overview |
+
+    @secreview
+    Examples:
+      | kind     | command   | answer                                          | placement   |
+      | security | secreview | examples with untrusted markup                  | inline      |
+      | security | secreview | examples with untrusted markup outside the diff | in overview |
+
+  Scenario Outline: Reject findings without complete explanations
+    Given AI <kind> reviews are configured for this repository
+    And a pull request from "the repository" for branch "contribution" is "waiting for checks"
+    And the reviewer provides a finding with "<problem>"
+    When a maintainer with "write" access comments "/ab <command>"
+    Then the <kind> review should fail without publishing findings
+    And its failure comment should explain "unreadable or invalid review result" with recovery advice
+    And exactly 1 request should reach the AI service
+    And no native review should be submitted
+
+    @codereview
+    Examples:
+      | kind | command    | problem             |
+      | code | codereview | missing title       |
+      | code | codereview | missing severity    |
+      | code | codereview | missing trigger     |
+      | code | codereview | missing impact      |
+      | code | codereview | missing fix         |
+      | code | codereview | blank title         |
+      | code | codereview | blank trigger       |
+      | code | codereview | blank impact        |
+      | code | codereview | blank fix           |
+      | code | codereview | an invalid severity |
+
+    @secreview
+    Examples:
+      | kind     | command   | problem             |
+      | security | secreview | missing title       |
+      | security | secreview | missing severity    |
+      | security | secreview | missing trigger     |
+      | security | secreview | missing impact      |
+      | security | secreview | missing fix         |
+      | security | secreview | blank title         |
+      | security | secreview | blank trigger       |
+      | security | secreview | blank impact        |
+      | security | secreview | blank fix           |
+      | security | secreview | an invalid severity |
 
   @codereview
   Scenario: Reuse a legacy review after restart
@@ -142,15 +201,15 @@ Feature: Discuss findings beside the changed code
 
     @codereview
     Examples:
-      | kind     | command    | author      |
-      | code     | codereview | a human     |
-      | code     | codereview | another App |
+      | kind | command    | author      |
+      | code | codereview | a human     |
+      | code | codereview | another App |
 
     @secreview
     Examples:
-      | kind     | command    | author      |
-      | security | secreview  | a human     |
-      | security | secreview  | another App |
+      | kind     | command   | author      |
+      | security | secreview | a human     |
+      | security | secreview | another App |
 
   @codereview
   Scenario Outline: Reject incomplete or unverified review authorship

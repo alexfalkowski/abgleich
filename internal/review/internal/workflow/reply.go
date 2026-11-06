@@ -5,7 +5,6 @@ import (
 
 	"github.com/alexfalkowski/abgleich/internal/ai"
 	"github.com/alexfalkowski/abgleich/internal/github"
-	"github.com/alexfalkowski/abgleich/internal/markdown"
 	"github.com/alexfalkowski/go-service/v2/strings"
 )
 
@@ -19,6 +18,7 @@ type reviewReply struct {
 	Decision   string
 	Event      string
 	Comments   []*github.DraftReviewComment
+	Findings   []reviewFinding
 	Sources    []string
 	Missing    []string
 	RequestID  int64
@@ -48,45 +48,52 @@ func (c *Command) reply(task *reviewTask, completion *ai.Completion, review *rev
 		return nil, err
 	}
 
-	var text strings.Builder
-	text.WriteString(result.Overview)
-
 	var comments []*github.DraftReviewComment
+	var findings []reviewFinding
 	for _, finding := range result.Findings {
 		if finding.canPlaceInline(review.Files) {
+			body, err := render("finding.md.tmpl", finding)
+			if err != nil {
+				return nil, err
+			}
+
 			comments = append(comments, &github.DraftReviewComment{
 				Path: new(finding.Path), Line: new(finding.Line), Side: new(finding.Side),
-				Body: new(markdown.Inert(finding.Body)),
+				Body: new(body),
 			})
+
 			continue
 		}
 
-		text.WriteString("\n\n")
-		text.WriteString(finding.location())
-		text.WriteString(finding.Body)
+		findings = append(findings, finding)
 	}
 
 	// Preserve provider provenance while rendering only the decoded overview.
 	output := *completion
-	output.Text = text.String()
-	source := review.source
-	marker := c.resultMarker(task)
+	output.Text = result.Overview
+	missing := review.source.missing
+	if len(review.Files) == 0 {
+		missing = append(missing, "GitHub returned no changed files.")
+	}
+	marker := strings.Empty
 
-	event, assessment, decision := "COMMENT", "Incomplete review.", "Comment. Review completion was not confirmed or source was unavailable."
+	event, assessment, decision := "COMMENT", "Review unfinished.", "Comment. Approval withheld because the reviewer did not finish. See the overview for remaining work."
 	switch {
 	case len(result.Findings) > 0:
 		event, assessment, decision = "REQUEST_CHANGES", "Findings.", "Request changes."
-	case result.Complete && len(source.missing) == 0 && len(review.Files) > 0:
+		marker = c.resultMarker(task)
+	case *result.Complete && len(missing) == 0:
 		event, assessment, decision = "APPROVE", "No findings.", "Approve."
-	default:
-		marker = strings.Empty
+		marker = c.resultMarker(task)
+	case *result.Complete:
+		assessment, decision = "Review completed with limitations.", "Comment. Approval withheld because the worker recorded the limitations below."
 	}
 
 	return &reviewReply{
 		Completion: &output,
 		Title:      c.definition.Title,
-		Missing:    source.missing,
-		Sources:    source.inspected,
+		Missing:    missing,
+		Sources:    review.source.inspected,
 		HeadSHA:    task.pullRequest.GetHead().GetSHA(),
 		BaseSHA:    task.pullRequest.GetBase().GetSHA(),
 		Marker:     marker,
@@ -94,6 +101,7 @@ func (c *Command) reply(task *reviewTask, completion *ai.Completion, review *rev
 		Decision:   decision,
 		Event:      event,
 		Comments:   comments,
+		Findings:   findings,
 		RequestID:  task.commandComment.GetID(),
 	}, nil
 }

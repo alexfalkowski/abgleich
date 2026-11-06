@@ -23,7 +23,7 @@ func (s *cachingService) ListSourceFiles(ctx context.Context, repo *Repository, 
 		return nil, err
 	}
 
-	key := strings.Concat("review-source:v1:", repo.GetNodeID(), ":tree:", revision)
+	key := strings.Concat("review-source:", repo.GetNodeID(), ":tree:", revision)
 	if entries, ok, _ := cache.Get[[]*TreeEntry](ctx, key); ok {
 		return *entries, ctx.Err()
 	}
@@ -40,7 +40,7 @@ func (s *cachingService) ReadSourceFiles(ctx context.Context, repo *Repository, 
 		return nil, err
 	}
 
-	prefix := strings.Concat("review-source:v1:", repo.GetNodeID(), ":blob:")
+	prefix := strings.Concat("review-source:", repo.GetNodeID(), ":blob:")
 	contents := make(map[string]string, len(files))
 
 	var missing []*TreeEntry
