@@ -2,19 +2,19 @@ package workflow
 
 import (
 	"go/version"
-	"io/fs"
 	"path"
 	"unicode/utf8"
 
 	"github.com/alexfalkowski/go-service/v2/bytes"
 	"github.com/alexfalkowski/go-service/v2/context"
 	"github.com/alexfalkowski/go-service/v2/errors"
+	"github.com/alexfalkowski/go-service/v2/io"
 	"github.com/alexfalkowski/go-service/v2/strings"
 	"golang.org/x/mod/modfile"
 )
 
 func (s *sourceSession) goReference(ctx context.Context, manifest string) (string, error) {
-	if !fs.ValidPath(manifest) || path.Base(manifest) != "go.mod" {
+	if !io.ValidPath(manifest) || path.Base(manifest) != "go.mod" {
 		return strings.Empty, errors.New("review: invalid Go manifest path")
 	}
 

@@ -11,11 +11,14 @@ Given('the review cannot inspect {string}') do |context|
   when 'changed-file list'
     Abgleich.github.file_mode = 'no changed files'
   when 'patches and binary source'
-    Abgleich.github.file_mode = 'missing patch'
-    Abgleich.github.fail_with('source binary')
+    Abgleich.github.file_mode = 'missing patches with binary file'
   else
     Abgleich.github.fail_with('source binary')
   end
+end
+
+Given('the contribution has a {string} binary file') do |status|
+  Abgleich.github.file_mode = status == 'deleted' ? 'removed binary file' : 'mixed patches'
 end
 
 Given(/^the (code|security) review can inspect the missing context again$/) do |kind|

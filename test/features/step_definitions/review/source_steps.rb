@@ -132,6 +132,31 @@ Then(/^the (code|security) review should disclose "([^"]*)"$/) do |kind, limitat
   expect_no_automation_mutations
 end
 
+Then(/^the (code|security) review should disclose the excluded binary file "([^"]*)"$/) do |kind, path|
+  body = review_text(kind)
+  excluded = body.split('**Excluded binary files:**').last.split('📝 **Overview**').first
+  expect(excluded).to include(path, 'do not prevent approval')
+  expect(body.split('**Excluded binary files:**').first).not_to include(path)
+  inspected = body.split('**Inspected source:**', 2)[1].to_s
+  expect(inspected).not_to include(path)
+  submitted = Abgleich.openai.requests.last.fetch('input').to_json
+  expect(submitted).to include('Source excluded:')
+  expect(submitted).not_to include('binary-asset-context')
+  expect_no_automation_mutations
+end
+
+Then(/^the (code|security) review should have no context limitations$/) do |kind|
+  body = review_text(kind)
+  expect(body).not_to include('**Limitations:**', 'Review completed with limitations')
+  expect(body).to include(':v2:')
+end
+
+Then('the deleted binary file should be identified at the reviewed base revision') do
+  base = Abgleich.github.pull_state('contribution').dig(:base, :sha)
+  expect(Abgleich.github.native_reviews.last.fetch(:body)).to include("#{base}:image.png")
+  expect(Abgleich.github.source_requests).to include(path: 'image.png', revision: base)
+end
+
 Then(/^no unverified (repository|helper|dependency) source should be shared$/) do |scope|
   submitted = Abgleich.openai.requests.last.fetch('input').to_json
   expect(submitted).not_to include(*review_source_markers(scope))

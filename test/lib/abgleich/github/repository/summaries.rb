@@ -28,7 +28,8 @@ module Abgleich
       def file_mode=(mode)
         @mutex.synchronize do
           @state[:file_mode] = mode
-          count = { 'many files' => 21, 'mixed patches' => 4, 'no changed files' => 0 }[mode]
+          count = { 'many files' => 21, 'mixed patches' => 4, 'removed binary file' => 4,
+                    'missing patches with binary file' => 4, 'no changed files' => 0 }[mode]
           @state[:pulls].each_value { |pull| pull[:changed_files] = count } if count
           @state[:pulls].each_value { |pull| pull.delete(:changed_files) } if mode == 'missing file count'
         end
@@ -50,7 +51,7 @@ module Abgleich
         paths = %w[main.go worker.go test.go]
         paths = %w[.circleci/config.yml Makefile scripts/coverage-workspace] if file_mode == 'ci workflow'
         paths += (4..21).map { |number| "file#{number}.go" } if file_mode == 'many files'
-        paths << 'image.png' if file_mode == 'mixed patches'
+        paths << 'image.png' if ['mixed patches', 'removed binary file', 'missing patches with binary file'].include?(file_mode)
         paths.pop if file_mode == 'incomplete file list'
         # An empty list must not substitute for an absent file count.
         paths.clear if ['missing file count', 'no changed files'].include?(file_mode)
@@ -59,18 +60,17 @@ module Abgleich
 
       def apply_summary_file_change(file)
         case [file_mode, file[:filename]]
-        when ['removed file', 'main.go'] then file[:status] = 'removed'
-        when ['renamed review file', 'main.go']
-          file.merge!(filename: 'renamed.go', previous_filename: 'main.go', status: 'renamed')
-        when ['mixed patches', 'image.png'] then file[:patch] = nil
+        when ['removed file', 'main.go'], ['removed binary file', 'image.png'] then file[:status] = 'removed'
+        when ['renamed review file', 'main.go'] then file.merge!(filename: 'renamed.go', previous_filename: 'main.go', status: 'renamed')
         when ['missing file name', 'test.go'] then file.delete(:filename)
         when ['duplicate file', 'test.go'] then file[:filename] = 'main.go'
         end
+        file[:patch] = nil if file[:filename] == 'image.png'
         file
       end
 
       def summary_patch(path)
-        return nil if file_mode == 'missing patch'
+        return nil if ['missing patch', 'missing patches with binary file'].include?(file_mode)
         return "@@ -1,2 +0,0 @@\n-package worker\n-old\n" if file_mode == 'removed file' && path == 'main.go'
 
         case file_mode

@@ -3,17 +3,16 @@ package workflow
 import (
 	"archive/zip"
 	"fmt"
-	"io"
-	"io/fs"
 	"net/url"
 	"path"
-	"slices"
 
 	"github.com/alexfalkowski/abgleich/internal/github"
 	"github.com/alexfalkowski/abgleich/internal/transport/http/client"
 	"github.com/alexfalkowski/go-service/v2/context"
 	"github.com/alexfalkowski/go-service/v2/errors"
+	"github.com/alexfalkowski/go-service/v2/io"
 	"github.com/alexfalkowski/go-service/v2/net/http"
+	"github.com/alexfalkowski/go-service/v2/slices"
 	"github.com/alexfalkowski/go-service/v2/strings"
 	"github.com/alexfalkowski/go-service/v2/time"
 )
@@ -75,7 +74,7 @@ func (s *Sources) fetch(ctx context.Context, endpoint string) ([]byte, error) {
 		return nil, errors.New("review: public source unavailable")
 	}
 
-	content, err := io.ReadAll(response.Body)
+	content, _, err := io.ReadAll(response.Body)
 	return content, errors.Prefix("review: read public source", err)
 }
 
@@ -117,6 +116,7 @@ type sourceSession struct {
 	baseSHA    string
 	missing    []string
 	inspected  []string
+	binary     []string
 }
 
 func (s *sourceSession) list(ctx context.Context, filter string) ([]string, error) {
@@ -169,7 +169,7 @@ func (s *sourceSession) read(ctx context.Context, filenames []string) (string, e
 }
 
 func (s *sourceSession) readPath(ctx context.Context, filename string, paths []string, contents map[string]string) string {
-	if !fs.ValidPath(filename) || strings.Contains(filename, "\\") {
+	if !io.ValidPath(filename) || strings.Contains(filename, "\\") {
 		return s.unavailable("review: invalid repository path")
 	}
 
@@ -254,7 +254,10 @@ func (s *sourceSession) repositoryFiles(ctx context.Context, filenames []string,
 			continue
 		}
 
-		contents[filename] = s.unavailable(key + " (binary file)")
+		content := "Source excluded: " + key + " (binary file)"
+		s.binary = append(s.binary, key)
+		s.files[key] = content
+		contents[filename] = content
 	}
 
 	return contents, nil
@@ -270,7 +273,7 @@ func (s *sourceSession) uncachedFiles(revision string, filenames []string) (map[
 			continue
 		}
 		seen[filename] = true
-		if !fs.ValidPath(filename) || strings.Contains(filename, "\\") {
+		if !io.ValidPath(filename) || strings.Contains(filename, "\\") {
 			contents[filename] = s.unavailable("invalid repository path")
 			continue
 		}

@@ -199,8 +199,10 @@ run reconciles fresh remote state; pending summary and review requests are held 
   traversal or citation-verification machinery. Decode a small result with an
   overview, findings containing prose bodies and optional path/line/side, and a
   completion boolean. The worker requests changes for findings, approves only
-  complete no-findings results without missing patches or unavailable source,
+  complete no-findings results without missing text patches or unavailable source,
   and otherwise comments without a success marker so a new request can retry.
+  Confirmed binary files and their absent patches are outside the text review
+  scope and are disclosed separately without preventing approval.
   Publish one native review pinned to the reviewed head, with a separate
   inline conversation for each finding placed on the fetched patch. Keep findings
   without valid placement in the overview. Escape model text and deactivate

@@ -3,12 +3,12 @@ package github
 import (
 	"crypto/sha1" // #nosec G505 -- Git blob identifiers require SHA-1; HTTPS authenticates the source.
 	"fmt"
-	"io/fs"
 	"strconv"
 	"unicode/utf8"
 
 	"github.com/alexfalkowski/go-service/v2/context"
 	"github.com/alexfalkowski/go-service/v2/errors"
+	"github.com/alexfalkowski/go-service/v2/io"
 	"github.com/alexfalkowski/go-service/v2/net/http"
 	"github.com/alexfalkowski/go-service/v2/net/http/media"
 	"github.com/alexfalkowski/go-service/v2/strings"
@@ -149,7 +149,7 @@ func validateSourceRequest(repo *Repository, revision string, files []*TreeEntry
 	}
 
 	for _, file := range files {
-		if !IsRegularSourceFile(file) || !fs.ValidPath(file.GetPath()) || strings.Contains(file.GetPath(), "\\") || strings.IsEmpty(file.GetSHA()) {
+		if !IsRegularSourceFile(file) || !io.ValidPath(file.GetPath()) || strings.Contains(file.GetPath(), "\\") || strings.IsEmpty(file.GetSHA()) {
 			return errors.New("github: invalid source tree entry")
 		}
 	}
@@ -191,7 +191,7 @@ func sourceFiles(tree *github.Tree) ([]*TreeEntry, error) {
 
 	for _, entry := range tree.Entries {
 		name := entry.GetPath()
-		if !fs.ValidPath(name) || strings.Contains(name, "\\") || seen[name] {
+		if !io.ValidPath(name) || strings.Contains(name, "\\") || seen[name] {
 			return nil, errors.New("github: invalid source tree path")
 		}
 
