@@ -3,8 +3,6 @@ package github
 import (
 	"github.com/alexfalkowski/go-service/v2/context"
 	"github.com/alexfalkowski/go-service/v2/errors"
-	"github.com/alexfalkowski/go-service/v2/net/http"
-	"github.com/alexfalkowski/go-service/v2/net/http/media"
 	"github.com/alexfalkowski/go-service/v2/strings"
 )
 
@@ -13,14 +11,19 @@ import (
 type ReviewThread struct {
 	// ID is the GraphQL node identity used for final rechecks and resolution.
 	ID string
+
 	// ReviewBody contains the parent review's result marker for feature ownership checks.
 	ReviewBody string
+
 	// IsOutdated reports stale placement from GitHub, without establishing that a finding was fixed.
 	IsOutdated bool
+
 	// IsResolved reports whether the conversation is already closed.
 	IsResolved bool
+
 	// ViewerCanResolve reports whether the authenticated installation may resolve the thread.
 	ViewerCanResolve bool
+
 	// IsAppAuthor requires API-authenticated Bot authorship of both the root comment and parent review.
 	IsAppAuthor bool
 }
@@ -79,15 +82,8 @@ func (s *service) ListReviewThreads(ctx context.Context, repo *Repository, pull 
 
 	var threads []*ReviewThread
 	for {
-		request, err := s.client.installation.NewRequest(ctx, http.MethodPost, "graphql", body)
-		if err != nil {
-			return nil, err
-		}
-
-		request.Header.Set(http.AcceptKey, media.JSON)
-
 		var response ReviewThreadsResponse
-		if _, err := s.client.installation.Do(request, &response); err != nil {
+		if err := s.graphql(ctx, body, &response); err != nil {
 			return nil, err
 		}
 		if err := response.validate(repo, pull); err != nil {
@@ -121,15 +117,8 @@ func (s *service) GetReviewThread(ctx context.Context, repo *Repository, pull *P
 	body := ReviewThreadRequest{Query: reviewThreadQuery}
 	body.Variables.ID = id
 
-	request, err := s.client.installation.NewRequest(ctx, http.MethodPost, "graphql", body)
-	if err != nil {
-		return nil, err
-	}
-
-	request.Header.Set(http.AcceptKey, media.JSON)
-
 	var response ReviewThreadResponse
-	if _, err := s.client.installation.Do(request, &response); err != nil {
+	if err := s.graphql(ctx, body, &response); err != nil {
 		return nil, err
 	}
 	if err := response.Errors.Validate(); err != nil {
@@ -158,15 +147,8 @@ func (s *service) ResolveReviewThread(ctx context.Context, _ *Repository, _ *Pul
 	body := ResolveReviewThreadRequest{Query: resolveReviewThreadMutation}
 	body.Variables.Input.ThreadID = thread.ID
 
-	request, err := s.client.installation.NewRequest(ctx, http.MethodPost, "graphql", body)
-	if err != nil {
-		return err
-	}
-
-	request.Header.Set(http.AcceptKey, media.JSON)
-
 	var response ResolveReviewThreadResponse
-	if _, err := s.client.installation.Do(request, &response); err != nil {
+	if err := s.graphql(ctx, body, &response); err != nil {
 		return err
 	}
 	if err := response.Errors.Validate(); err != nil {
@@ -191,9 +173,11 @@ type ReviewThreadsRequest struct {
 	Variables struct {
 		// ID identifies the PR node whose inline conversations are requested.
 		ID string `json:"id"`
+
 		// After selects the next page; nil starts pagination.
 		After *string `json:"after"`
 	} `json:"variables"`
+
 	// Query contains the GraphQL operation submitted with these variables.
 	Query string `json:"query"`
 }
@@ -206,20 +190,24 @@ type ReviewThreadsResponse struct {
 		// Node contains the requested PR and thread page; nil cannot establish identity.
 		Node *struct {
 			threadPullRequest
+
 			// ReviewThreads contains one page of thread state and ownership evidence.
 			ReviewThreads struct {
 				// Nodes contains thread candidates; nil indicates an incomplete discovery page.
 				Nodes []*reviewThreadNode `json:"nodes"`
+
 				// PageInfo reports whether discovery must continue before the results are complete.
 				PageInfo struct {
 					// EndCursor selects the following page when HasNextPage is true.
 					EndCursor *string `json:"endCursor"`
+
 					// HasNextPage reports whether more results remain; nil indicates an incomplete response.
 					HasNextPage *bool `json:"hasNextPage"`
 				} `json:"pageInfo"`
 			} `json:"reviewThreads"`
 		} `json:"node"`
 	} `json:"data"`
+
 	// Errors retains GraphQL failures even when the HTTP response succeeds.
 	Errors Errors `json:"errors"`
 }
@@ -228,6 +216,7 @@ type ReviewThreadsResponse struct {
 type ReviewThreadRequest struct {
 	// Query contains the GraphQL operation submitted with these variables.
 	Query string `json:"query"`
+
 	// Variables binds the operation's GraphQL arguments.
 	Variables struct {
 		// ID identifies the thread node to refresh immediately before maintenance.
@@ -243,6 +232,7 @@ type ReviewThreadResponse struct {
 		// Node contains the thread's current state and ownership evidence; nil fails validation.
 		Node *reviewThreadNode `json:"node"`
 	} `json:"data"`
+
 	// Errors retains GraphQL failures even when the HTTP response succeeds.
 	Errors Errors `json:"errors"`
 }
@@ -252,6 +242,7 @@ type ReviewThreadResponse struct {
 type ResolveReviewThreadRequest struct {
 	// Query contains the GraphQL operation submitted with these variables.
 	Query string `json:"query"`
+
 	// Variables binds the operation's GraphQL arguments.
 	Variables struct {
 		// Input supplies the mutation arguments, including the target identity.
@@ -273,11 +264,13 @@ type ResolveReviewThreadResponse struct {
 			Thread *struct {
 				// ID must match the requested thread node ID to confirm acceptance.
 				ID string `json:"id"`
+
 				// IsResolved must be present and true to confirm that the mutation resolved the thread.
 				IsResolved *bool `json:"isResolved"`
 			} `json:"thread"`
 		} `json:"resolveReviewThread"`
 	} `json:"data"`
+
 	// Errors retains GraphQL failures even when the HTTP response succeeds.
 	Errors Errors `json:"errors"`
 }

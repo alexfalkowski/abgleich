@@ -22,30 +22,28 @@ func (s *Rebase) checksCompleted(ctx context.Context, repository *github.Reposit
 		return false, err
 	}
 
-	completed := completedCheckNames(statuses, checks)
-	return completed[completionCheck], nil
+	return checkCompleted(statuses, checks, completionCheck), nil
 }
 
-// A nil result means some reported work is still active or incomplete. Failed
-// final signals count as completed; they never bypass GitHub's merge requirements.
-func completedCheckNames(statuses []*github.CommitStatus, checks []*github.CheckRun) map[string]bool {
-	completed := make(map[string]bool)
+// Failed final signals count as completed; any unfinished work prevents rebasing.
+func checkCompleted(statuses []*github.CommitStatus, checks []*github.CheckRun, completionCheck string) bool {
+	completed := false
 
 	for _, status := range statuses {
 		switch status.GetState() {
 		case "success", "failure", "error":
-			completed[status.GetContext()] = true
+			completed = completed || status.GetContext() == completionCheck
 		default:
-			return nil
+			return false
 		}
 	}
 
 	for _, check := range checks {
 		if check.GetStatus() != "completed" || strings.IsEmpty(check.GetConclusion()) {
-			return nil
+			return false
 		}
 
-		completed[check.GetName()] = true
+		completed = completed || check.GetName() == completionCheck
 	}
 
 	return completed

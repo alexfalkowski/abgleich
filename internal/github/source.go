@@ -49,6 +49,60 @@ func (s *service) ListSourceFiles(ctx context.Context, repo *Repository, revisio
 	return sourceFiles(tree)
 }
 
+func newSourceFilesRequest(repo *Repository, revision string, files []*TreeEntry) (*sourceFilesRequest, error) {
+	if err := validateSourceRequest(repo, revision, files); err != nil {
+		return nil, err
+	}
+
+	variables := map[string]string{"owner": repo.GetOwner().GetLogin(), "repository": repo.GetName()}
+	parameters := []string{"$owner: String!", "$repository: String!"}
+
+	var fields []string
+	for index, file := range files {
+		alias := "file" + strconv.Itoa(index)
+		variables[alias] = revision + ":" + file.GetPath()
+		parameters = append(parameters, "$"+alias+": String!")
+		fields = append(fields, fmt.Sprintf(`%s: repository(owner: $owner, name: $repository) {
+  node_id: id full_name: nameWithOwner
+  object(expression: $%s) {
+    type: __typename
+    ... on Blob { content: text size: byteSize sha: oid binary: isBinary truncated: isTruncated }
+  }
+}`, alias, alias))
+	}
+
+	return &sourceFilesRequest{
+		Variables: variables,
+		Query:     strings.Concat("query SourceFiles(", strings.Join(", ", parameters...), ") {\n", strings.Join("\n", fields...), "\n}"),
+	}, nil
+}
+
+// Source queries bind revision/path expressions as variables, never GraphQL text.
+type sourceFilesRequest struct {
+	Variables map[string]string `json:"variables"`
+	Query     string            `json:"query"`
+}
+
+type sourceRepository struct {
+	Repository
+
+	Object *sourceBlob `json:"object"`
+}
+
+// GraphQL adds binary/truncation flags to the SDK's pointer-valued content fields.
+type sourceBlob struct {
+	RepositoryContent
+
+	Binary    *bool `json:"binary"`
+	Truncated *bool `json:"truncated"`
+}
+
+// Missing repositories or objects cannot establish available source.
+type sourceFilesResponse struct {
+	Data   map[string]*sourceRepository `json:"data"`
+	Errors Errors                       `json:"errors"`
+}
+
 func (r *sourceFilesResponse) files(repo *Repository, files []*TreeEntry) (map[string]string, error) {
 	if r.Errors.Validate() != nil || r.Data == nil {
 		return nil, errors.New("github: source query returned missing or failed data")
@@ -79,34 +133,6 @@ func (r *sourceFilesResponse) files(repo *Repository, files []*TreeEntry) (map[s
 	}
 
 	return contents, nil
-}
-
-func newSourceFilesRequest(repo *Repository, revision string, files []*TreeEntry) (*sourceFilesRequest, error) {
-	if err := validateSourceRequest(repo, revision, files); err != nil {
-		return nil, err
-	}
-
-	variables := map[string]string{"owner": repo.GetOwner().GetLogin(), "repository": repo.GetName()}
-	parameters := []string{"$owner: String!", "$repository: String!"}
-
-	var fields []string
-	for index, file := range files {
-		alias := "file" + strconv.Itoa(index)
-		variables[alias] = revision + ":" + file.GetPath()
-		parameters = append(parameters, "$"+alias+": String!")
-		fields = append(fields, fmt.Sprintf(`%s: repository(owner: $owner, name: $repository) {
-  node_id: id full_name: nameWithOwner
-  object(expression: $%s) {
-    type: __typename
-    ... on Blob { content: text size: byteSize sha: oid binary: isBinary truncated: isTruncated }
-  }
-}`, alias, alias))
-	}
-
-	return &sourceFilesRequest{
-		Variables: variables,
-		Query:     strings.Concat("query SourceFiles(", strings.Join(", ", parameters...), ") {\n", strings.Join("\n", fields...), "\n}"),
-	}, nil
 }
 
 // validateSourceRequest preserves source identity and regular-file checks even
@@ -182,30 +208,4 @@ func completeSourceTree(tree *github.Tree) bool {
 
 func regularTreeEntry(entry *github.TreeEntry) bool {
 	return entry.GetType() == "blob" && (entry.GetMode() == "100644" || entry.GetMode() == "100755")
-}
-
-// Source queries bind revision/path expressions as variables, never GraphQL text.
-type sourceFilesRequest struct {
-	Variables map[string]string `json:"variables"`
-	Query     string            `json:"query"`
-}
-
-// Missing repositories or objects cannot establish available source.
-type sourceFilesResponse struct {
-	Data   map[string]*sourceRepository `json:"data"`
-	Errors Errors                       `json:"errors"`
-}
-
-type sourceRepository struct {
-	Repository
-
-	Object *sourceBlob `json:"object"`
-}
-
-// GraphQL adds binary/truncation flags to the SDK's pointer-valued content fields.
-type sourceBlob struct {
-	RepositoryContent
-
-	Binary    *bool `json:"binary"`
-	Truncated *bool `json:"truncated"`
 }

@@ -13,6 +13,23 @@ import (
 // ErrIgnoredDelivery identifies a verified event or action with no worker handler.
 var ErrIgnoredDelivery = errors.New("github: delivery does not require processing")
 
+// Delivery routes a verified comment command or repository notification.
+// Repository is only a discovery hint; current settings and PR state must be read
+// from GitHub before automation. Comment is nil for repository notifications.
+type Delivery struct {
+	// Comment contains the verified comment event, or nil for a repository notification.
+	Comment *IssueCommentEvent
+
+	// Repository is a verified owner/repository discovery hint whose live state must be re-read.
+	Repository string
+}
+
+type repositoryIdentity interface {
+	GetOwner() *github.User
+	GetName() string
+	GetFullName() string
+}
+
 // NewWebhook resolves optional delivery credentials at startup, returning nil
 // when webhook configuration is disabled. A configured webhook requires App
 // credentials, a nonempty secret, and a timeout below ten seconds.
@@ -47,22 +64,6 @@ type Webhook struct {
 // GetTimeout returns the independent synchronous processing budget.
 func (w *Webhook) GetTimeout() time.Duration {
 	return w.config.Webhook.GetTimeout()
-}
-
-// Delivery routes a verified comment command or repository notification.
-// Repository is only a discovery hint; current settings and PR state must be read
-// from GitHub before automation. Comment is nil for repository notifications.
-type Delivery struct {
-	// Comment contains the verified comment event, or nil for a repository notification.
-	Comment *IssueCommentEvent
-	// Repository is a verified owner/repository discovery hint whose live state must be re-read.
-	Repository string
-}
-
-type repositoryIdentity interface {
-	GetOwner() *github.User
-	GetName() string
-	GetFullName() string
 }
 
 // Read verifies SHA-256 signatures and installation/repository identity before

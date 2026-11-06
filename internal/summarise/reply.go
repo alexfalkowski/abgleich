@@ -1,7 +1,6 @@
 package summarise
 
 import (
-	"html"
 	"net/url"
 
 	"github.com/alexfalkowski/abgleich/internal/ai"
@@ -96,26 +95,4 @@ func summaryLocations(text string, files []changedFile, repository, sha string) 
 	}
 
 	return strings.TrimSpace(intro), locations
-}
-
-// Markdown syntax and GitHub mentions need escaping in addition to HTML text.
-func markdownText(text string) string {
-	return html.EscapeString(strings.NewReplacer(
-		"@", "@\u200b",
-		"\\", "\\\\",
-		"`", "\\`",
-		"*", "\\*",
-		"_", "\\_",
-		"[", "\\[",
-		"]", "\\]",
-		"(", "\\(",
-		")", "\\)",
-		"#", "\\#",
-		"!", "\\!",
-		"|", "\\|",
-		"~", "\\~",
-		"-", "\\-",
-		"+", "\\+",
-		"=", "\\=",
-	).Replace(text))
 }

@@ -2,15 +2,14 @@ package workflow
 
 import (
 	"fmt"
-	"html"
-	"regexp"
 
 	"github.com/alexfalkowski/abgleich/internal/ai"
 	"github.com/alexfalkowski/abgleich/internal/github"
+	"github.com/alexfalkowski/abgleich/internal/markdown"
 	"github.com/alexfalkowski/go-service/v2/strings"
 )
 
-type reviewComment struct {
+type reviewReply struct {
 	Completion *ai.Completion
 	Title      string
 	HeadSHA    string
@@ -18,32 +17,12 @@ type reviewComment struct {
 	Marker     string
 	Assessment string
 	Decision   string
+	Event      string
+	Comments   []*github.DraftReviewComment
 	Sources    []string
 	Missing    []string
 	RequestID  int64
 }
-
-var bareDomain = regexp.MustCompile(`(?i)\bwww\.`)
-
-var markdownEscaper = strings.NewReplacer(
-	"@", "@\u200b",
-	"://", ":\u200b//",
-	"\\", "\\\\",
-	"`", "\\`",
-	"*", "\\*",
-	"_", "\\_",
-	"[", "\\[",
-	"]", "\\]",
-	"(", "\\(",
-	")", "\\)",
-	"#", "\\#",
-	"!", "\\!",
-	"|", "\\|",
-	"~", "\\~",
-	"-", "\\-",
-	"+", "\\+",
-	"=", "\\=",
-)
 
 func (c *Command) cancellationMessage(task *reviewTask) string {
 	pull := task.pullRequest
@@ -63,7 +42,7 @@ func (c *Command) cancellationMessage(task *reviewTask) string {
 	return fmt.Sprintf("%s canceled because %s. Request: [original request](#issuecomment-%d).", c.definition.Title, reason, task.commandComment.GetID())
 }
 
-func (c *Command) reply(task *reviewTask, completion *ai.Completion, review *reviewContext) (*github.PullRequestReviewRequest, error) {
+func (c *Command) reply(task *reviewTask, completion *ai.Completion, review *reviewContext) (*reviewReply, error) {
 	result, err := parseResult(completion.Text)
 	if err != nil {
 		return nil, err
@@ -77,7 +56,7 @@ func (c *Command) reply(task *reviewTask, completion *ai.Completion, review *rev
 		if finding.canPlaceInline(review.Files) {
 			comments = append(comments, &github.DraftReviewComment{
 				Path: new(finding.Path), Line: new(finding.Line), Side: new(finding.Side),
-				Body: new(markdownText(finding.Body)),
+				Body: new(markdown.Inert(finding.Body)),
 			})
 			continue
 		}
@@ -103,7 +82,7 @@ func (c *Command) reply(task *reviewTask, completion *ai.Completion, review *rev
 		marker = strings.Empty
 	}
 
-	body, err := render("review.md.tmpl", reviewComment{
+	return &reviewReply{
 		Completion: &output,
 		Title:      c.definition.Title,
 		Missing:    source.missing,
@@ -113,19 +92,8 @@ func (c *Command) reply(task *reviewTask, completion *ai.Completion, review *rev
 		Marker:     marker,
 		Assessment: assessment,
 		Decision:   decision,
+		Event:      event,
+		Comments:   comments,
 		RequestID:  task.commandComment.GetID(),
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	return &github.PullRequestReviewRequest{
-		Body: new(body), Comments: comments, Event: new(event),
 	}, nil
-}
-
-// markdownText makes model markup, links, and mentions inert.
-func markdownText(text string) string {
-	text = bareDomain.ReplaceAllString(text, "www\u200b.")
-	return html.EscapeString(markdownEscaper.Replace(text))
 }

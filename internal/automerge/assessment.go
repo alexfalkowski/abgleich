@@ -12,12 +12,16 @@ import (
 type Assessment struct {
 	// Policy names the first applicable automation policy or eligibility gate.
 	Policy string
+
 	// Decision summarizes the observed outcome for a maintainer.
 	Decision string
+
 	// Reason explains the evidence or missing information behind the decision.
 	Reason string
+
 	// NextStep suggests how a maintainer can proceed from the observed state.
 	NextStep string
+
 	// Action identifies a possible merge, enable, or rebase request; empty means no action is indicated.
 	Action string
 }
@@ -55,12 +59,10 @@ func (r *Reconciler) Assess(ctx context.Context, repo *github.Repository, pull *
 		}
 	}
 
-	for _, s := range r.strategies {
-		if s.Matches(repo, pull) {
-			// Decision reasons retain unavailable evidence alongside remote errors.
-			decision, _ := s.Assess(ctx, repo, pull)
-			return explainDecision(decision)
-		}
+	if selected := r.matchingStrategy(repo, pull); selected != nil {
+		// Decision reasons retain unavailable evidence alongside remote errors.
+		decision, _ := selected.Assess(ctx, repo, pull)
+		return explainDecision(decision)
 	}
 
 	return Assessment{

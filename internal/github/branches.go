@@ -3,8 +3,6 @@ package github
 import (
 	"github.com/alexfalkowski/go-service/v2/context"
 	"github.com/alexfalkowski/go-service/v2/errors"
-	"github.com/alexfalkowski/go-service/v2/net/http"
-	"github.com/alexfalkowski/go-service/v2/net/http/media"
 	"github.com/alexfalkowski/go-service/v2/strings"
 	"github.com/google/go-github/v93/github"
 )
@@ -151,15 +149,8 @@ func (s *service) DeleteBranch(ctx context.Context, repo *Repository, branch *Br
 		{Name: "refs/heads/" + branch.GetName(), BeforeOID: branch.GetCommit().GetSHA(), AfterOID: "0000000000000000000000000000000000000000"},
 	}
 
-	request, err := s.client.installation.NewRequest(ctx, http.MethodPost, "graphql", body)
-	if err != nil {
-		return err
-	}
-
-	request.Header.Set(http.AcceptKey, media.JSON)
-
 	var response UpdateRefsResponse
-	if _, err := s.client.installation.Do(request, &response); err != nil {
+	if err := s.graphql(ctx, body, &response); err != nil {
 		return err
 	}
 
@@ -191,8 +182,10 @@ func validateBranch(branch *Branch) error {
 type RefUpdate struct {
 	// Name is the fully qualified reference name, such as refs/heads/feature.
 	Name string `json:"name"`
+
 	// BeforeOID requires the reference to still point at this commit before it can change.
 	BeforeOID string `json:"beforeOid"`
+
 	// AfterOID sets the replacement commit; the all-zero OID deletes the reference.
 	AfterOID string `json:"afterOid"`
 }
@@ -202,14 +195,17 @@ type RefUpdate struct {
 type UpdateRefsRequest struct {
 	// Query contains the GraphQL operation submitted with these variables.
 	Query string `json:"query"`
+
 	// Variables binds the operation's GraphQL arguments.
 	Variables struct {
 		// Input supplies the mutation arguments, including the target identity.
 		Input struct {
 			// RepositoryID identifies the repository by its GraphQL node ID.
 			RepositoryID string `json:"repositoryId"`
+
 			// ClientMutationID correlates the mutation request with its acceptance response.
 			ClientMutationID string `json:"clientMutationId"`
+
 			// RefUpdates contains the guarded reference changes; cleanup submits one deletion at a time.
 			RefUpdates []RefUpdate `json:"refUpdates"`
 		} `json:"input"`
@@ -226,6 +222,7 @@ type UpdateRefsResponse struct {
 			ClientMutationID string `json:"clientMutationId"`
 		} `json:"updateRefs"`
 	} `json:"data"`
+
 	// Errors retains GraphQL failures even when the HTTP response succeeds.
 	Errors Errors `json:"errors"`
 }

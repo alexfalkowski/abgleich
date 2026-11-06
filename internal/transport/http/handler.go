@@ -19,10 +19,13 @@ type HandlerParams struct {
 
 	// Webhook verifies signed deliveries; nil disables handler construction.
 	Webhook *github.Webhook
+
 	// Dispatcher routes authorized comment commands and supplies reaction feedback.
 	Dispatcher *commands.Dispatcher
+
 	// Coordinator queues repository notifications without waiting for remote reconciliation.
 	Coordinator *automerge.Coordinator
+
 	// Logger records delivery processing failures.
 	Logger *logger.Logger
 }
@@ -77,10 +80,12 @@ func (h *Handler) handle(ctx context.Context, delivery *github.Delivery) error {
 	}
 
 	h.coordinator.Enqueue(delivery.Repository)
+
 	return nil
 }
 
 func (h *Handler) writeError(ctx context.Context, res http.ResponseWriter, err error) {
 	h.logger.Error("github webhook failed", "error", err)
+
 	_ = status.WriteError(ctx, res, h.error(err))
 }

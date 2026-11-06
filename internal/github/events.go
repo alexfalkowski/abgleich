@@ -3,8 +3,6 @@ package github
 import (
 	"github.com/alexfalkowski/go-service/v2/context"
 	"github.com/alexfalkowski/go-service/v2/errors"
-	"github.com/alexfalkowski/go-service/v2/net/http"
-	"github.com/alexfalkowski/go-service/v2/net/http/media"
 	"github.com/alexfalkowski/go-service/v2/strings"
 	"github.com/alexfalkowski/go-service/v2/time"
 )
@@ -70,15 +68,8 @@ func (s *service) ListPullRequestAutomationEvents(ctx context.Context, pull *Pul
 	var events []*IssueEvent
 
 	for {
-		request, err := s.client.installation.NewRequest(ctx, http.MethodPost, "graphql", body)
-		if err != nil {
-			return nil, err
-		}
-
-		request.Header.Set(http.AcceptKey, media.JSON)
-
 		var response PullRequestAutomationEventsResponse
-		if _, err := s.client.installation.Do(request, &response); err != nil {
+		if err := s.graphql(ctx, body, &response); err != nil {
 			return nil, err
 		}
 		if err := response.Validate(pull.GetNodeID()); err != nil {
@@ -108,9 +99,11 @@ type PullRequestAutomationEventsRequest struct {
 	Variables struct {
 		// ID identifies the PR node whose complete automation history is requested.
 		ID string `json:"id"`
+
 		// After selects the next page; nil starts pagination.
 		After *string `json:"after"`
 	} `json:"variables"`
+
 	// Query contains the GraphQL operation submitted with these variables.
 	Query string `json:"query"`
 }
@@ -124,20 +117,24 @@ type PullRequestAutomationEventsResponse struct {
 		Node struct {
 			// ID must match the requested PR node ID before its history is used.
 			ID string `json:"id"`
+
 			// TimelineItems contains label and auto-merge-disable history used to establish consent.
 			TimelineItems struct {
 				// Nodes contains the page's automation events; nil indicates an incomplete page.
 				Nodes []*IssueEvent `json:"nodes"`
+
 				// PageInfo reports whether discovery must continue before the results are complete.
 				PageInfo struct {
 					// EndCursor selects the following page when HasNextPage is true.
 					EndCursor *string `json:"endCursor"`
+
 					// HasNextPage reports whether more results remain; nil indicates an incomplete response.
 					HasNextPage *bool `json:"hasNextPage"`
 				} `json:"pageInfo"`
 			} `json:"timelineItems"`
 		} `json:"node"`
 	} `json:"data"`
+
 	// Errors retains GraphQL failures even when the HTTP response succeeds.
 	Errors Errors `json:"errors"`
 }

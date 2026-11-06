@@ -19,10 +19,13 @@ type FactoryParams struct {
 
 	// GitHub provides repository access and authenticated review publication.
 	GitHub github.Service
+
 	// Provider generates reviews using each command's prompt and model.
 	Provider ai.Provider
+
 	// Sources supplies credential-free dependency and language reference access.
 	Sources *Sources
+
 	// Authorizer rechecks human command identity and current write permission.
 	Authorizer *commands.Authorizer
 }

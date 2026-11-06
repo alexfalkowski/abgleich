@@ -7,6 +7,7 @@ package automerge
 type Config struct {
 	// Dependabot optionally excludes repositories from automatic author-based merging.
 	Dependabot *DependabotConfig `yaml:"dependabot,omitempty" json:"dependabot,omitempty" toml:"dependabot,omitempty" validate:"omitempty"`
+
 	// CompletionCheck names the exact final CI signal for event rebasing; empty leaves rebasing to scheduled sweeps.
 	CompletionCheck string `yaml:"completion_check,omitempty" json:"completion_check,omitempty" toml:"completion_check,omitempty"`
 }

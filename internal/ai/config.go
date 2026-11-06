@@ -10,8 +10,10 @@ import (
 type Config struct {
 	// Client configures the AI HTTP connection independently of GitHub; inference retries remain disabled.
 	Client *client.Config `yaml:"client,omitempty" json:"client,omitempty" toml:"client,omitempty"`
+
 	// OpenAI supplies required credentials and optional endpoint settings for the OpenAI provider.
 	OpenAI *OpenAIConfig `yaml:"openai,omitempty" json:"openai,omitempty" toml:"openai,omitempty" validate:"required"`
+
 	// Provider selects the configured backend; the supported value is openai.
 	Provider string `yaml:"provider,omitempty" json:"provider,omitempty" toml:"provider,omitempty" validate:"required,oneof=openai"`
 }
@@ -21,6 +23,7 @@ type Config struct {
 type OpenAIConfig struct {
 	// APIKey is a required go-service credential source resolved once at startup.
 	APIKey string `yaml:"api_key,omitempty" json:"api_key,omitempty" toml:"api_key,omitempty" validate:"required"`
+
 	// URL overrides the API base URL; empty uses https://api.openai.com/v1/.
 	URL string `yaml:"url,omitempty" json:"url,omitempty" toml:"url,omitempty" validate:"omitempty,http_url"`
 }

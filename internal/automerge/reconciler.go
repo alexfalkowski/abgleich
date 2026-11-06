@@ -86,7 +86,7 @@ func (r *Reconciler) reconcileRepository(ctx context.Context, repository *github
 			return errors.Join(failures, context.Cause(ctx))
 		}
 
-		if !r.eligibleForAutomation(repository, pull) {
+		if r.matchingStrategy(repository, pull) == nil {
 			continue
 		}
 
@@ -108,7 +108,8 @@ func (r *Reconciler) reconcilePullRequest(ctx context.Context, repository *githu
 		return err
 	}
 
-	if !r.eligibleForAutomation(repository, pull) {
+	selected := r.matchingStrategy(repository, pull)
+	if selected == nil {
 		return nil
 	}
 
@@ -116,27 +117,21 @@ func (r *Reconciler) reconcilePullRequest(ctx context.Context, repository *githu
 		return err
 	}
 
+	if rebase, ok := selected.(*strategy.Rebase); ok && waitForCI {
+		return rebase.ReconcileAfterChecks(ctx, repository, pull, r.config.GetCompletionCheck())
+	}
+
+	return selected.Reconcile(ctx, repository, pull)
+}
+
+func (r *Reconciler) matchingStrategy(repository *github.Repository, pull *github.PullRequest) strategy.Strategy {
 	for _, s := range r.strategies {
 		if s.Matches(repository, pull) {
-			if rebase, ok := s.(*strategy.Rebase); ok && waitForCI {
-				return rebase.ReconcileAfterChecks(ctx, repository, pull, r.config.GetCompletionCheck())
-			}
-
-			return s.Reconcile(ctx, repository, pull)
+			return s
 		}
 	}
 
 	return nil
-}
-
-func (r *Reconciler) eligibleForAutomation(repository *github.Repository, pull *github.PullRequest) bool {
-	for _, s := range r.strategies {
-		if s.Matches(repository, pull) {
-			return true
-		}
-	}
-
-	return false
 }
 
 func eligibleRepository(repository *github.Repository) bool {

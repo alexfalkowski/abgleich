@@ -8,29 +8,35 @@ import (
 	"github.com/alexfalkowski/go-service/v2/strings"
 )
 
-func (c *Command) submitReview(ctx context.Context, task *reviewTask, publication *github.PullRequestReviewRequest) error {
+func (c *Command) submitReview(ctx context.Context, task *reviewTask, reply *reviewReply) error {
 	task, err := c.recheck(ctx, task)
 	if err != nil || task == nil {
 		return err
 	}
 
-	if publication.GetEvent() == "APPROVE" {
+	if reply.Event == "APPROVE" {
 		blocked, err := c.otherReviewRequestsChanges(ctx, task)
 		if err != nil {
 			return err
 		}
 		if blocked {
-			publication.Event = new("COMMENT")
-			publication.Body = new(strings.ReplaceAll(publication.GetBody(), "**Decision:** Approve.",
-				"**Decision:** Comment. Approval withheld because the other review still requests changes."))
+			reply.Event = "COMMENT"
+			reply.Decision = "Comment. Approval withheld because the other review still requests changes."
 		}
+	}
+
+	body, err := render("review.md.tmpl", reply)
+	if err != nil {
+		return c.reportFailure(ctx, task, "Result validation", err)
 	}
 
 	if err := ctx.Err(); err != nil {
 		return err
 	}
 
-	return c.github.AddReview(ctx, task.repository, task.pullRequest, publication)
+	return c.github.AddReview(ctx, task.repository, task.pullRequest, &github.PullRequestReviewRequest{
+		Body: new(body), Comments: reply.Comments, Event: new(reply.Event),
+	})
 }
 
 func (c *Command) otherReviewRequestsChanges(ctx context.Context, task *reviewTask) (bool, error) {

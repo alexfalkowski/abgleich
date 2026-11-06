@@ -19,12 +19,16 @@ import (
 type Definition struct {
 	// Name is the exact /ab command suffix and the successful result namespace.
 	Name string
+
 	// Title labels the review in published replies and failure feedback.
 	Title string
+
 	// Model selects the provider model for this feature's review conversations.
 	Model string
+
 	// Instructions supplies the feature-owned review prompt.
 	Instructions string
+
 	// ReasoningEffort optionally selects provider reasoning effort; empty leaves its default.
 	ReasoningEffort string
 }

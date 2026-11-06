@@ -16,8 +16,10 @@ const (
 type Config struct {
 	// Exclude lists exact, case-sensitive branch names that cleanup must preserve.
 	Exclude []string `yaml:"exclude,omitempty" json:"exclude,omitempty" toml:"exclude,omitempty" validate:"dive,required"`
+
 	// InactiveAfter sets the minimum latest-commit age for inactive deletion; zero uses thirty days.
 	InactiveAfter time.Duration `yaml:"inactive_after,omitempty" json:"inactive_after,omitempty" toml:"inactive_after,omitempty" validate:"omitempty,gt=0"`
+
 	// Config provides job timing; cleanup defaults to a daily interval and five-minute timeout.
 	scheduler.Config `yaml:",inline" json:",inline" toml:",inline"`
 }
