@@ -12,13 +12,6 @@ import (
 	"github.com/google/go-github/v93/github"
 )
 
-// Client supplies installation access to the worker and webhook. The private
-// application client uses JWT authentication to validate installation ownership.
-type Client struct {
-	installation *github.Client
-	application  *github.Client
-}
-
 // NewClient reads the App key once at startup. Missing or empty sources and
 // invalid RSA PEMs prevent startup; replacement requires a restart. Signing and
 // installation token renewal are handled by ghinstallation. Construction makes
@@ -61,6 +54,13 @@ func NewClient(cfg *Config, fs *os.FS, conn *http.Client) (*Client, error) {
 	}
 
 	return &Client{installation: installation, application: application}, nil
+}
+
+// Client supplies installation access to the worker and webhook. The private
+// application client uses JWT authentication to validate installation ownership.
+type Client struct {
+	installation *github.Client
+	application  *github.Client
 }
 
 // GitHub rejects Hookshot user agents on API requests. Clear the inbound

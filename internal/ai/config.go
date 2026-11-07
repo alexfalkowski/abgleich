@@ -18,16 +18,6 @@ type Config struct {
 	Provider string `yaml:"provider,omitempty" json:"provider,omitempty" toml:"provider,omitempty" validate:"required,oneof=openai"`
 }
 
-// OpenAIConfig supplies a go-service API key source read once at startup. URL
-// optionally overrides https://api.openai.com/v1/ for compatible endpoints.
-type OpenAIConfig struct {
-	// APIKey is a required go-service credential source resolved once at startup.
-	APIKey string `yaml:"api_key,omitempty" json:"api_key,omitempty" toml:"api_key,omitempty" validate:"required"`
-
-	// URL overrides the API base URL; empty uses https://api.openai.com/v1/.
-	URL string `yaml:"url,omitempty" json:"url,omitempty" toml:"url,omitempty" validate:"omitempty,http_url"`
-}
-
 // IsEnabled reports whether AI configuration is present.
 func (c *Config) IsEnabled() bool {
 	return c != nil
@@ -42,6 +32,16 @@ func (c *Config) GetTimeout() time.Duration {
 	}
 
 	return time.Minute
+}
+
+// OpenAIConfig supplies a go-service API key source read once at startup. URL
+// optionally overrides https://api.openai.com/v1/ for compatible endpoints.
+type OpenAIConfig struct {
+	// APIKey is a required go-service credential source resolved once at startup.
+	APIKey string `yaml:"api_key,omitempty" json:"api_key,omitempty" toml:"api_key,omitempty" validate:"required"`
+
+	// URL overrides the API base URL; empty uses https://api.openai.com/v1/.
+	URL string `yaml:"url,omitempty" json:"url,omitempty" toml:"url,omitempty" validate:"omitempty,http_url"`
 }
 
 // GetURL returns the API base URL, defaulting to the OpenAI Responses endpoint.
