@@ -1,8 +1,6 @@
 package workflow
 
 import (
-	"fmt"
-
 	"github.com/alexfalkowski/abgleich/internal/ai"
 	"github.com/alexfalkowski/abgleich/internal/commands"
 	"github.com/alexfalkowski/abgleich/internal/github"
@@ -67,7 +65,7 @@ func (f *Factory) NewCommand(definition Definition) (*Command, error) {
 	}
 
 	if f.provider == nil {
-		return nil, errors.New(definition.Name + ": requires AI configuration")
+		return nil, errors.Prefix(definition.Name, errors.New("requires AI configuration"))
 	}
 
 	command := &Command{
@@ -78,7 +76,7 @@ func (f *Factory) NewCommand(definition Definition) (*Command, error) {
 		publication:  f.publication,
 		queue:        commands.NewQueue(),
 		authorizer:   f.authorizer,
-		staleMessage: fmt.Sprintf("🔄 The pull request revision changed. Post a new /ab %s request.", definition.Name),
+		staleMessage: strings.Concat("🔄 The pull request revision changed. Post a new /ab ", definition.Name, " request."),
 	}
 	f.commands = append(f.commands, command)
 	return command, nil
@@ -102,7 +100,7 @@ func (f *Factory) Handle(ctx context.Context, event *github.IssueCommentEvent) (
 			allAccepted = false
 		}
 		if err != nil {
-			failures = errors.Join(failures, fmt.Errorf("%s: %w", command.definition.Name, err))
+			failures = errors.Join(failures, errors.Prefix(command.definition.Name, err))
 		}
 	}
 

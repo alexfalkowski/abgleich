@@ -1,12 +1,13 @@
 package workflow
 
 import (
-	"fmt"
 	"regexp"
+	"strconv"
 
 	"github.com/alexfalkowski/abgleich/internal/github"
 	"github.com/alexfalkowski/go-service/v2/context"
 	"github.com/alexfalkowski/go-service/v2/errors"
+	"github.com/alexfalkowski/go-service/v2/strings"
 )
 
 var reviewThreadMarker = regexp.MustCompile(`(?m)^<!-- abgleich:([a-z]+):v2:[a-f0-9]{64} -->$`)
@@ -24,7 +25,7 @@ func (c *Command) reconcileThreads(ctx context.Context) error {
 		}
 
 		if err := c.reconcileRepositoryThreads(ctx, repository); err != nil {
-			failures = errors.Join(failures, fmt.Errorf("review: repository %s: %w", repository.GetFullName(), err))
+			failures = errors.Join(failures, errors.Prefix(strings.Concat("review: repository ", repository.GetFullName()), err))
 			if github.IsRateLimited(err) || ctx.Err() != nil {
 				return failures
 			}
@@ -49,7 +50,7 @@ func (c *Command) reconcileRepositoryThreads(ctx context.Context, repository *gi
 			return errors.Join(failures, err)
 		}
 		if err := c.reconcilePullThreads(ctx, repository, pull); err != nil {
-			failures = errors.Join(failures, fmt.Errorf("review: pull request #%d: %w", pull.GetNumber(), err))
+			failures = errors.Join(failures, errors.Prefix(strings.Concat("review: pull request #", strconv.Itoa(pull.GetNumber())), err))
 			if github.IsRateLimited(err) || ctx.Err() != nil {
 				return failures
 			}
@@ -80,7 +81,7 @@ func (c *Command) reconcilePullThreads(ctx context.Context, repository *github.R
 			continue
 		}
 		if err := c.resolveThread(ctx, repository, pull, thread); err != nil {
-			failures = errors.Join(failures, fmt.Errorf("review: thread %s: %w", thread.ID, err))
+			failures = errors.Join(failures, errors.Prefix(strings.Concat("review: thread ", thread.ID), err))
 			if github.IsRateLimited(err) || ctx.Err() != nil {
 				return failures
 			}

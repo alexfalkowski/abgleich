@@ -1,12 +1,13 @@
 package automerge
 
 import (
-	"fmt"
+	"strconv"
 
 	"github.com/alexfalkowski/abgleich/internal/automerge/internal/strategy"
 	"github.com/alexfalkowski/abgleich/internal/github"
 	"github.com/alexfalkowski/go-service/v2/context"
 	"github.com/alexfalkowski/go-service/v2/errors"
+	"github.com/alexfalkowski/go-service/v2/strings"
 )
 
 // NewReconciler constructs owner-wide reconciliation using strategies in the
@@ -41,7 +42,7 @@ func (r *Reconciler) Reconcile(ctx context.Context) error {
 		}
 
 		if err := r.reconcileRepository(ctx, repository, false); err != nil {
-			failures = errors.Join(failures, fmt.Errorf("automerge: repository %s: %w", repository.GetFullName(), err))
+			failures = errors.Join(failures, errors.Prefix(strings.Concat("automerge: repository ", repository.GetFullName()), err))
 
 			if github.IsRateLimited(err) || ctx.Err() != nil {
 				return failures
@@ -91,7 +92,7 @@ func (r *Reconciler) reconcileRepository(ctx context.Context, repository *github
 		}
 
 		if err := r.reconcilePullRequest(ctx, repository, pull.GetNumber(), waitForCI); err != nil {
-			failures = errors.Join(failures, fmt.Errorf("automerge: pull request #%d: %w", pull.GetNumber(), err))
+			failures = errors.Join(failures, errors.Prefix(strings.Concat("automerge: pull request #", strconv.Itoa(pull.GetNumber())), err))
 
 			if github.IsRateLimited(err) || ctx.Err() != nil {
 				return failures

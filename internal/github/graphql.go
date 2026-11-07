@@ -21,7 +21,7 @@ type Errors []struct {
 func (e Errors) Validate() error {
 	var failures error
 	for _, failure := range e {
-		failures = errors.Join(failures, errors.New("github: "+failure.Message))
+		failures = errors.Join(failures, errors.Prefix("github", errors.New(failure.Message)))
 
 		if failure.Type == "RATE_LIMITED" || rateLimitMessage(failure.Message) {
 			failures = errors.Join(failures, ErrRateLimited)

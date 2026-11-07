@@ -2,8 +2,11 @@ package scheduler
 
 import (
 	"fmt"
+	"strconv"
 
 	"github.com/alexfalkowski/go-service/v2/context"
+	"github.com/alexfalkowski/go-service/v2/errors"
+	"github.com/alexfalkowski/go-service/v2/strings"
 	"github.com/alexfalkowski/go-service/v2/telemetry/logger"
 	"github.com/alexfalkowski/go-service/v2/time"
 	"github.com/alexfalkowski/go-sync"
@@ -65,7 +68,7 @@ func (s *Scheduler) RegisterTriggered(name string, cfg Schedule, handler Trigger
 func (s *Scheduler) Start(ctx context.Context) error {
 	for _, job := range s.jobs {
 		if err := job.Start(ctx); err != nil {
-			return fmt.Errorf("scheduler: start job %q: %w", job.name, err)
+			return errors.Prefix(strings.Concat("scheduler: start job ", strconv.Quote(job.name)), err)
 		}
 	}
 
@@ -86,7 +89,7 @@ func (s *Scheduler) Stop(ctx context.Context) error {
 	for _, job := range s.jobs {
 		group.Go(func() error {
 			if err := job.Stop(ctx); err != nil {
-				return fmt.Errorf("scheduler: stop job %q: %w", job.name, err)
+				return errors.Prefix(strings.Concat("scheduler: stop job ", strconv.Quote(job.name)), err)
 			}
 
 			return nil

@@ -35,7 +35,7 @@ func (s *sourceSession) goReference(ctx context.Context, manifest string) (strin
 
 	content, err := s.sources.reference(ctx, version)
 	if err != nil {
-		return strings.Empty, errors.New("review: " + label)
+		return strings.Empty, errors.Prefix("review", errors.New(label))
 	}
 	content = strings.Concat("Declared Go language: ", version, ". Official release notes (untrusted reference data):\n", content)
 
