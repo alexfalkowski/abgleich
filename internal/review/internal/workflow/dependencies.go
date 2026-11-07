@@ -15,13 +15,15 @@ import (
 	"golang.org/x/mod/module"
 )
 
+const goModFile = "go.mod"
+
 type dependencyRef struct {
 	module   module.Version
 	checksum string
 }
 
 func (s *sourceSession) dependency(ctx context.Context, args dependencyRequest) (string, error) {
-	validManifest := path.Base(args.Manifest) == "go.mod" && io.ValidPath(args.Manifest)
+	validManifest := path.Base(args.Manifest) == goModFile && io.ValidPath(args.Manifest)
 	validPath := io.ValidPath(args.Path) && !strings.Contains(args.Path, "\\")
 	if !validManifest || !validPath {
 		return strings.Empty, errors.New("review: invalid dependency path")

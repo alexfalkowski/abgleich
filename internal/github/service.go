@@ -180,7 +180,7 @@ type Service interface {
 // Shared source retention uses ttlcache only; other backends are bypassed.
 func NewService(cfg *Config, cacheCfg *config.Config, client *Client, log *logger.Logger) Service {
 	var remote Service = &service{config: cfg, client: client}
-	if cacheCfg.IsEnabled() && cacheCfg.Kind == "ttlcache" {
+	if cacheCfg.IsEnabled() && cacheCfg.Kind == cacheKind {
 		remote = &cachingService{Service: remote}
 	}
 	return &loggingService{Service: remote, logger: log}
@@ -278,7 +278,7 @@ func (s *service) GetRepository(ctx context.Context, repo *Repository) (*Reposit
 func (s *service) ListOpenPullRequests(ctx context.Context, repo *Repository) ([]*PullRequest, error) {
 	var pulls []*PullRequest
 	seen := make(map[int]bool)
-	opts := &github.PullRequestListOptions{State: "open", Sort: "created", Direction: "asc", PerPage: pageSize}
+	opts := &github.PullRequestListOptions{State: PullOpen, Sort: "created", Direction: "asc", PerPage: pageSize}
 
 	for {
 		page, response, err := s.client.installation.PullRequests.List(ctx, repo.GetOwner().GetLogin(), repo.GetName(), opts)
@@ -341,7 +341,7 @@ func (s *service) Compare(ctx context.Context, repo *Repository, base, head stri
 // repository rules. HTTP success without a confirmed merge is an error.
 func (s *service) Merge(ctx context.Context, repo *Repository, pull *PullRequest) error {
 	result, _, err := s.client.installation.PullRequests.Merge(ctx, repo.GetOwner().GetLogin(), repo.GetName(), pull.GetNumber(),
-		strings.Empty, &github.PullRequestOptions{SHA: pull.GetHead().GetSHA(), MergeMethod: "squash"})
+		strings.Empty, &github.PullRequestOptions{SHA: pull.GetHead().GetSHA(), MergeMethod: squashMethod})
 	if err != nil {
 		return errors.Prefix("github: merge", err)
 	}

@@ -5,31 +5,58 @@ import (
 	"github.com/alexfalkowski/go-service/v2/errors"
 )
 
+const (
+	stageSource     = "Source collection"
+	stageGeneration = "AI generation"
+	stageResult     = "Result validation"
+)
+
+// reviewFailure supplies failure reply data with exported fields for template access.
 type reviewFailure struct {
-	Provider  *ai.GenerationError
-	Title     string
-	Command   string
-	Model     string
-	HeadSHA   string
-	BaseSHA   string
-	Stage     string
-	Reason    string
-	Recovery  string
+	// Provider supplies safe provider diagnostics; nil omits provider details.
+	Provider *ai.GenerationError
+
+	// Title labels the review feature in the failure heading and request link.
+	Title string
+
+	// Command is the exact /ab suffix shown when requesting another review.
+	Command string
+
+	// Model identifies the configured model for the failed review attempt.
+	Model string
+
+	// HeadSHA identifies the pull request head revision associated with the failure.
+	HeadSHA string
+
+	// BaseSHA identifies the pull request base revision associated with the failure.
+	BaseSHA string
+
+	// Stage names the workflow phase that failed.
+	Stage string
+
+	// Reason explains the failure without exposing the underlying error text.
+	Reason string
+
+	// Recovery tells the maintainer what to check before requesting another review.
+	Recovery string
+
+	// RequestID identifies the authorizing comment linked from the failure reply.
 	RequestID int64
 }
 
 func (c *Command) failureReply(task *reviewTask, stage string, err error) (string, error) {
 	failure := reviewFailure{
-		Title: c.definition.Title, Command: c.definition.Name, Model: c.definition.Model,
-		RequestID: task.commandComment.GetID(), HeadSHA: task.pullRequest.GetHead().GetSHA(), BaseSHA: task.pullRequest.GetBase().GetSHA(),
+		Title: c.profile.Title, Command: c.profile.Name, Model: c.profile.Model,
+		RequestID: task.comment.GetID(), HeadSHA: task.request.GetHead().GetSHA(), BaseSHA: task.request.GetBase().GetSHA(),
 		Stage: stage, Reason: "The review conversation could not finish.",
 		Recovery: "Check the worker logs for source lookup or authorization failures.",
 	}
+
 	switch stage {
-	case "Source collection":
+	case stageSource:
 		failure.Reason = "The pull request source could not be collected or validated."
 		failure.Recovery = "Check GitHub availability, App source permissions, and source validation errors in the worker logs."
-	case "Result validation":
+	case stageResult:
 		failure.Reason = "The model returned an unreadable or invalid review result."
 		failure.Recovery = "Check the model's review output format before requesting another review."
 	}
@@ -37,5 +64,6 @@ func (c *Command) failureReply(task *reviewTask, stage string, err error) (strin
 		failure.Provider = provider
 		failure.Reason, failure.Recovery = provider.Reason, provider.Recovery
 	}
+
 	return render("failure.md.tmpl", failure)
 }

@@ -5,29 +5,41 @@ import (
 	"github.com/alexfalkowski/go-service/v2/errors"
 )
 
+const (
+	actionMerge  = "merge"
+	actionEnable = "enable"
+	actionRebase = "rebase"
+)
+
 // Reason identifies the evidence or limit behind a strategy decision.
 type Reason string
 
-const (
-	// ReasonDependabotExcluded requires explicit opt-in instead of author-based automation.
-	ReasonDependabotExcluded Reason = "dependabot_excluded"
-	// ReasonReadyToMerge permits optional check failures when GitHub reports mergeability.
-	ReasonReadyToMerge Reason = "ready_to_merge"
-	// ReasonPendingRequirements leaves merge requirements to GitHub.
-	ReasonPendingRequirements Reason = "pending_requirements"
-	// ReasonSquashMergeDisabled prevents choosing another merge method.
-	ReasonSquashMergeDisabled Reason = "squash_merge_disabled"
-	// ReasonLabelAuthorizationRevoked includes absent or ambiguous applications.
-	ReasonLabelAuthorizationRevoked Reason = "label_authorization_revoked"
-	// ReasonHistoryUnavailable prevents inferring label authorization.
-	ReasonHistoryUnavailable Reason = "history_unavailable"
-	// ReasonComparisonUnavailable prevents inferring branch freshness.
-	ReasonComparisonUnavailable Reason = "comparison_unavailable"
-	// ReasonBranchCurrent means the comparison found no missing base commits.
-	ReasonBranchCurrent Reason = "branch_current"
-	// ReasonBranchBehind means the comparison found missing base commits.
-	ReasonBranchBehind Reason = "branch_behind"
-)
+// ReasonDependabotExcluded requires explicit opt-in instead of author-based automation.
+const ReasonDependabotExcluded Reason = "dependabot_excluded"
+
+// ReasonReadyToMerge permits optional check failures when GitHub reports mergeability.
+const ReasonReadyToMerge Reason = "ready_to_merge"
+
+// ReasonPendingRequirements leaves merge requirements to GitHub.
+const ReasonPendingRequirements Reason = "pending_requirements"
+
+// ReasonSquashMergeDisabled prevents choosing another merge method.
+const ReasonSquashMergeDisabled Reason = "squash_merge_disabled"
+
+// ReasonLabelAuthorizationRevoked includes absent or ambiguous applications.
+const ReasonLabelAuthorizationRevoked Reason = "label_authorization_revoked"
+
+// ReasonHistoryUnavailable prevents inferring label authorization.
+const ReasonHistoryUnavailable Reason = "history_unavailable"
+
+// ReasonComparisonUnavailable prevents inferring branch freshness.
+const ReasonComparisonUnavailable Reason = "comparison_unavailable"
+
+// ReasonBranchCurrent means the comparison found no missing base commits.
+const ReasonBranchCurrent Reason = "branch_current"
+
+// ReasonBranchBehind means the comparison found missing base commits.
+const ReasonBranchBehind Reason = "branch_behind"
 
 // Decision records a selected policy and its evidence without report wording.
 // Action is merge, enable, rebase, or empty when no operation is justified.
@@ -44,17 +56,17 @@ type Decision struct {
 
 // IsMerge reports whether the decision calls for an immediate merge.
 func (d Decision) IsMerge() bool {
-	return d.Action == "merge"
+	return d.Action == actionMerge
 }
 
 // IsEnable reports whether the decision calls for enabling squash auto-merge.
 func (d Decision) IsEnable() bool {
-	return d.Action == "enable"
+	return d.Action == actionEnable
 }
 
 // IsRebase reports whether the decision calls for a server-side rebase.
 func (d Decision) IsRebase() bool {
-	return d.Action == "rebase"
+	return d.Action == actionRebase
 }
 
 func decideMerge(repository *github.Repository, pull *github.PullRequest) (Decision, error) {
@@ -63,8 +75,8 @@ func decideMerge(repository *github.Repository, pull *github.PullRequest) (Decis
 	}
 
 	if readyToMerge(pull) {
-		return Decision{Action: "merge", Reason: ReasonReadyToMerge}, nil
+		return Decision{Action: actionMerge, Reason: ReasonReadyToMerge}, nil
 	}
 
-	return Decision{Action: "enable", Reason: ReasonPendingRequirements}, nil
+	return Decision{Action: actionEnable, Reason: ReasonPendingRequirements}, nil
 }

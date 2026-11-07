@@ -30,7 +30,7 @@ func (s *service) AddComment(ctx context.Context, repo *Repository, number int, 
 
 // IsAppComment uses API attribution rather than a user-controlled login or marker.
 func (s *service) IsAppComment(comment *IssueComment) bool {
-	return comment.GetUser().GetType() == "Bot" &&
+	return comment.GetUser().GetType() == UserBot &&
 		comment.GetPerformedViaGithubApp().GetID() == s.config.App.ID
 }
 

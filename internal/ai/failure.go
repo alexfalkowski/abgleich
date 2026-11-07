@@ -9,6 +9,36 @@ import (
 	"github.com/alexfalkowski/go-service/v2/errors"
 	"github.com/alexfalkowski/go-service/v2/net/http"
 	"github.com/openai/openai-go/v3"
+	"github.com/openai/openai-go/v3/responses"
+)
+
+const (
+	codeContextLimit      = "context_length_exceeded"
+	codeInvalidReasoning  = "invalid_encrypted_content"
+	codeInvalidKey        = "invalid_api_key"
+	codeModelNotFound     = "model_not_found"
+	codeRateLimit         = string(responses.ResponseErrorCodeRateLimitExceeded)
+	codeInsufficientQuota = "insufficient_quota"
+	codeBillingLimit      = "billing_hard_limit_reached"
+	codeServerError       = string(responses.ResponseErrorCodeServerError)
+	codeServerOverloaded  = "server_is_overloaded"
+	codeSlowDown          = "slow_down"
+	codeOrgSpendLimit     = "organization_spend_limit_exceeded"
+	codeProjectSpendLimit = "project_spend_limit_exceeded"
+	codeOrgUsageLimit     = "organization_usage_limit_exceeded"
+	codeInvalidPrompt     = string(responses.ResponseErrorCodeInvalidPrompt)
+	codeContentFilter     = "content_filter"
+	codeMaxOutputTokens   = "max_output_tokens"
+	codeMaxMessages       = "max_messages"
+)
+
+const (
+	typeInvalidRequest    = "invalid_request_error"
+	typeAuthentication    = "authentication_error"
+	typePermission        = "permission_error"
+	typeRateLimit         = "rate_limit_error"
+	typeServer            = "server_error"
+	typeInsufficientQuota = "insufficient_quota"
 )
 
 var providerRequestID = regexp.MustCompile(`^req_[a-fA-F0-9]{32}$`)
@@ -24,7 +54,8 @@ func requestFailure(err error) *GenerationError {
 		failure.Code = knownProviderCode(response.Code)
 
 		switch response.Type {
-		case "invalid_request_error", "authentication_error", "permission_error", "rate_limit_error", "server_error", "insufficient_quota":
+		case typeInvalidRequest, typeAuthentication, typePermission,
+			typeRateLimit, typeServer, typeInsufficientQuota:
 			failure.Type = response.Type
 		}
 		if response.Response != nil {
@@ -111,13 +142,14 @@ func (f *GenerationError) classifyHTTP() {
 
 func (f *GenerationError) classifyCode() {
 	switch f.Code {
-	case "context_length_exceeded":
+	case codeContextLimit:
 		f.Reason = "The supplied source exceeded the model's context window."
 		f.Recovery = "Use a smaller contribution or a model with sufficient context capacity."
-	case "insufficient_quota", "billing_hard_limit_reached", "organization_spend_limit_exceeded", "project_spend_limit_exceeded", "organization_usage_limit_exceeded":
+	case codeInsufficientQuota, codeBillingLimit, codeOrgSpendLimit,
+		codeProjectSpendLimit, codeOrgUsageLimit:
 		f.Reason = "The AI project's quota or spending limit was reached."
 		f.Recovery = "Check the provider project's available quota and spending limits."
-	case "invalid_encrypted_content":
+	case codeInvalidReasoning:
 		f.Reason = "The AI provider rejected the conversation's encrypted reasoning state."
 		f.Recovery = "Check the provider's stateless conversation handling and the worker's conversation diagnostics."
 	}
@@ -126,10 +158,12 @@ func (f *GenerationError) classifyCode() {
 func knownProviderCode(code string) string {
 	// These are protocol identifiers, never arbitrary provider text echoed from input.
 	switch code {
-	case "context_length_exceeded", "invalid_encrypted_content", "invalid_api_key", "model_not_found",
-		"rate_limit_exceeded", "insufficient_quota", "billing_hard_limit_reached", "server_error",
-		"server_is_overloaded", "slow_down", "organization_spend_limit_exceeded", "project_spend_limit_exceeded",
-		"organization_usage_limit_exceeded", "invalid_prompt", "content_filter", "max_output_tokens", "max_messages":
+	case codeContextLimit, codeInvalidReasoning, codeInvalidKey,
+		codeModelNotFound, codeRateLimit, codeInsufficientQuota,
+		codeBillingLimit, codeServerError, codeServerOverloaded,
+		codeSlowDown, codeOrgSpendLimit, codeProjectSpendLimit,
+		codeOrgUsageLimit, codeInvalidPrompt, codeContentFilter,
+		codeMaxOutputTokens, codeMaxMessages:
 		return code
 	default:
 		return ""

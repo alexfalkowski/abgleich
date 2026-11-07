@@ -7,6 +7,18 @@ import (
 	"github.com/google/go-github/v93/github"
 )
 
+// StatusSuccess identifies a completed successful commit status.
+const StatusSuccess = "success"
+
+// StatusFailure identifies a completed failing commit status.
+const StatusFailure = "failure"
+
+// StatusError identifies a completed commit status reporting an error.
+const StatusError = "error"
+
+// CheckCompleted identifies a finished check run, independently of its conclusion.
+const CheckCompleted = "completed"
+
 // ListCheckRuns reads all latest check runs for an immutable head SHA. Missing
 // pages, inconsistent totals, and checks for another revision reject the result.
 func (s *service) ListCheckRuns(ctx context.Context, repo *Repository, sha string) ([]*CheckRun, error) {

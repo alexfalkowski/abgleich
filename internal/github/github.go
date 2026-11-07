@@ -2,6 +2,12 @@ package github
 
 import "github.com/google/go-github/v93/github"
 
+// UserBot identifies a bot account in GitHub author metadata.
+const UserBot = "Bot"
+
+// UserHuman identifies a human account in GitHub author metadata.
+const UserHuman = "User"
+
 // Repository aliases [github.Repository] to keep SDK imports in this package.
 type Repository = github.Repository
 

@@ -79,16 +79,16 @@ func (d *Dispatcher) acknowledgeReceipt(ctx context.Context, event *github.Issue
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	d.react(ctx, event, "eyes")
+	d.react(ctx, event, github.ReactionEyes)
 }
 
 func (d *Dispatcher) reportOutcome(ctx context.Context, event *github.IssueCommentEvent, accepted bool) {
 	var reaction string
 
 	if accepted {
-		reaction = "+1"
+		reaction = github.ReactionThumbsUp
 	} else {
-		reaction = "confused"
+		reaction = github.ReactionConfused
 	}
 
 	d.react(ctx, event, reaction)

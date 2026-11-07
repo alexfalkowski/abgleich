@@ -8,10 +8,16 @@ import (
 )
 
 const (
-	staleMessage           = "🔄 The pull request revision changed. Post a new /ab summarise request."
-	failureMessage         = "❌ Summary failed. Post a new /ab summarise request after recovery."
-	summaryOutputTokens    = 2048
-	inferenceBudgetDivisor = 2
+	staleMessage   = "🔄 The pull request revision changed. Post a new /ab summarise request."
+	failureMessage = "❌ Summary failed. Post a new /ab summarise request after recovery."
+)
+
+const (
+	summaryOutputTokens = 2048
+
+	// inferenceTimeoutDivisor limits inference to half the remaining job time,
+	// leaving time for final checks and publication.
+	inferenceTimeoutDivisor = 2
 )
 
 func (c *Command) process(ctx context.Context, task *summaryTask) error {
@@ -29,9 +35,9 @@ func (c *Command) process(ctx context.Context, task *summaryTask) error {
 		return err
 	}
 
-	budget := time.Minute
+	inferenceTimeout := time.Minute
 	if deadline, ok := ctx.Deadline(); ok {
-		budget = min(budget, time.Until(deadline)/inferenceBudgetDivisor)
+		inferenceTimeout = min(inferenceTimeout, time.Until(deadline)/inferenceTimeoutDivisor)
 	}
 
 	completion, err := c.provider.Generate(ctx, ai.Prompt{
@@ -40,7 +46,7 @@ func (c *Command) process(ctx context.Context, task *summaryTask) error {
 		Instructions:    instructions,
 		Input:           input,
 		MaxOutputTokens: summaryOutputTokens,
-		Timeout:         budget,
+		Timeout:         inferenceTimeout,
 	})
 	if err != nil {
 		return c.reportFailure(ctx, task, err)

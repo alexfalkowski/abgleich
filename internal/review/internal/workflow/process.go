@@ -9,7 +9,9 @@ import (
 	"github.com/alexfalkowski/go-sync"
 )
 
-const inferenceBudgetDivisor = 2
+// inferenceTimeoutDivisor limits inference to half the remaining job time,
+// leaving time for final checks and publication.
+const inferenceTimeoutDivisor = 2
 
 var errReviewStopped = errors.New("review: no further processing is required")
 
@@ -43,16 +45,16 @@ func (c *Command) process(ctx context.Context, task *reviewTask) error {
 
 	review, err := c.context(ctx, task)
 	if err != nil {
-		return c.reportFailure(ctx, task, "Source collection", err)
+		return c.reportFailure(ctx, task, stageSource, err)
 	}
 
 	return c.generateReview(ctx, task, review)
 }
 
 func (c *Command) generateReview(ctx context.Context, task *reviewTask, review *reviewContext) error {
-	budget := time.Minute
+	inferenceTimeout := time.Minute
 	if deadline, ok := ctx.Deadline(); ok {
-		budget = time.Until(deadline) / inferenceBudgetDivisor
+		inferenceTimeout = time.Until(deadline) / inferenceTimeoutDivisor
 	}
 
 	needsSubmissionCheck := true
@@ -77,14 +79,14 @@ func (c *Command) generateReview(ctx context.Context, task *reviewTask, review *
 
 	tools := sourceTools{session: review.source, beforeLookup: guard}
 	completion, err := c.provider.Generate(ctx, ai.Prompt{
-		Task:            c.definition.Name,
-		Model:           c.definition.Model,
-		ReasoningEffort: c.definition.ReasoningEffort,
-		Instructions:    c.definition.Instructions,
+		Task:            c.profile.Name,
+		Model:           c.profile.Model,
+		ReasoningEffort: c.profile.ReasoningEffort,
+		Instructions:    c.profile.Instructions,
 		Input:           review.input,
 		Tools:           tools.definitions(),
 		BeforeRequest:   guard,
-		Timeout:         budget,
+		Timeout:         inferenceTimeout,
 	})
 	// Return submission-check errors directly: feedback may already have been
 	// published, including after an ambiguous response.
@@ -95,7 +97,7 @@ func (c *Command) generateReview(ctx context.Context, task *reviewTask, review *
 		return nil
 	}
 	if err != nil {
-		return c.reportFailure(ctx, task, "AI generation", err)
+		return c.reportFailure(ctx, task, stageGeneration, err)
 	}
 
 	if err := ctx.Err(); err != nil {
@@ -108,7 +110,7 @@ func (c *Command) generateReview(ctx context.Context, task *reviewTask, review *
 func (c *Command) publishReview(ctx context.Context, task *reviewTask, completion *ai.Completion, review *reviewContext) error {
 	reply, err := c.reply(task, completion, review)
 	if err != nil {
-		return c.reportFailure(ctx, task, "Result validation", err)
+		return c.reportFailure(ctx, task, stageResult, err)
 	}
 
 	result := make(chan error, 1)
@@ -136,7 +138,7 @@ func (c *Command) recheck(ctx context.Context, task *reviewTask) (*reviewTask, e
 	}
 
 	if c.revisionChanged(task, current) {
-		return nil, c.publish(ctx, task, c.staleMessage)
+		return nil, c.publish(ctx, task, c.staleMessage())
 	}
 
 	exists, err := c.hasReview(ctx, current, comments)
@@ -179,7 +181,7 @@ func (c *Command) publish(ctx context.Context, task *reviewTask, body string) er
 	}
 
 	if c.revisionChanged(task, current) {
-		body = c.staleMessage
+		body = c.staleMessage()
 	}
 
 	exists, err := c.hasReview(ctx, current, comments)
@@ -191,7 +193,7 @@ func (c *Command) publish(ctx context.Context, task *reviewTask, body string) er
 		return err
 	}
 
-	return c.github.AddComment(ctx, current.repository, current.pullRequest.GetNumber(), body)
+	return c.github.AddComment(ctx, current.repository, current.request.GetNumber(), body)
 }
 
 // Cancellation feedback requires fresh consent, but permits closed and draft PRs.
@@ -216,7 +218,7 @@ func (c *Command) publishCancellation(ctx context.Context, task *reviewTask) err
 		return err
 	}
 
-	return c.github.AddComment(ctx, current.repository, current.pullRequest.GetNumber(), body)
+	return c.github.AddComment(ctx, current.repository, current.request.GetNumber(), body)
 }
 
 func (c *Command) authorizeCancellation(ctx context.Context, task *reviewTask) (*reviewTask, []*github.IssueComment, error) {
@@ -229,21 +231,21 @@ func (c *Command) authorizeCancellation(ctx context.Context, task *reviewTask) (
 		return nil, nil, err
 	}
 
-	pull, err := c.github.GetPullRequest(ctx, repo, task.pullRequest.GetNumber())
+	pull, err := c.github.GetPullRequest(ctx, repo, task.request.GetNumber())
 	if err != nil {
 		return nil, nil, err
 	}
 
-	if !c.github.IsSamePullRequestIdentity(repo, pull, task.pullRequest) {
+	if !c.github.IsSamePullRequestIdentity(repo, pull, task.request) {
 		return nil, nil, errors.New("review: pull request identity changed before cancellation")
 	}
 
-	comment, comments, err := c.authorizer.AuthorizeWithHistory(ctx, c.requestCommand(task), repo, pull.GetNumber(), task.commandComment)
+	comment, comments, err := c.authorizer.AuthorizeWithHistory(ctx, c.requestCommand(task), repo, pull.GetNumber(), task.comment)
 	if err != nil || comment == nil {
 		return nil, nil, err
 	}
 
-	return &reviewTask{repository: repo, pullRequest: pull, commandComment: comment}, comments, nil
+	return &reviewTask{repository: repo, request: pull, comment: comment}, comments, nil
 }
 
 // reportFailure preserves the operation error and skips feedback after cancellation.

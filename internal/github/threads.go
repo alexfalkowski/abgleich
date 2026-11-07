@@ -6,6 +6,12 @@ import (
 	"github.com/alexfalkowski/go-service/v2/strings"
 )
 
+const (
+	graphQLOpen   = "OPEN"
+	graphQLClosed = "CLOSED"
+	graphQLMerged = "MERGED"
+)
+
 // ReviewThread contains the state and authenticated ownership needed to maintain
 // an existing conversation. IsAppAuthor requires both its root and parent review.
 type ReviewThread struct {
@@ -28,11 +34,12 @@ type ReviewThread struct {
 	IsAppAuthor bool
 }
 
-// reviewThreadFields keeps discovery and final rechecks on the same evidence.
-// Only the root comment is needed: viewerDidAuthor on it and its parent review
-// authenticates App ownership, while the review body identifies the feature's
-// result namespace. Replies do not affect maintenance eligibility.
-const reviewThreadFields = `
+const (
+	// reviewThreadFields keeps discovery and final rechecks on the same evidence.
+	// Only the root comment is needed: viewerDidAuthor on it and its parent review
+	// authenticates App ownership, while the review body identifies the feature's
+	// result namespace. Replies do not affect maintenance eligibility.
+	reviewThreadFields = `
  id isOutdated isResolved viewerCanResolve
  pullRequest { id number state repository { nameWithOwner } }
  comments(first: 1) {
@@ -45,10 +52,10 @@ const reviewThreadFields = `
    }
  }`
 
-// reviewThreadsQuery pages through a PR's inline conversations by PR node ID.
-// Parent identities prevent accepting threads from another PR or repository;
-// pageInfo lets the caller finish discovery before resolving any thread.
-const reviewThreadsQuery = `query PullRequestReviewThreads($id: ID!, $after: String) {
+	// reviewThreadsQuery pages through a PR's inline conversations by PR node ID.
+	// Parent identities prevent accepting threads from another PR or repository;
+	// pageInfo lets the caller finish discovery before resolving any thread.
+	reviewThreadsQuery = `query PullRequestReviewThreads($id: ID!, $after: String) {
  node(id: $id) {
    ... on PullRequest {
      id number state repository { nameWithOwner }
@@ -60,20 +67,21 @@ const reviewThreadsQuery = `query PullRequestReviewThreads($id: ID!, $after: Str
  }
 }`
 
-// reviewThreadQuery refreshes one candidate by thread node ID before resolution.
-// The shared fields recheck ownership, outdated/resolved state, permission,
-// and whether the parent PR is still open.
-const reviewThreadQuery = `query PullRequestReviewThread($id: ID!) {
+	// reviewThreadQuery refreshes one candidate by thread node ID before resolution.
+	// The shared fields recheck ownership, outdated/resolved state, permission,
+	// and whether the parent PR is still open.
+	reviewThreadQuery = `query PullRequestReviewThread($id: ID!) {
  node(id: $id) { ... on PullRequestReviewThread { ` + reviewThreadFields + ` } }
 }`
 
-// resolveReviewThreadMutation returns the thread ID and resolved state so the
-// service can confirm acceptance. GitHub has no expected-state guard; callers
-// refresh eligibility beforehand, but a change after that read can still race.
-// https://docs.github.com/en/graphql/reference/pulls#resolvereviewthread
-const resolveReviewThreadMutation = `mutation ResolveReviewThread($input: ResolveReviewThreadInput!) {
+	// resolveReviewThreadMutation returns the thread ID and resolved state so the
+	// service can confirm acceptance. GitHub has no expected-state guard; callers
+	// refresh eligibility beforehand, but a change after that read can still race.
+	// https://docs.github.com/en/graphql/reference/pulls#resolvereviewthread
+	resolveReviewThreadMutation = `mutation ResolveReviewThread($input: ResolveReviewThreadInput!) {
  resolveReviewThread(input: $input) { thread { id isResolved } }
 }`
+)
 
 // ListReviewThreads reads complete pagination and only the root of each thread.
 func (s *service) ListReviewThreads(ctx context.Context, repo *Repository, pull *PullRequest) ([]*ReviewThread, error) {
@@ -134,7 +142,7 @@ func (s *service) GetReviewThread(ctx context.Context, repo *Repository, pull *P
 		return nil, errors.New("github: review thread returned a different identity")
 	}
 
-	if wire.PullRequest.State != "OPEN" {
+	if wire.PullRequest.State != graphQLOpen {
 		return nil, nil
 	}
 
@@ -312,7 +320,7 @@ func (p *threadPullRequest) matches(repo *Repository, pull *PullRequest) bool {
 	sameNodeID := p.ID == pull.GetNodeID()
 	sameNumber := p.Number == pull.GetNumber()
 	sameRepository := strings.ToLower(p.Repository.NameWithOwner) == strings.ToLower(repo.GetFullName())
-	validState := p.State == "OPEN" || p.State == "CLOSED" || p.State == "MERGED"
+	validState := p.State == graphQLOpen || p.State == graphQLClosed || p.State == graphQLMerged
 
 	return sameNodeID && sameNumber && sameRepository && validState
 }
@@ -358,7 +366,7 @@ func (n *reviewThreadNode) snapshot() *ReviewThread {
 	review := root.Review
 	return &ReviewThread{
 		ID: n.ID, ReviewBody: *review.Body, IsOutdated: *n.IsOutdated, IsResolved: *n.IsResolved, ViewerCanResolve: *n.ViewerCanResolve,
-		IsAppAuthor: *root.ViewerDidAuthor && *review.ViewerDidAuthor && root.Author.Type == "Bot" && review.Author.Type == "Bot",
+		IsAppAuthor: *root.ViewerDidAuthor && *review.ViewerDidAuthor && root.Author.Type == UserBot && review.Author.Type == UserBot,
 	}
 }
 

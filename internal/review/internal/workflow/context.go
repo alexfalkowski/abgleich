@@ -12,16 +12,16 @@ import (
 
 // context owns the reviewed files, rendered input, and request-local source session.
 func (c *Command) context(ctx context.Context, task *reviewTask) (*reviewContext, error) {
-	files, err := c.github.ListPullRequestFiles(ctx, task.repository, task.pullRequest)
+	files, err := c.github.ListPullRequestFiles(ctx, task.repository, task.request)
 	if err != nil {
 		return nil, err
 	}
 
 	review := &reviewContext{
-		Title:       task.pullRequest.GetTitle(),
-		Description: task.pullRequest.GetBody(),
-		HeadSHA:     task.pullRequest.GetHead().GetSHA(),
-		BaseSHA:     task.pullRequest.GetBase().GetSHA(),
+		Title:       task.request.GetTitle(),
+		Description: task.request.GetBody(),
+		HeadSHA:     task.request.GetHead().GetSHA(),
+		BaseSHA:     task.request.GetBase().GetSHA(),
 		Files:       files,
 	}
 	input, err := render("context.txt.tmpl", review)
@@ -33,8 +33,8 @@ func (c *Command) context(ctx context.Context, task *reviewTask) (*reviewContext
 		github:     c.github,
 		sources:    c.sources,
 		repository: task.repository,
-		headSHA:    task.pullRequest.GetHead().GetSHA(),
-		baseSHA:    task.pullRequest.GetBase().GetSHA(),
+		headSHA:    task.request.GetHead().GetSHA(),
+		baseSHA:    task.request.GetBase().GetSHA(),
 		files:      make(map[string]string),
 		trees:      make(map[string][]*github.TreeEntry),
 		archives:   make(map[string]*zip.Reader),
@@ -61,7 +61,7 @@ type reviewContext struct {
 func (r *reviewContext) completeSource(ctx context.Context) (string, error) {
 	var headFiles, baseFiles []string
 	for _, file := range r.Files {
-		if file.GetStatus() == "removed" {
+		if file.GetStatus() == github.FileRemoved {
 			baseFiles = append(baseFiles, file.GetFilename())
 		} else {
 			headFiles = append(headFiles, file.GetFilename())
@@ -80,7 +80,7 @@ func (r *reviewContext) completeSource(ctx context.Context) (string, error) {
 
 	var source strings.Builder
 	for _, file := range r.Files {
-		base := file.GetStatus() == "removed"
+		base := file.GetStatus() == github.FileRemoved
 		revision := r.HeadSHA
 		contents := headSource
 		if base {

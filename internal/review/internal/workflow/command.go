@@ -16,10 +16,10 @@ import (
 // ReviewCommand is the exact /ab suffix authorizing all configured review features.
 const ReviewCommand = "review"
 
-// Definition supplies the identity, model, and instructions for
+// ReviewProfile supplies the identity, model, and instructions for
 // one review command. Feature packages own these values and registration.
 // Name is the exact /ab command suffix and the persisted result namespace.
-type Definition struct {
+type ReviewProfile struct {
 	// Name is the exact /ab command suffix and the successful result namespace.
 	Name string
 
@@ -37,22 +37,21 @@ type Definition struct {
 }
 
 type reviewTask struct {
-	repository     *github.Repository
-	pullRequest    *github.PullRequest
-	commandComment *github.IssueComment
+	repository *github.Repository
+	request    *github.PullRequest
+	comment    *github.IssueComment
 }
 
 // Command owns shared review consent, revision checks, deduplication, and queued
 // work. Each instance has independent state; successful results retain its name.
 type Command struct {
-	definition   Definition
-	github       github.Service
-	provider     ai.Provider
-	sources      *Sources
-	publication  *sync.Worker
-	queue        *commands.Queue
-	authorizer   *commands.Authorizer
-	staleMessage string
+	github      github.Service
+	provider    ai.Provider
+	sources     *Sources
+	publication *sync.Worker
+	queue       *commands.Queue
+	authorizer  *commands.Authorizer
+	profile     ReviewProfile
 }
 
 // Handle refreshes human consent and queues one revision-specific review. A full
@@ -64,9 +63,9 @@ func (c *Command) Handle(ctx context.Context, event *github.IssueCommentEvent) (
 	}
 
 	task, comments, err := c.authorize(ctx, &reviewTask{
-		repository:     event.GetRepo(),
-		pullRequest:    &github.PullRequest{Number: event.GetIssue().Number},
-		commandComment: event.GetComment(),
+		repository: event.GetRepo(),
+		request:    &github.PullRequest{Number: event.GetIssue().Number},
+		comment:    event.GetComment(),
 	})
 	if err != nil || task == nil {
 		return false, err
@@ -97,37 +96,37 @@ func (c *Command) authorize(ctx context.Context, task *reviewTask) (*reviewTask,
 		return nil, nil, err
 	}
 
-	pull, err := c.github.GetPullRequest(ctx, repo, task.pullRequest.GetNumber())
+	pull, err := c.github.GetPullRequest(ctx, repo, task.request.GetNumber())
 	if err != nil {
 		return nil, nil, err
 	}
 
-	if pull.GetNumber() != task.pullRequest.GetNumber() || !c.eligible(repo, pull) {
+	if pull.GetNumber() != task.request.GetNumber() || !c.eligible(repo, pull) {
 		return nil, nil, nil
 	}
 
-	comment, comments, err := c.authorizer.AuthorizeWithHistory(ctx, c.requestCommand(task), repo, pull.GetNumber(), task.commandComment)
+	comment, comments, err := c.authorizer.AuthorizeWithHistory(ctx, c.requestCommand(task), repo, pull.GetNumber(), task.comment)
 	if err != nil || comment == nil {
 		return nil, nil, err
 	}
 
 	return &reviewTask{
-		repository:     repo,
-		pullRequest:    pull,
-		commandComment: comment,
+		repository: repo,
+		request:    pull,
+		comment:    comment,
 	}, comments, nil
 }
 
 // Preserve the original command across all consent rechecks, including cancellation.
 func (c *Command) requestCommand(task *reviewTask) string {
-	if commands.Parse(task.commandComment.GetBody()) == ReviewCommand {
+	if commands.Parse(task.comment.GetBody()) == ReviewCommand {
 		return ReviewCommand
 	}
-	return c.definition.Name
+	return c.profile.Name
 }
 
 func (c *Command) eligible(repo *github.Repository, pull *github.PullRequest) bool {
-	return pull.GetState() == "open" &&
+	return pull.GetState() == github.PullOpen &&
 		!pull.GetDraft() &&
 		c.github.IsSameRepository(repo, pull) &&
 		!strings.IsEmpty(pull.GetBase().GetSHA()) &&
@@ -135,8 +134,8 @@ func (c *Command) eligible(repo *github.Repository, pull *github.PullRequest) bo
 }
 
 func (c *Command) revisionChanged(expected, current *reviewTask) bool {
-	return !c.github.IsSamePullRequest(current.pullRequest, expected.pullRequest) ||
-		current.pullRequest.GetBase().GetSHA() != expected.pullRequest.GetBase().GetSHA()
+	return !c.github.IsSamePullRequest(current.request, expected.request) ||
+		current.request.GetBase().GetSHA() != expected.request.GetBase().GetSHA()
 }
 
 func (c *Command) hasReview(ctx context.Context, task *reviewTask, comments []*github.IssueComment) (bool, error) {
@@ -151,7 +150,7 @@ func (c *Command) hasReview(ctx context.Context, task *reviewTask, comments []*g
 }
 
 func (c *Command) hasNativeReview(ctx context.Context, task *reviewTask, marker string) (bool, error) {
-	reviews, err := c.github.ListReviews(ctx, task.repository, task.pullRequest)
+	reviews, err := c.github.ListReviews(ctx, task.repository, task.request)
 	if err != nil {
 		return false, err
 	}
@@ -159,7 +158,7 @@ func (c *Command) hasNativeReview(ctx context.Context, task *reviewTask, marker 
 	var candidates []*github.PullRequestReview
 	for _, review := range reviews {
 		switch review.GetState() {
-		case "COMMENTED", "APPROVED", "CHANGES_REQUESTED", "DISMISSED":
+		case github.ReviewCommented, github.ReviewApproved, github.ReviewChangesRequested, github.ReviewDismissed:
 		default:
 			continue
 		}
@@ -173,12 +172,12 @@ func (c *Command) hasNativeReview(ctx context.Context, task *reviewTask, marker 
 
 func (c *Command) resultMarker(task *reviewTask) string {
 	identity := strings.Join("\n",
-		c.definition.Name,
+		c.profile.Name,
 		strings.ToLower(task.repository.GetFullName()),
-		strconv.Itoa(task.pullRequest.GetNumber()),
-		task.pullRequest.GetNodeID(),
-		task.pullRequest.GetHead().GetSHA(),
-		task.pullRequest.GetBase().GetSHA(),
+		strconv.Itoa(task.request.GetNumber()),
+		task.request.GetNodeID(),
+		task.request.GetHead().GetSHA(),
+		task.request.GetBase().GetSHA(),
 	)
-	return fmt.Sprintf("<!-- abgleich:%s:v2:%x -->", c.definition.Name, sha256.Sum256(strings.Bytes(identity)))
+	return fmt.Sprintf("<!-- abgleich:%s:v2:%x -->", c.profile.Name, sha256.Sum256(strings.Bytes(identity)))
 }

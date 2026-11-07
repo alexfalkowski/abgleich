@@ -7,10 +7,15 @@ import (
 	"github.com/alexfalkowski/go-service/v2/time"
 )
 
-// Alias GraphQL fields onto SDK issue events. AutoMergeDisabledEvent is exposed
-// by GraphQL, so REST issue events alone cannot preserve a disabled auto-merge.
-// https://docs.github.com/en/graphql/reference/pulls#automergedisabledevent
-const automationEventsQuery = `query PullRequestAutomationEvents($id: ID!, $after: String) {
+const (
+	eventLabeled           = "LabeledEvent"
+	eventUnlabeled         = "UnlabeledEvent"
+	eventAutoMergeDisabled = "AutoMergeDisabledEvent"
+
+	// Alias GraphQL fields onto SDK issue events. AutoMergeDisabledEvent is exposed
+	// by GraphQL, so REST issue events alone cannot preserve a disabled auto-merge.
+	// https://docs.github.com/en/graphql/reference/pulls#automergedisabledevent
+	automationEventsQuery = `query PullRequestAutomationEvents($id: ID!, $after: String) {
   node(id: $id) {
     ... on PullRequest {
       id
@@ -27,6 +32,7 @@ const automationEventsQuery = `query PullRequestAutomationEvents($id: ID!, $afte
     }
   }
 }`
+)
 
 // LatestAutomationEventTimes returns the latest label application, removal, and
 // auto-merge disable timestamps, in that order. Missing events return zero times.
@@ -39,17 +45,17 @@ func LatestAutomationEventTimes(events []*IssueEvent, label string) (time.Time, 
 		occurredAt := event.GetCreatedAt().Time
 
 		switch event.GetEvent() {
-		case "LabeledEvent":
+		case eventLabeled:
 			if event.GetLabel().GetName() == label && occurredAt.After(labeledAt) {
 				labeledAt = occurredAt
 			}
 
-		case "UnlabeledEvent":
+		case eventUnlabeled:
 			if event.GetLabel().GetName() == label && occurredAt.After(removedAt) {
 				removedAt = occurredAt
 			}
 
-		case "AutoMergeDisabledEvent":
+		case eventAutoMergeDisabled:
 			if occurredAt.After(disabledAt) {
 				disabledAt = occurredAt
 			}
@@ -167,11 +173,11 @@ func validateAutomationEvents(events []*IssueEvent) error {
 		}
 
 		switch event.GetEvent() {
-		case "LabeledEvent", "UnlabeledEvent":
+		case eventLabeled, eventUnlabeled:
 			if strings.IsEmpty(event.GetLabel().GetName()) {
 				return errors.New("github: automation event is missing its label")
 			}
-		case "AutoMergeDisabledEvent":
+		case eventAutoMergeDisabled:
 		default:
 			return errors.New("github: automation event has an unexpected type")
 		}

@@ -7,11 +7,16 @@ import (
 	"github.com/google/go-github/v93/github"
 )
 
-// updateRefs supports deleting a reference while checking its previous OID.
-// https://docs.github.com/en/graphql/reference/git#updaterefs
-const deleteBranchMutation = `mutation DeleteBranch($input: UpdateRefsInput!) {
+const (
+	branchPrefix = "refs/heads/"
+	deletedOID   = "0000000000000000000000000000000000000000"
+
+	// updateRefs supports deleting a reference while checking its previous OID.
+	// https://docs.github.com/en/graphql/reference/git#updaterefs
+	deleteBranchMutation = `mutation DeleteBranch($input: UpdateRefsInput!) {
   updateRefs(input: $input) { clientMutationId }
 }`
+)
 
 // ListBranches finishes pagination and rejects missing protection/head metadata.
 func (s *service) ListBranches(ctx context.Context, repo *Repository) ([]*Branch, error) {
@@ -146,7 +151,7 @@ func (s *service) DeleteBranch(ctx context.Context, repo *Repository, branch *Br
 	input.RepositoryID = repo.GetNodeID()
 	input.ClientMutationID = strings.Concat(repo.GetNodeID(), ":", branch.GetName(), ":", branch.GetCommit().GetSHA())
 	input.RefUpdates = []RefUpdate{
-		{Name: "refs/heads/" + branch.GetName(), BeforeOID: branch.GetCommit().GetSHA(), AfterOID: "0000000000000000000000000000000000000000"},
+		{Name: branchPrefix + branch.GetName(), BeforeOID: branch.GetCommit().GetSHA(), AfterOID: deletedOID},
 	}
 
 	var response UpdateRefsResponse
@@ -163,7 +168,7 @@ func (s *service) validateBranchPullRequest(repo *Repository, branch string, pul
 	}
 
 	if !s.IsSameRepository(repo, pull) || pull.GetHead().GetRef() != branch ||
-		(pull.GetState() != "open" && pull.GetState() != "closed") {
+		(pull.GetState() != PullOpen && pull.GetState() != PullClosed) {
 		return errors.New("github: branch pull request returned mismatched metadata")
 	}
 

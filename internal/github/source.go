@@ -15,6 +15,18 @@ import (
 	"github.com/google/go-github/v93/github"
 )
 
+// TreeBlob identifies a blob entry; its mode still determines whether it is a regular file.
+const TreeBlob = "blob"
+
+// TreeDirectory identifies a directory entry in a repository tree.
+const TreeDirectory = "tree"
+
+const (
+	modeRegular    = "100644"
+	modeExecutable = "100755"
+	blobType       = "Blob"
+)
+
 func (s *service) ReadSourceFiles(ctx context.Context, repo *Repository, revision string, files []*TreeEntry) (map[string]string, error) {
 	payload, err := newSourceFilesRequest(repo, revision, files)
 	if err != nil {
@@ -52,7 +64,7 @@ func (s *service) ListSourceFiles(ctx context.Context, repo *Repository, revisio
 // IsRegularSourceFile reports whether an entry identifies a regular-file blob.
 // Directories, symlinks, and submodules are not followed or read as source files.
 func IsRegularSourceFile(entry *TreeEntry) bool {
-	return entry.GetType() == "blob" && (entry.GetMode() == "100644" || entry.GetMode() == "100755")
+	return entry.GetType() == TreeBlob && (entry.GetMode() == modeRegular || entry.GetMode() == modeExecutable)
 }
 
 func newSourceFilesRequest(repo *Repository, revision string, files []*TreeEntry) (*sourceFilesRequest, error) {
@@ -174,12 +186,12 @@ func decodeSourceBlob(blob *sourceBlob, expectedSHA string) (string, error) {
 }
 
 func regularSourceBlob(blob *sourceBlob) bool {
-	return blob != nil && blob.GetType() == "Blob" && blob.Content != nil && blob.Size != nil &&
+	return blob != nil && blob.GetType() == blobType && blob.Content != nil && blob.Size != nil &&
 		blob.Binary != nil && !*blob.Binary && blob.Truncated != nil && !*blob.Truncated
 }
 
 func binarySourceBlob(blob *sourceBlob, expectedSHA string) bool {
-	return blob != nil && blob.GetType() == "Blob" && blob.GetSHA() == expectedSHA && blob.Binary != nil && *blob.Binary
+	return blob != nil && blob.GetType() == blobType && blob.GetSHA() == expectedSHA && blob.Binary != nil && *blob.Binary
 }
 
 func sourceFiles(tree *github.Tree) ([]*TreeEntry, error) {
