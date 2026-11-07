@@ -212,6 +212,30 @@ type ReviewThreadsResponse struct {
 	Errors Errors `json:"errors"`
 }
 
+func (r *ReviewThreadsResponse) validate(repo *Repository, pull *PullRequest) error {
+	if err := r.Errors.Validate(); err != nil {
+		return err
+	}
+
+	node := r.Data.Node
+	if node == nil || !node.matches(repo, pull) {
+		return errors.New("github: review threads returned no matching pull request")
+	}
+
+	page := node.ReviewThreads
+	if page.Nodes == nil || page.PageInfo.HasNextPage == nil {
+		return errors.New("github: review threads returned an incomplete page")
+	}
+	if *page.PageInfo.HasNextPage {
+		cursor := page.PageInfo.EndCursor
+		if cursor == nil || strings.IsEmpty(*cursor) {
+			return errors.New("github: review threads returned no next cursor")
+		}
+	}
+
+	return nil
+}
+
 // ReviewThreadRequest queries one review thread by its node ID.
 type ReviewThreadRequest struct {
 	// Query contains the GraphQL operation submitted with these variables.
@@ -273,30 +297,6 @@ type ResolveReviewThreadResponse struct {
 
 	// Errors retains GraphQL failures even when the HTTP response succeeds.
 	Errors Errors `json:"errors"`
-}
-
-func (r *ReviewThreadsResponse) validate(repo *Repository, pull *PullRequest) error {
-	if err := r.Errors.Validate(); err != nil {
-		return err
-	}
-
-	node := r.Data.Node
-	if node == nil || !node.matches(repo, pull) {
-		return errors.New("github: review threads returned no matching pull request")
-	}
-
-	page := node.ReviewThreads
-	if page.Nodes == nil || page.PageInfo.HasNextPage == nil {
-		return errors.New("github: review threads returned an incomplete page")
-	}
-	if *page.PageInfo.HasNextPage {
-		cursor := page.PageInfo.EndCursor
-		if cursor == nil || strings.IsEmpty(*cursor) {
-			return errors.New("github: review threads returned no next cursor")
-		}
-	}
-
-	return nil
 }
 
 type threadPullRequest struct {

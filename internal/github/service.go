@@ -11,17 +11,6 @@ import (
 
 const pageSize = 100
 
-// NewService constructs shared worker and webhook access through the App client.
-// Construction does not contact GitHub; each sweep discovers fresh remote state.
-// Shared source retention uses ttlcache only; other backends are bypassed.
-func NewService(cfg *Config, cacheCfg *config.Config, client *Client, log *logger.Logger) Service {
-	var remote Service = &service{config: cfg, client: client}
-	if cacheCfg.IsEnabled() && cacheCfg.Kind == "ttlcache" {
-		remote = &cachingService{Service: remote}
-	}
-	return &loggingService{Service: remote, logger: log}
-}
-
 // Service owns repository discovery, identity checks, REST reads, and guarded
 // mutations. Callers own pull request eligibility, rebase, and merge policy.
 type Service interface {
@@ -184,6 +173,17 @@ type Service interface {
 	// Merge squash-merges a ready pull request, guarded by its head SHA.
 	// A rejected or unconfirmed merge fails without retrying.
 	Merge(ctx context.Context, repo *Repository, pull *PullRequest) error
+}
+
+// NewService constructs shared worker and webhook access through the App client.
+// Construction does not contact GitHub; each sweep discovers fresh remote state.
+// Shared source retention uses ttlcache only; other backends are bypassed.
+func NewService(cfg *Config, cacheCfg *config.Config, client *Client, log *logger.Logger) Service {
+	var remote Service = &service{config: cfg, client: client}
+	if cacheCfg.IsEnabled() && cacheCfg.Kind == "ttlcache" {
+		remote = &cachingService{Service: remote}
+	}
+	return &loggingService{Service: remote, logger: log}
 }
 
 type service struct {

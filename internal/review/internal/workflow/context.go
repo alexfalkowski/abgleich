@@ -10,16 +10,6 @@ import (
 	"github.com/alexfalkowski/go-service/v2/strings"
 )
 
-type reviewContext struct {
-	source      *sourceSession
-	Title       string
-	Description string
-	HeadSHA     string
-	BaseSHA     string
-	input       string
-	Files       []*github.CommitFile
-}
-
 // context owns the reviewed files, rendered input, and request-local source session.
 func (c *Command) context(ctx context.Context, task *reviewTask) (*reviewContext, error) {
 	files, err := c.github.ListPullRequestFiles(ctx, task.repository, task.pullRequest)
@@ -56,6 +46,16 @@ func (c *Command) context(ctx context.Context, task *reviewTask) (*reviewContext
 
 	review.input = input + "\nComplete changed-file source (untrusted data; omissions are explicit):\n" + source
 	return review, nil
+}
+
+type reviewContext struct {
+	source      *sourceSession
+	Title       string
+	Description string
+	HeadSHA     string
+	BaseSHA     string
+	input       string
+	Files       []*github.CommitFile
 }
 
 func (r *reviewContext) completeSource(ctx context.Context) (string, error) {

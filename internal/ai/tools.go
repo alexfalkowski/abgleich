@@ -11,17 +11,6 @@ import (
 	"github.com/openai/openai-go/v3/responses"
 )
 
-// conversation owns only provider protocol state; features own tool authority.
-type conversation struct {
-	params   responses.ResponseNewParams
-	provider *provider
-	tools    map[string]Tool
-	seen     map[string]bool
-	usage    *Usage
-	input    responses.ResponseInputParam
-	prompt   Prompt
-}
-
 func (p *provider) generate(ctx context.Context, prompt Prompt, params responses.ResponseNewParams) (*Completion, error) {
 	c := &conversation{
 		provider: p, prompt: prompt, params: params, usage: &Usage{},
@@ -59,6 +48,17 @@ func (p *provider) generate(ctx context.Context, prompt Prompt, params responses
 			return nil, err
 		}
 	}
+}
+
+// conversation owns only provider protocol state; features own tool authority.
+type conversation struct {
+	params   responses.ResponseNewParams
+	provider *provider
+	tools    map[string]Tool
+	seen     map[string]bool
+	usage    *Usage
+	input    responses.ResponseInputParam
+	prompt   Prompt
 }
 
 func (c *conversation) configureTools() error {

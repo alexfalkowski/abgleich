@@ -12,14 +12,6 @@ type Config struct {
 	CompletionCheck string `yaml:"completion_check,omitempty" json:"completion_check,omitempty" toml:"completion_check,omitempty"`
 }
 
-// DependabotConfig excludes repositories from author-based merge automation.
-// Entries are case-insensitive owner/repository full names. Nil configuration
-// or an empty list preserves automatic enrollment in every opted-in repository.
-type DependabotConfig struct {
-	// Exclude lists case-insensitive owner/repository names requiring explicit merge opt-in.
-	Exclude []string `yaml:"exclude_repositories,omitempty" json:"exclude_repositories,omitempty" toml:"exclude_repositories,omitempty" validate:"dive,required"`
-}
-
 // GetCompletionCheck returns the configured final CI signal, or an empty string
 // when configuration is nil or event-driven rebasing is disabled. Scheduled
 // sweeps do not require this signal.
@@ -39,4 +31,12 @@ func (c *Config) GetDependabotExclusions() []string {
 	}
 
 	return c.Dependabot.Exclude
+}
+
+// DependabotConfig excludes repositories from author-based merge automation.
+// Entries are case-insensitive owner/repository full names. Nil configuration
+// or an empty list preserves automatic enrollment in every opted-in repository.
+type DependabotConfig struct {
+	// Exclude lists case-insensitive owner/repository names requiring explicit merge opt-in.
+	Exclude []string `yaml:"exclude_repositories,omitempty" json:"exclude_repositories,omitempty" toml:"exclude_repositories,omitempty" validate:"dive,required"`
 }
