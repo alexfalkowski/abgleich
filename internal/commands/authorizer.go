@@ -46,7 +46,7 @@ func (a *Authorizer) AuthorizeWithHistory(ctx context.Context, name string, repo
 
 func (a *Authorizer) authorize(ctx context.Context, name string, repo *github.Repository, comment *github.IssueComment) (*github.IssueComment, error) {
 	matchesCommand := Parse(comment.GetBody()) == name
-	isHuman := comment.GetUser().GetType() == "User"
+	isHuman := comment.GetUser().GetType() == github.UserHuman
 	hasMetadata := github.HasCommentMetadata(comment)
 	if !matchesCommand || !isHuman || !hasMetadata {
 		return nil, nil

@@ -8,6 +8,11 @@ import (
 	"github.com/alexfalkowski/go-service/v2/strings"
 )
 
+const (
+	permissionWrite = "write"
+	permissionAdmin = "admin"
+)
+
 // HasLabel reports exact, case-sensitive membership. Nil or empty label lists
 // contain no matching label.
 func HasLabel(labels []*Label, name string) bool {
@@ -76,7 +81,7 @@ func (s *service) HasWritePermission(ctx context.Context, repo *Repository, auth
 		return false, errors.New("github: permissions returned a different author")
 	}
 
-	return permission.GetPermission() == "write" || permission.GetPermission() == "admin", nil
+	return permission.GetPermission() == permissionWrite || permission.GetPermission() == permissionAdmin, nil
 }
 
 // AddLabel accepts success only when the response contains the requested label.

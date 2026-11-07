@@ -7,7 +7,10 @@ import (
 	"github.com/alexfalkowski/go-service/v2/time"
 )
 
-const sourceCacheTTL = 15 * time.Minute
+const (
+	cacheKind      = "ttlcache"
+	sourceCacheTTL = 15 * time.Minute
+)
 
 type cachedSourceFile struct {
 	Content string `json:"content"`

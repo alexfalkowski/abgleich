@@ -6,23 +6,43 @@ import (
 	"github.com/alexfalkowski/go-service/v2/strings"
 )
 
-// GitHub exposes server-side rebases through GraphQL, while the REST branch
-// update only merges. Keep using go-github's authenticated request transport.
-// https://docs.github.com/en/graphql/reference/pulls#updatepullrequestbranch
-const rebaseMutation = `mutation RebasePullRequest($input: UpdatePullRequestBranchInput!) {
+// PullOpen identifies an open pull request in REST responses and filters.
+const PullOpen = "open"
+
+// PullClosed includes merged pull requests in REST responses.
+const PullClosed = "closed"
+
+// MergeableClean indicates that GitHub reports no mergeability blockers.
+const MergeableClean = "clean"
+
+// MergeableUnstable indicates non-passing checks while the pull request remains mergeable.
+const MergeableUnstable = "unstable"
+
+const (
+	updateRebase    = "REBASE"
+	autoMergeSquash = "SQUASH"
+	squashMethod    = "squash"
+)
+
+const (
+	// GitHub exposes server-side rebases through GraphQL, while the REST branch
+	// update only merges. Keep using go-github's authenticated request transport.
+	// https://docs.github.com/en/graphql/reference/pulls#updatepullrequestbranch
+	rebaseMutation = `mutation RebasePullRequest($input: UpdatePullRequestBranchInput!) {
   updatePullRequestBranch(input: $input) {
     pullRequest { id }
   }
 }`
 
-// GitHub enables auto-merge through GraphQL and merges once repository
-// requirements pass. Keep using go-github's authenticated request transport.
-// https://docs.github.com/en/graphql/reference/pulls#enablepullrequestautomerge
-const autoMergeMutation = `mutation EnableAutoMerge($input: EnablePullRequestAutoMergeInput!) {
+	// GitHub enables auto-merge through GraphQL and merges once repository
+	// requirements pass. Keep using go-github's authenticated request transport.
+	// https://docs.github.com/en/graphql/reference/pulls#enablepullrequestautomerge
+	autoMergeMutation = `mutation EnableAutoMerge($input: EnablePullRequestAutoMergeInput!) {
   enablePullRequestAutoMerge(input: $input) {
     pullRequest { id }
   }
 }`
+)
 
 // HasPullRequestNodeID checks the identity required by GraphQL operations.
 // A numeric pull request ID does not substitute for its node ID.
@@ -173,7 +193,7 @@ func (s *service) Rebase(ctx context.Context, pull *PullRequest) error {
 	nodeID := pull.GetNodeID()
 	body := UpdatePullRequestBranchRequest{Query: rebaseMutation}
 	body.Variables.Input = UpdatePullRequestBranchInput{
-		PullRequestID: nodeID, ExpectedHeadOID: pull.GetHead().GetSHA(), UpdateMethod: "REBASE",
+		PullRequestID: nodeID, ExpectedHeadOID: pull.GetHead().GetSHA(), UpdateMethod: updateRebase,
 	}
 
 	var response UpdatePullRequestBranchResponse
@@ -189,7 +209,7 @@ func (s *service) Rebase(ctx context.Context, pull *PullRequest) error {
 func (s *service) EnableAutoMerge(ctx context.Context, pull *PullRequest) error {
 	body := EnablePullRequestAutoMergeRequest{Query: autoMergeMutation}
 	body.Variables.Input = EnablePullRequestAutoMergeInput{
-		PullRequestID: pull.GetNodeID(), ExpectedHeadOID: pull.GetHead().GetSHA(), MergeMethod: "SQUASH",
+		PullRequestID: pull.GetNodeID(), ExpectedHeadOID: pull.GetHead().GetSHA(), MergeMethod: autoMergeSquash,
 	}
 
 	var response EnablePullRequestAutoMergeResponse

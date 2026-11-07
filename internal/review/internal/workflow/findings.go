@@ -8,6 +8,13 @@ import (
 	"github.com/bluekeyes/go-gitdiff/gitdiff"
 )
 
+const (
+	severityP0 = "P0"
+	severityP1 = "P1"
+	severityP2 = "P2"
+	severityP3 = "P3"
+)
+
 type reviewResult struct {
 	Complete *bool           `json:"complete"`
 	Overview string          `json:"overview"`
@@ -28,7 +35,7 @@ type reviewFinding struct {
 // canPlaceInline reports whether the finding's location is present on the requested side of GitHub's patch.
 // Missing patches and uncertain locations keep the finding in the overview.
 func (f *reviewFinding) canPlaceInline(files []*github.CommitFile) bool {
-	if f.Line <= 0 || (f.Side != "LEFT" && f.Side != "RIGHT") {
+	if f.Line <= 0 || (f.Side != github.DiffLeft && f.Side != github.DiffRight) {
 		return false
 	}
 
@@ -51,7 +58,7 @@ func patchContainsLine(patch string, lineNumber int, side string) bool {
 	for _, file := range files {
 		for _, fragment := range file.TextFragments {
 			start, count := fragment.NewPosition, fragment.NewLines
-			if side == "LEFT" {
+			if side == github.DiffLeft {
 				start, count = fragment.OldPosition, fragment.OldLines
 			}
 			if line >= start && line < start+count {
@@ -74,7 +81,7 @@ func parseResult(text string) (*reviewResult, error) {
 
 	for _, finding := range result.Findings {
 		switch finding.Severity {
-		case "P0", "P1", "P2", "P3":
+		case severityP0, severityP1, severityP2, severityP3:
 		default:
 			return nil, errors.New("review: finding requires a severity from P0 to P3")
 		}

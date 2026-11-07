@@ -7,6 +7,9 @@ import (
 	"github.com/google/go-github/v93/github"
 )
 
+// FileRemoved identifies a changed file whose source must be read at the base revision.
+const FileRemoved = "removed"
+
 // ListPullRequestFiles requires complete pagination and a file count matching
 // the supplied pull request snapshot.
 func (s *service) ListPullRequestFiles(ctx context.Context, repo *Repository, pull *PullRequest) ([]*CommitFile, error) {

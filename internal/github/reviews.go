@@ -10,6 +10,33 @@ import (
 	"github.com/google/go-github/v93/github"
 )
 
+// ReviewComment submits feedback without approving or requesting changes.
+const ReviewComment = "COMMENT"
+
+// ReviewApprove submits an approving review.
+const ReviewApprove = "APPROVE"
+
+// ReviewRequestChanges submits findings that request changes.
+const ReviewRequestChanges = "REQUEST_CHANGES"
+
+// ReviewCommented identifies submitted feedback without a verdict.
+const ReviewCommented = "COMMENTED"
+
+// ReviewApproved identifies a submitted approval.
+const ReviewApproved = "APPROVED"
+
+// ReviewChangesRequested identifies a submitted request for changes.
+const ReviewChangesRequested = "CHANGES_REQUESTED"
+
+// ReviewDismissed identifies a review dismissed after submission.
+const ReviewDismissed = "DISMISSED"
+
+// DiffLeft places a finding on the base side of a pull request patch.
+const DiffLeft = "LEFT"
+
+// DiffRight places a finding on the head side of a pull request patch.
+const DiffRight = "RIGHT"
+
 // Native REST reviews omit performed_via_github_app. Authenticated GraphQL
 // authorship identifies this installation without trusting a login or body marker.
 const reviewAuthorsQuery = `query PullRequestReviewAuthors($ids: [ID!]!) {
@@ -19,9 +46,9 @@ const reviewAuthorsQuery = `query PullRequestReviewAuthors($ids: [ID!]!) {
 }`
 
 var reviewStates = map[string]string{
-	"COMMENT":         "COMMENTED",
-	"APPROVE":         "APPROVED",
-	"REQUEST_CHANGES": "CHANGES_REQUESTED",
+	ReviewComment:        ReviewCommented,
+	ReviewApprove:        ReviewApproved,
+	ReviewRequestChanges: ReviewChangesRequested,
 }
 
 // AddReview submits one review pinned to pull's reviewed head. A
@@ -106,7 +133,7 @@ func (s *service) HasAppReview(ctx context.Context, reviews []*PullRequestReview
 func (s *service) AppReviews(ctx context.Context, reviews []*PullRequestReview) ([]*PullRequestReview, error) {
 	var ids []string
 	for _, review := range reviews {
-		if review.GetUser().GetType() == "Bot" {
+		if review.GetUser().GetType() == UserBot {
 			ids = append(ids, review.GetNodeID())
 		}
 	}

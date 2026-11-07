@@ -6,6 +6,11 @@ import (
 	"github.com/alexfalkowski/go-service/v2/errors"
 )
 
+const (
+	dependabotPolicy = "Dependabot"
+	dependabotLogin  = "dependabot[bot]"
+)
+
 var _ Strategy = (*Dependabot)(nil)
 
 // NewDependabot constructs the policy for same-repository Dependabot pull requests.
@@ -39,11 +44,11 @@ func (s *Dependabot) Matches(repository *github.Repository, pull *github.PullReq
 // Assess selects the Dependabot merge action using the same policy as reconciliation.
 func (s *Dependabot) Assess(_ context.Context, repository *github.Repository, pull *github.PullRequest) (Decision, error) {
 	if s.excludesRepository(repository) {
-		return Decision{Policy: "Dependabot", Reason: ReasonDependabotExcluded}, nil
+		return Decision{Policy: dependabotPolicy, Reason: ReasonDependabotExcluded}, nil
 	}
 
 	decision, err := decideMerge(repository, pull)
-	decision.Policy = "Dependabot"
+	decision.Policy = dependabotPolicy
 	return decision, err
 }
 
@@ -90,5 +95,5 @@ func (s *Dependabot) excludesRepository(repository *github.Repository) bool {
 
 // isDependabot identifies the bot by its GitHub login rather than branch naming.
 func isDependabot(pull *github.PullRequest) bool {
-	return pull.GetUser().GetLogin() == "dependabot[bot]"
+	return pull.GetUser().GetLogin() == dependabotLogin
 }

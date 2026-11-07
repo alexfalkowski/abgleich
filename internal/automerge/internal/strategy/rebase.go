@@ -7,6 +7,8 @@ import (
 	"github.com/alexfalkowski/go-service/v2/strings"
 )
 
+const rebasePolicy = "rebase"
+
 var _ Strategy = (*Rebase)(nil)
 
 // NewRebase constructs the policy for keeping auto-merge branches current.
@@ -28,14 +30,14 @@ func (s *Rebase) Matches(repository *github.Repository, pull *github.PullRequest
 func (s *Rebase) Assess(ctx context.Context, repository *github.Repository, pull *github.PullRequest) (Decision, error) {
 	comparison, err := s.github.Compare(ctx, repository, pull.GetBase().GetRef(), pull.GetHead().GetSHA())
 	if err != nil {
-		return Decision{Policy: "rebase", Reason: ReasonComparisonUnavailable}, err
+		return Decision{Policy: rebasePolicy, Reason: ReasonComparisonUnavailable}, err
 	}
 
 	if comparison.GetBehindBy() <= 0 {
-		return Decision{Policy: "rebase", Reason: ReasonBranchCurrent}, nil
+		return Decision{Policy: rebasePolicy, Reason: ReasonBranchCurrent}, nil
 	}
 
-	return Decision{Policy: "rebase", Action: "rebase", Reason: ReasonBranchBehind}, nil
+	return Decision{Policy: rebasePolicy, Action: actionRebase, Reason: ReasonBranchBehind}, nil
 }
 
 // Reconcile compares branch state and rebases only after a fresh identity check.

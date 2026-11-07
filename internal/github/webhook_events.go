@@ -5,6 +5,21 @@ import (
 	"github.com/google/go-github/v93/github"
 )
 
+const (
+	actionOpened            = "opened"
+	actionReopened          = "reopened"
+	actionSynchronize       = "synchronize"
+	actionReadyForReview    = "ready_for_review"
+	actionConvertedToDraft  = "converted_to_draft"
+	actionEdited            = "edited"
+	actionLabeled           = "labeled"
+	actionUnlabeled         = "unlabeled"
+	actionAutoMergeEnabled  = "auto_merge_enabled"
+	actionAutoMergeDisabled = "auto_merge_disabled"
+	actionClosed            = "closed"
+	checkRunCompleted       = "completed"
+)
+
 // Event payloads select work only. Every selected repository is rediscovered
 // before policy is evaluated, including after duplicate or reordered deliveries.
 func (w *Webhook) readEvent(event any) (*Delivery, error) {
@@ -14,24 +29,26 @@ func (w *Webhook) readEvent(event any) (*Delivery, error) {
 
 	case *github.PullRequestEvent:
 		switch event.GetAction() {
-		case "opened", "reopened", "synchronize", "ready_for_review", "converted_to_draft", "edited",
-			"labeled", "unlabeled", "auto_merge_enabled", "auto_merge_disabled", "closed":
+		case actionOpened, actionReopened, actionSynchronize,
+			actionReadyForReview, actionConvertedToDraft, actionEdited,
+			actionLabeled, actionUnlabeled, actionAutoMergeEnabled,
+			actionAutoMergeDisabled, actionClosed:
 			return w.repositoryDelivery(event.GetInstallation(), event.GetRepo())
 		}
 
 	case *github.PushEvent:
-		if strings.HasPrefix(event.GetRef(), "refs/heads/") {
+		if strings.HasPrefix(event.GetRef(), branchPrefix) {
 			return w.repositoryDelivery(event.GetInstallation(), event.GetRepo())
 		}
 
 	case *github.StatusEvent:
 		switch event.GetState() {
-		case "success", "failure", "error":
+		case StatusSuccess, StatusFailure, StatusError:
 			return w.repositoryDelivery(event.GetInstallation(), event.GetRepo())
 		}
 
 	case *github.CheckRunEvent:
-		if event.GetAction() == "completed" {
+		if event.GetAction() == checkRunCompleted {
 			return w.repositoryDelivery(event.GetInstallation(), event.GetRepo())
 		}
 	}

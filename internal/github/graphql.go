@@ -7,6 +7,8 @@ import (
 	"github.com/alexfalkowski/go-service/v2/net/http/media"
 )
 
+const graphQLRateLimited = "RATE_LIMITED"
+
 // Errors contains GraphQL failures that may accompany data even on HTTP success.
 type Errors []struct {
 	// Message contains the failure explanation included in the joined service error.
@@ -23,7 +25,7 @@ func (e Errors) Validate() error {
 	for _, failure := range e {
 		failures = errors.Join(failures, errors.Prefix("github", errors.New(failure.Message)))
 
-		if failure.Type == "RATE_LIMITED" || rateLimitMessage(failure.Message) {
+		if failure.Type == graphQLRateLimited || rateLimitMessage(failure.Message) {
 			failures = errors.Join(failures, ErrRateLimited)
 		}
 	}

@@ -1,6 +1,7 @@
 package summarise
 
 import (
+	"github.com/alexfalkowski/abgleich/internal/github"
 	"github.com/alexfalkowski/go-service/v2/context"
 	"github.com/alexfalkowski/go-service/v2/strings"
 )
@@ -31,7 +32,7 @@ func (c *Command) context(ctx context.Context, task *summaryTask) (string, []cha
 		}
 
 		diff.Files = append(diff.Files, change)
-		if !strings.IsEmpty(change.Patch) && change.Status != "removed" {
+		if !strings.IsEmpty(change.Patch) && change.Status != github.FileRemoved {
 			available = append(available, change)
 		}
 	}

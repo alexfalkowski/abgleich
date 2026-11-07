@@ -10,6 +10,15 @@ import (
 	"github.com/google/go-github/v93/github"
 )
 
+const (
+	eventIssueComment = "issue_comment"
+	eventPullRequest  = "pull_request"
+	eventPush         = "push"
+	eventStatus       = "status"
+	eventCheckRun     = "check_run"
+	commentCreated    = "created"
+)
+
 // ErrIgnoredDelivery identifies a verified event or action with no worker handler.
 var ErrIgnoredDelivery = errors.New("github: delivery does not require processing")
 
@@ -69,7 +78,7 @@ func (w *Webhook) GetTimeout() time.Duration {
 // Read verifies SHA-256 signatures and installation/repository identity before
 // routing supported events. Unknown event types and actions are ignored.
 func (w *Webhook) Read(req *http.Request) (*Delivery, error) {
-	signature := req.Header.Get("X-Hub-Signature-256")
+	signature := req.Header.Get(github.SHA256SignatureHeader)
 	if !strings.HasPrefix(signature, "sha256=") {
 		return nil, status.Error(http.StatusUnauthorized, "github: missing GitHub SHA-256 signature")
 	}
@@ -81,7 +90,7 @@ func (w *Webhook) Read(req *http.Request) (*Delivery, error) {
 
 	kind := github.WebHookType(req)
 	switch kind {
-	case "issue_comment", "pull_request", "push", "status", "check_run":
+	case eventIssueComment, eventPullRequest, eventPush, eventStatus, eventCheckRun:
 	default:
 		return nil, ErrIgnoredDelivery
 	}
@@ -100,7 +109,7 @@ func (w *Webhook) readComment(event *IssueCommentEvent) (*Delivery, error) {
 		return nil, status.Error(http.StatusBadRequest, "github: missing GitHub issue")
 	}
 
-	isNewComment := event.GetAction() == "created"
+	isNewComment := event.GetAction() == commentCreated
 	if !isNewComment || !issue.IsPullRequest() {
 		return nil, ErrIgnoredDelivery
 	}

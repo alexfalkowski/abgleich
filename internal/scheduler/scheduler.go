@@ -12,6 +12,11 @@ import (
 	"github.com/alexfalkowski/go-sync"
 )
 
+const (
+	triggerSchedule = "schedule"
+	triggerQueue    = "queue"
+)
+
 // TriggeredHandler supplies scheduled and queue processing for one job.
 // Both processing methods must observe cancellation and return complete outcomes;
 // the scheduler prevents them from overlapping.
@@ -106,9 +111,9 @@ func (s *Scheduler) register(job *Job) error {
 		}
 	}
 
-	job.handler = s.logHandler(job, job.handler, "schedule")
+	job.handler = s.logHandler(job, job.handler, triggerSchedule)
 	if job.triggered != nil {
-		job.triggered = s.logHandler(job, job.triggered, "queue")
+		job.triggered = s.logHandler(job, job.triggered, triggerQueue)
 	}
 
 	s.jobs = append(s.jobs, job)

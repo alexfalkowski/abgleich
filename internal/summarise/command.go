@@ -132,7 +132,7 @@ func (c *Command) authorize(ctx context.Context, task *summaryTask) (*summaryTas
 }
 
 func (c *Command) eligible(repo *github.Repository, pull *github.PullRequest) bool {
-	return pull.GetState() == "open" &&
+	return pull.GetState() == github.PullOpen &&
 		!pull.GetDraft() &&
 		c.github.IsSameRepository(repo, pull) &&
 		github.ValidatePullRequestMetadata(pull) == nil

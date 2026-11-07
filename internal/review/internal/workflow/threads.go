@@ -118,7 +118,7 @@ func (c *Command) resolveThread(ctx context.Context, repository *github.Reposito
 }
 
 func (c *Command) eligibleForThreadMaintenance(repository *github.Repository, pull *github.PullRequest) bool {
-	return pull.GetState() == "open" && c.github.IsSameRepository(repository, pull)
+	return pull.GetState() == github.PullOpen && c.github.IsSameRepository(repository, pull)
 }
 
 func (c *Command) outdatedThread(thread *github.ReviewThread) bool {
@@ -127,5 +127,5 @@ func (c *Command) outdatedThread(thread *github.ReviewThread) bool {
 	}
 
 	marker := reviewThreadMarker.FindStringSubmatch(thread.ReviewBody)
-	return len(marker) == 2 && marker[1] == c.definition.Name
+	return len(marker) == 2 && marker[1] == c.profile.Name
 }

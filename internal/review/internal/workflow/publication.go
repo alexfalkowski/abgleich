@@ -7,39 +7,44 @@ import (
 	"github.com/alexfalkowski/go-service/v2/strings"
 )
 
+const (
+	codeNamespace     = "codereview"
+	securityNamespace = "secreview"
+)
+
 func (c *Command) submitReview(ctx context.Context, task *reviewTask, reply *reviewReply) error {
 	task, err := c.recheck(ctx, task)
 	if err != nil || task == nil {
 		return err
 	}
 
-	if reply.Event == "APPROVE" {
+	if reply.Event == github.ReviewApprove {
 		blocked, err := c.otherReviewRequestsChanges(ctx, task)
 		if err != nil {
 			return err
 		}
 		if blocked {
-			reply.Event = "COMMENT"
+			reply.Event = github.ReviewComment
 			reply.Decision = "Comment. Approval withheld because the other review still requests changes."
 		}
 	}
 
 	body, err := render("review.md.tmpl", reply)
 	if err != nil {
-		return c.reportFailure(ctx, task, "Result validation", err)
+		return c.reportFailure(ctx, task, stageResult, err)
 	}
 
 	if err := ctx.Err(); err != nil {
 		return err
 	}
 
-	return c.github.AddReview(ctx, task.repository, task.pullRequest, &github.PullRequestReviewRequest{
+	return c.github.AddReview(ctx, task.repository, task.request, &github.PullRequestReviewRequest{
 		Body: new(body), Comments: reply.Comments, Event: new(reply.Event),
 	})
 }
 
 func (c *Command) otherReviewRequestsChanges(ctx context.Context, task *reviewTask) (bool, error) {
-	reviews, err := c.github.ListReviews(ctx, task.repository, task.pullRequest)
+	reviews, err := c.github.ListReviews(ctx, task.repository, task.request)
 	if err != nil {
 		return false, err
 	}
@@ -60,12 +65,12 @@ func (c *Command) otherReviewRequestsChanges(ctx context.Context, task *reviewTa
 	// even when its own approval was withheld to preserve this feature's findings.
 	for _, review := range slices.Backward(reviews) {
 		switch review.GetState() {
-		case "CHANGES_REQUESTED":
+		case github.ReviewChangesRequested:
 			return true, nil
-		case "APPROVED", "DISMISSED":
+		case github.ReviewApproved, github.ReviewDismissed:
 			return false, nil
-		case "COMMENTED":
-			if strings.Contains(review.GetBody(), "\n**Assessment:** No findings.\n") {
+		case github.ReviewCommented:
+			if strings.Contains(review.GetBody(), cleanAssessment) {
 				return false, nil
 			}
 		}
@@ -75,5 +80,5 @@ func (c *Command) otherReviewRequestsChanges(ctx context.Context, task *reviewTa
 
 func (c *Command) hasOtherReviewMarker(review *github.PullRequestReview) bool {
 	marker := reviewThreadMarker.FindStringSubmatch(review.GetBody())
-	return len(marker) == 2 && marker[1] != c.definition.Name && (marker[1] == "codereview" || marker[1] == "secreview")
+	return len(marker) == 2 && marker[1] != c.profile.Name && (marker[1] == codeNamespace || marker[1] == securityNamespace)
 }

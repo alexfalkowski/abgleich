@@ -31,7 +31,7 @@ func checkCompleted(statuses []*github.CommitStatus, checks []*github.CheckRun, 
 
 	for _, status := range statuses {
 		switch status.GetState() {
-		case "success", "failure", "error":
+		case github.StatusSuccess, github.StatusFailure, github.StatusError:
 			completed = completed || status.GetContext() == completionCheck
 		default:
 			return false
@@ -39,7 +39,7 @@ func checkCompleted(statuses []*github.CommitStatus, checks []*github.CheckRun, 
 	}
 
 	for _, check := range checks {
-		if check.GetStatus() != "completed" || strings.IsEmpty(check.GetConclusion()) {
+		if check.GetStatus() != github.CheckCompleted || strings.IsEmpty(check.GetConclusion()) {
 			return false
 		}
 

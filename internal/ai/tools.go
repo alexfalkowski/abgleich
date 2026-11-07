@@ -11,6 +11,13 @@ import (
 	"github.com/openai/openai-go/v3/responses"
 )
 
+const (
+	itemFunctionCall = "function_call"
+	itemMessage      = "message"
+	itemReasoning    = "reasoning"
+	contentText      = "output_text"
+)
+
 func (p *provider) generate(ctx context.Context, prompt Prompt, params responses.ResponseNewParams) (*Completion, error) {
 	c := &conversation{
 		provider: p, prompt: prompt, params: params, usage: &Usage{},
@@ -112,20 +119,20 @@ func (c *conversation) accept(response *responses.Response) ([]responses.Respons
 	var requested []responses.ResponseFunctionToolCall
 	for _, output := range response.Output {
 		switch output.Type {
-		case "function_call":
+		case itemFunctionCall:
 			call := output.AsFunctionCall()
 			if err := c.validateCall(call); err != nil {
 				return nil, err
 			}
 
 			requested = append(requested, call)
-		case "message":
+		case itemMessage:
 			for _, content := range output.AsMessage().Content {
-				if content.Type != "output_text" {
+				if content.Type != contentText {
 					return nil, &GenerationError{Reason: "The AI provider refused the request or returned unexpected content.", Recovery: "Check the model's supported capabilities and content policies."}
 				}
 			}
-		case "reasoning":
+		case itemReasoning:
 		default:
 			return nil, &GenerationError{Reason: "The AI provider returned an unsupported response item.", Recovery: "Check the model's supported capabilities and the worker's provider integration."}
 		}

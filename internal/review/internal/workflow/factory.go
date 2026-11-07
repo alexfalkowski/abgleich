@@ -57,26 +57,25 @@ type Factory struct {
 // NewCommand constructs an enabled review with its own bounded queue. Invalid
 // reasoning effort or a missing provider returns an error without remote calls.
 // Successful construction includes the command in aggregate review requests.
-func (f *Factory) NewCommand(definition Definition) (*Command, error) {
-	switch definition.ReasoningEffort {
-	case strings.Empty, "none", "minimal", "low", "medium", "high", "xhigh", "max":
+func (f *Factory) NewCommand(profile ReviewProfile) (*Command, error) {
+	switch profile.ReasoningEffort {
+	case strings.Empty, ai.EffortNone, ai.EffortMinimal, ai.EffortLow, ai.EffortMedium, ai.EffortHigh, ai.EffortXhigh, ai.EffortMax:
 	default:
 		return nil, errors.New("review: invalid reasoning effort")
 	}
 
 	if f.provider == nil {
-		return nil, errors.Prefix(definition.Name, errors.New("requires AI configuration"))
+		return nil, errors.Prefix(profile.Name, errors.New("requires AI configuration"))
 	}
 
 	command := &Command{
-		definition:   definition,
-		github:       f.github,
-		provider:     f.provider,
-		sources:      f.sources,
-		publication:  f.publication,
-		queue:        commands.NewQueue(),
-		authorizer:   f.authorizer,
-		staleMessage: strings.Concat("🔄 The pull request revision changed. Post a new /ab ", definition.Name, " request."),
+		github:      f.github,
+		provider:    f.provider,
+		sources:     f.sources,
+		publication: f.publication,
+		queue:       commands.NewQueue(),
+		authorizer:  f.authorizer,
+		profile:     profile,
 	}
 	f.commands = append(f.commands, command)
 	return command, nil
@@ -100,7 +99,7 @@ func (f *Factory) Handle(ctx context.Context, event *github.IssueCommentEvent) (
 			allAccepted = false
 		}
 		if err != nil {
-			failures = errors.Join(failures, errors.Prefix(command.definition.Name, err))
+			failures = errors.Join(failures, errors.Prefix(command.profile.Name, err))
 		}
 	}
 

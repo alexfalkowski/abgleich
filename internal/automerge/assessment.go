@@ -6,6 +6,9 @@ import (
 	"github.com/alexfalkowski/go-service/v2/context"
 )
 
+// DecisionUnavailable identifies assessments that lack the evidence needed for a policy decision.
+const DecisionUnavailable = "Assessment unavailable"
+
 // Assessment explains an observed automation decision and its evidence limits.
 // Action describes a possible request, not a promise that reconciliation or
 // GitHub will perform it. Creating an assessment never requests automation.
@@ -45,7 +48,7 @@ func (r *Reconciler) Assess(ctx context.Context, repo *github.Repository, pull *
 
 	if err := github.ValidatePullRequestMetadata(pull); err != nil {
 		return Assessment{
-			Policy: "pull request metadata", Decision: "Assessment unavailable",
+			Policy: "pull request metadata", Decision: DecisionUnavailable,
 			Reason:   "Pull request branch metadata is incomplete; the worker cannot establish an automation decision.",
 			NextStep: "Retry /ab status after GitHub supplies complete pull request metadata.",
 		}
@@ -113,11 +116,11 @@ func explainDecision(decision strategy.Decision) Assessment {
 			"Missing application events and equal timestamps do not authorize automation."
 		assessment.NextStep = "Remove and reapply automerge to renew the request. Wait at least a second before reapplying it."
 	case strategy.ReasonHistoryUnavailable:
-		assessment.Decision = "Assessment unavailable"
+		assessment.Decision = DecisionUnavailable
 		assessment.Reason = "Complete automation history is unavailable; label authorization cannot be established."
 		assessment.NextStep = "Retry /ab status when GitHub history is available. No authorization is inferred from missing evidence."
 	case strategy.ReasonComparisonUnavailable:
-		assessment.Decision = "Assessment unavailable"
+		assessment.Decision = DecisionUnavailable
 		assessment.Reason = "Branch comparison evidence is unavailable; branch freshness cannot be established."
 		assessment.NextStep = "Retry /ab status when GitHub can compare the branches."
 	case strategy.ReasonBranchCurrent:
@@ -145,7 +148,7 @@ func sameStatusEligibility(current, expected *github.PullRequest) bool {
 	sameState := current.GetState() == expected.GetState()
 	sameDraft := current.GetDraft() == expected.GetDraft()
 	sameAuthor := current.GetUser().GetLogin() == expected.GetUser().GetLogin()
-	sameHold := github.HasLabel(current.GetLabels(), "hold") == github.HasLabel(expected.GetLabels(), "hold")
+	sameHold := github.HasLabel(current.GetLabels(), strategy.HoldLabel) == github.HasLabel(expected.GetLabels(), strategy.HoldLabel)
 	sameAutoMergeLabel := github.HasLabel(current.GetLabels(), strategy.AutoMergeLabel) == github.HasLabel(expected.GetLabels(), strategy.AutoMergeLabel)
 	return sameState && sameDraft && sameAuthor && sameHold && sameAutoMergeLabel
 }
@@ -159,7 +162,7 @@ func sameStatusMergeState(current, expected *github.PullRequest) bool {
 }
 
 func explainIneligible(pull *github.PullRequest) Assessment {
-	if pull.GetState() != "open" {
+	if pull.GetState() != github.PullOpen {
 		return Assessment{
 			Policy: "PR eligibility", Decision: "Pull request is closed",
 			Reason:   "Only open pull requests are eligible for Abgleich automation.",

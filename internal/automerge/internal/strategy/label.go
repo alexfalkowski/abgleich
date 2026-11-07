@@ -6,6 +6,8 @@ import (
 	"github.com/alexfalkowski/go-service/v2/errors"
 )
 
+const labelPolicy = "automerge label"
+
 // AutoMergeLabel is the exact opt-in shared by labels and comment commands.
 const AutoMergeLabel = "automerge"
 
@@ -34,15 +36,15 @@ func (s *Label) Matches(repository *github.Repository, pull *github.PullRequest)
 func (s *Label) Assess(ctx context.Context, repository *github.Repository, pull *github.PullRequest) (Decision, error) {
 	events, err := s.github.ListPullRequestAutomationEvents(ctx, pull)
 	if err != nil {
-		return Decision{Policy: "automerge label", Reason: ReasonHistoryUnavailable}, err
+		return Decision{Policy: labelPolicy, Reason: ReasonHistoryUnavailable}, err
 	}
 
 	if !labelAuthorizesAutoMerge(events) {
-		return Decision{Policy: "automerge label", Reason: ReasonLabelAuthorizationRevoked}, nil
+		return Decision{Policy: labelPolicy, Reason: ReasonLabelAuthorizationRevoked}, nil
 	}
 
 	decision, err := decideMerge(repository, pull)
-	decision.Policy = "automerge label"
+	decision.Policy = labelPolicy
 	return decision, err
 }
 

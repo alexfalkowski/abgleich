@@ -47,7 +47,7 @@ func reply(assessment automerge.Assessment, pull *github.PullRequest, requestID 
 
 	var emoji string
 	switch {
-	case assessment.Decision == "Assessment unavailable":
+	case assessment.Decision == automerge.DecisionUnavailable:
 		emoji = "❓"
 	case !strings.IsEmpty(assessment.Action):
 		emoji = "▶️"

@@ -14,7 +14,7 @@ import (
 )
 
 func (s *sourceSession) goReference(ctx context.Context, manifest string) (string, error) {
-	if !io.ValidPath(manifest) || path.Base(manifest) != "go.mod" {
+	if !io.ValidPath(manifest) || path.Base(manifest) != goModFile {
 		return strings.Empty, errors.New("review: invalid Go manifest path")
 	}
 
@@ -46,7 +46,7 @@ func (s *sourceSession) goReference(ctx context.Context, manifest string) (strin
 }
 
 func goLanguageVersion(content string) string {
-	manifest, err := modfile.Parse("go.mod", strings.Bytes(content), nil)
+	manifest, err := modfile.Parse(goModFile, strings.Bytes(content), nil)
 	if err != nil || manifest.Go == nil {
 		return strings.Empty
 	}

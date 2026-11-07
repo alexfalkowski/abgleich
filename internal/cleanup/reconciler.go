@@ -150,7 +150,7 @@ func (r *Reconciler) validateMergedPullRequest(ctx context.Context, repository *
 		return err
 	}
 
-	if !r.github.IsSamePullRequest(current, merged) || current.GetState() != "closed" || !current.GetMerged() {
+	if !r.github.IsSamePullRequest(current, merged) || current.GetState() != github.PullClosed || !current.GetMerged() {
 		return errors.New("cleanup: merged pull request changed before deletion")
 	}
 
@@ -203,7 +203,7 @@ func (r *Reconciler) validateOpenPullRequests(repository *github.Repository, pul
 			return err
 		}
 
-		if !r.github.IsBaseRepository(repository, pull) || pull.GetState() != "open" {
+		if !r.github.IsBaseRepository(repository, pull) || pull.GetState() != github.PullOpen {
 			return errors.New("cleanup: open pull request returned mismatched metadata")
 		}
 	}
@@ -213,7 +213,7 @@ func (r *Reconciler) validateOpenPullRequests(repository *github.Repository, pul
 
 func (r *Reconciler) usedByOpenPullRequest(repository *github.Repository, branch *github.Branch, pulls []*github.PullRequest) bool {
 	for _, pull := range pulls {
-		if pull.GetState() != "open" {
+		if pull.GetState() != github.PullOpen {
 			continue
 		}
 

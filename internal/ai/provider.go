@@ -15,6 +15,27 @@ import (
 	"github.com/openai/openai-go/v3/shared"
 )
 
+// EffortNone exposes the SDK reasoning effort setting to AI features.
+const EffortNone = string(shared.ReasoningEffortNone)
+
+// EffortMinimal exposes the SDK reasoning effort setting to AI features.
+const EffortMinimal = string(shared.ReasoningEffortMinimal)
+
+// EffortLow exposes the SDK reasoning effort setting to AI features.
+const EffortLow = string(shared.ReasoningEffortLow)
+
+// EffortMedium exposes the SDK reasoning effort setting to AI features.
+const EffortMedium = string(shared.ReasoningEffortMedium)
+
+// EffortHigh exposes the SDK reasoning effort setting to AI features.
+const EffortHigh = string(shared.ReasoningEffortHigh)
+
+// EffortXhigh exposes the SDK reasoning effort setting to AI features.
+const EffortXhigh = string(shared.ReasoningEffortXhigh)
+
+// EffortMax exposes the SDK reasoning effort setting to AI features.
+const EffortMax = string(shared.ReasoningEffortMax)
+
 // Provider generates text using configuration resolved once at startup. Features
 // own source authorization, instructions, and generation budgets.
 type Provider interface {

@@ -211,7 +211,7 @@ func (s *sourceSession) missingPath(filename string) string {
 	for _, entry := range s.trees[s.headSHA] {
 		name := entry.GetPath()
 		if name == filename || strings.HasPrefix(name, filename+"/") ||
-			(entry.GetType() != "tree" && !github.IsRegularSourceFile(entry) && strings.HasPrefix(filename, name+"/")) {
+			(entry.GetType() != github.TreeDirectory && !github.IsRegularSourceFile(entry) && strings.HasPrefix(filename, name+"/")) {
 			return s.unavailable(filename)
 		}
 	}

@@ -7,9 +7,11 @@ import (
 	"github.com/alexfalkowski/go-service/v2/health"
 )
 
+const noopCheck = "noop"
+
 func register(name env.Name, srv *server.Server, cfg *Config) {
 	regs := health.Registrations{
-		server.NewRegistration("noop", cfg.Duration.Duration(), checker.NewNoopChecker()),
+		server.NewRegistration(noopCheck, cfg.Duration.Duration(), checker.NewNoopChecker()),
 		server.NewOnlineRegistration(cfg.Timeout.Duration(), cfg.Duration.Duration()),
 	}
 
@@ -21,9 +23,9 @@ func httpHealthObserver(name env.Name, server *server.Server) error {
 }
 
 func httpLivenessObserver(name env.Name, server *server.Server) error {
-	return server.Observe(name.String(), "livez", "noop")
+	return server.Observe(name.String(), "livez", noopCheck)
 }
 
 func httpReadinessObserver(name env.Name, server *server.Server) error {
-	return server.Observe(name.String(), "readyz", "noop")
+	return server.Observe(name.String(), "readyz", noopCheck)
 }
