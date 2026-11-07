@@ -1,8 +1,6 @@
 package cleanup
 
 import (
-	"fmt"
-
 	"github.com/alexfalkowski/abgleich/internal/github"
 	"github.com/alexfalkowski/go-service/v2/context"
 	"github.com/alexfalkowski/go-service/v2/errors"
@@ -46,7 +44,7 @@ func (r *Reconciler) Reconcile(ctx context.Context) error {
 		}
 
 		if err := r.reconcileRepository(ctx, repository, cutoff); err != nil {
-			failures = errors.Join(failures, fmt.Errorf("cleanup: repository %s: %w", repository.GetFullName(), err))
+			failures = errors.Join(failures, errors.Prefix(strings.Concat("cleanup: repository ", repository.GetFullName()), err))
 
 			if github.IsRateLimited(err) || ctx.Err() != nil {
 				return failures
@@ -79,7 +77,7 @@ func (r *Reconciler) reconcileRepository(ctx context.Context, repository *github
 		}
 
 		if err := r.reconcileBranch(ctx, repository, branch, cutoff); err != nil {
-			failures = errors.Join(failures, fmt.Errorf("cleanup: branch %s: %w", branch.GetName(), err))
+			failures = errors.Join(failures, errors.Prefix(strings.Concat("cleanup: branch ", branch.GetName()), err))
 
 			if github.IsRateLimited(err) || ctx.Err() != nil {
 				return failures
