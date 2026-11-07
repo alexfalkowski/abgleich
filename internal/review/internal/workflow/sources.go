@@ -70,6 +70,7 @@ func (s *Sources) fetch(ctx context.Context, endpoint string) ([]byte, error) {
 		return nil, errors.New("review: public source unavailable")
 	}
 	defer response.Body.Close()
+
 	if response.StatusCode != http.StatusOK {
 		return nil, errors.New("review: public source unavailable")
 	}
@@ -106,17 +107,18 @@ func sourceRedirect(request *http.Request, via []*http.Request) error {
 }
 
 type sourceSession struct {
-	github     github.Service
-	sources    *Sources
-	repository *github.Repository
-	files      map[string]string
-	trees      map[string][]*github.TreeEntry
-	archives   map[string]*zip.Reader
-	headSHA    string
-	baseSHA    string
-	missing    []string
-	inspected  []string
-	binary     []string
+	github          github.Service
+	sources         *Sources
+	repository      *github.Repository
+	files           map[string]string
+	trees           map[string][]*github.TreeEntry
+	archives        map[string]*zip.Reader
+	publicRevisions map[string]string
+	headSHA         string
+	baseSHA         string
+	missing         []string
+	inspected       []string
+	binary          []string
 }
 
 func (s *sourceSession) list(ctx context.Context, filter string) ([]string, error) {
@@ -208,6 +210,7 @@ func (s *sourceSession) missingPath(filename string) string {
 	if filename == "." {
 		return s.unavailable(filename)
 	}
+
 	for _, entry := range s.trees[s.headSHA] {
 		name := entry.GetPath()
 		if name == filename || strings.HasPrefix(name, filename+"/") ||
@@ -215,6 +218,7 @@ func (s *sourceSession) missingPath(filename string) string {
 			return s.unavailable(filename)
 		}
 	}
+
 	return strings.Concat("Source not found: ", filename)
 }
 

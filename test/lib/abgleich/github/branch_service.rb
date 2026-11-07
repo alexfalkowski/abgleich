@@ -19,6 +19,8 @@ module Abgleich
     end
 
     get '/repos/:owner/:repository/commits/:sha' do
+      halt 200, public_commit_response if params.fetch('owner') == 'upstream'
+
       repository = "#{params.fetch('owner')}/#{params.fetch('repository')}"
       sleep 1.1 if Abgleich.github.cleanup_mode == 'slow commit'
       Abgleich.github.cleanup_commit(repository, params.fetch('sha')).to_json

@@ -10,6 +10,8 @@ type loggingService struct {
 	logger *logger.Logger
 }
 
+// ResolveReviewThread delegates resolution to Service and logs only confirmed
+// success with the repository, pull request, and thread identity.
 func (s *loggingService) ResolveReviewThread(ctx context.Context, repo *Repository, pull *PullRequest, thread *ReviewThread) error {
 	if err := s.Service.ResolveReviewThread(ctx, repo, pull, thread); err != nil {
 		return err
@@ -23,6 +25,8 @@ func (s *loggingService) ResolveReviewThread(ctx context.Context, repo *Reposito
 	return nil
 }
 
+// AddReview delegates publication to Service and logs the accepted verdict and
+// reviewed head SHA without recording the review body.
 func (s *loggingService) AddReview(ctx context.Context, repo *Repository, pull *PullRequest, review *PullRequestReviewRequest) error {
 	if err := s.Service.AddReview(ctx, repo, pull, review); err != nil {
 		return err
@@ -37,6 +41,8 @@ func (s *loggingService) AddReview(ctx context.Context, repo *Repository, pull *
 	return nil
 }
 
+// DeleteBranch delegates deletion to Service and logs the branch and expected
+// head SHA only after the operation succeeds.
 func (s *loggingService) DeleteBranch(ctx context.Context, repo *Repository, branch *Branch) error {
 	if err := s.Service.DeleteBranch(ctx, repo, branch); err != nil {
 		return err
@@ -47,6 +53,8 @@ func (s *loggingService) DeleteBranch(ctx context.Context, repo *Repository, bra
 	return nil
 }
 
+// AddComment delegates publication to Service and logs the target pull request
+// only after success, without recording the comment body.
 func (s *loggingService) AddComment(ctx context.Context, repo *Repository, number int, body string) error {
 	if err := s.Service.AddComment(ctx, repo, number, body); err != nil {
 		return err
@@ -59,6 +67,8 @@ func (s *loggingService) AddComment(ctx context.Context, repo *Repository, numbe
 	return nil
 }
 
+// AddCommentReaction delegates to Service and logs both failures and successful
+// reactions with their repository and comment identity.
 func (s *loggingService) AddCommentReaction(ctx context.Context, repo *Repository, comment *IssueComment, content string) error {
 	if err := s.Service.AddCommentReaction(ctx, repo, comment, content); err != nil {
 		s.logger.Error("github comment reaction failed",
@@ -77,6 +87,7 @@ func (s *loggingService) AddCommentReaction(ctx context.Context, repo *Repositor
 	return nil
 }
 
+// AddLabel delegates to Service and logs the requested label only after success.
 func (s *loggingService) AddLabel(ctx context.Context, repo *Repository, number int, label string) error {
 	if err := s.Service.AddLabel(ctx, repo, number, label); err != nil {
 		return err
@@ -90,6 +101,8 @@ func (s *loggingService) AddLabel(ctx context.Context, repo *Repository, number 
 	return nil
 }
 
+// EnableAutoMerge delegates to Service and logs confirmed enablement with the
+// pull request's target repository and head branch.
 func (s *loggingService) EnableAutoMerge(ctx context.Context, pull *PullRequest) error {
 	if err := s.Service.EnableAutoMerge(ctx, pull); err != nil {
 		return err
@@ -103,6 +116,8 @@ func (s *loggingService) EnableAutoMerge(ctx context.Context, pull *PullRequest)
 	return nil
 }
 
+// Merge delegates to Service and logs the pull request and branch only after a
+// confirmed merge.
 func (s *loggingService) Merge(ctx context.Context, repo *Repository, pull *PullRequest) error {
 	if err := s.Service.Merge(ctx, repo, pull); err != nil {
 		return err
@@ -116,6 +131,8 @@ func (s *loggingService) Merge(ctx context.Context, repo *Repository, pull *Pull
 	return nil
 }
 
+// Rebase delegates to Service and logs acceptance of the rebase request, which
+// does not confirm that GitHub has completed the rebase.
 func (s *loggingService) Rebase(ctx context.Context, pull *PullRequest) error {
 	if err := s.Service.Rebase(ctx, pull); err != nil {
 		return err

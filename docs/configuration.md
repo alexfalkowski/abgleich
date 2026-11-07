@@ -231,7 +231,7 @@ text where available. Read-only tools let the model find relevant repository fil
 inspect helpers/callers/tests, and resolve public Go dependencies. A separate read-only tool retrieves
 official release notes for the Go language version declared in the reviewed
 `go.mod`, so compiler claims can be checked against current language rules. Repository
-reads use the reviewed head SHA; deleted files use the base SHA. Symlinks, submodules,
+reads in the reviewed repository use the head SHA; deleted files use the base SHA. Symlinks, submodules,
 and binary files are excluded and disclosed. An unreadable or incomplete repository
 tree, failed source request, or missing, truncated, or inconsistent response for an
 expected text file fails the review. Failures during investigation stop the
@@ -294,8 +294,23 @@ uses `https://proxy.golang.org` without GitHub or AI credentials. Override
 `review.module_proxy` only with a trusted Go module proxy; it receives declared
 module names. Go references use `https://go.dev/doc`; `review.go_docs` may select
 a trusted documentation mirror. These requests also carry no credentials.
-No arbitrary URLs or model-selected versions are accepted.
+These Go tools accept neither arbitrary URLs nor model-selected versions.
 Public dependency archives and language references remain cached per request.
+
+Both reviews also receive `read_github_source` without additional configuration.
+It reads public upstream source and documentation through the configured GitHub
+API, using a separate SDK client without App or provider credentials. The model
+supplies `repository` (`owner/name`), `ref` (a relevant tag, branch, or commit), and
+`path` (a file or directory; `.` lists all regular files). The first resolved
+commit is pinned for that repository/ref during the review. Directory reads list
+paths; file reads validate complete text against the tree's blob identity and byte
+size. Private or unconfirmed repositories, incomplete trees, symlinks, submodules,
+binary text, and inconsistent blobs are unavailable source and prevent a clean
+approval. A path confirmed absent returns "not found" so the model can correct it.
+Every lookup rechecks the original review consent and head/base revisions.
+Inspected upstream repository paths and commit SHAs appear in the review details.
+GitHub's unauthenticated API rate limits apply. This tool reads repository files;
+it does not fetch arbitrary websites, release archives, or rendered manifests.
 
 The conversation runs within the existing inference/job deadlines, without local
 provider-request or source-call limits. Source reads have no local byte, file-count,

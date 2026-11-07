@@ -46,6 +46,13 @@ With the default two-minute job, that is at most one minute. Increase the featur
 source tools without GitHub credentials. Each review uses one conversation bounded by its deadline, with no
 response storage or automatic retries, and no review-specific output-token cap.
 Large changes can exceed provider context limits or worker deadlines.
+Both reviews can also inspect public upstream files in other GitHub repositories,
+including chart templates and documentation, without additional configuration.
+Those reads use no credentials and disclose the resolved commit and inspected
+paths; see [review source access](configuration.md#-review-source-access).
+These are static source reviews: running tests, rendering Helm manifests,
+deploying, and inspecting live services are outside their scope. Lack of execution
+alone does not make a review unfinished; material unresolved source gaps still do.
 
 The App submits one native review with an overview and a separate inline
 conversation for each finding that can be placed on the supplied diff. Findings

@@ -40,6 +40,8 @@ module Abgleich
     end
 
     get '/repos/:owner/:repository/git/trees/:revision' do
+      halt 200, public_tree_response if params.fetch('owner') == 'upstream'
+
       GitHubService.record_source_tree_read
       paths = %w[main.go worker.go test.go helpers helpers/guard.go go.mod go.sum]
       paths << 'image.png' if Abgleich.github.summary_paths.include?('image.png')

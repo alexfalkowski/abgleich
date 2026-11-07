@@ -21,6 +21,9 @@ type cachingService struct {
 	Service
 }
 
+// ListSourceFiles reuses validated trees by repository identity and revision.
+// Cache misses or failures fall back to the wrapped Service; successful reads
+// are retained when the cache accepts them.
 func (s *cachingService) ListSourceFiles(ctx context.Context, repo *Repository, revision string) ([]*TreeEntry, error) {
 	if err := validateSourceRequest(repo, revision, nil); err != nil {
 		return nil, err
@@ -38,6 +41,9 @@ func (s *cachingService) ListSourceFiles(ctx context.Context, repo *Repository, 
 	return entries, err
 }
 
+// ReadSourceFiles reuses validated text and binary exclusions by repository
+// identity and blob SHA. Cache misses are fetched together from the wrapped
+// Service; cache failures do not prevent source reads.
 func (s *cachingService) ReadSourceFiles(ctx context.Context, repo *Repository, revision string, files []*TreeEntry) (map[string]string, error) {
 	if err := validateSourceRequest(repo, revision, files); err != nil {
 		return nil, err
