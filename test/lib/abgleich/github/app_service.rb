@@ -214,13 +214,6 @@ module Abgleich
       end
     end
 
-    def authenticate_request
-      return authenticate_app if request.path_info.start_with?('/app/')
-
-      expected = "token #{Abgleich.github.installation_token}"
-      halt 401, { message: 'Bad credentials' }.to_json unless request.env['HTTP_AUTHORIZATION'] == expected
-    end
-
     def authenticate_app
       jwt = request.env['HTTP_AUTHORIZATION'].to_s.delete_prefix('Bearer ')
       claims, = JWT.decode(jwt, Abgleich.app_public_key, true, algorithm: 'RS256')

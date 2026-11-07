@@ -21,3 +21,10 @@ type dependencyRequest struct {
 	Module   string `json:"module"`
 	Path     string `json:"path"`
 }
+
+// publicSourceRequest selects a public GitHub file or directory at a source ref.
+type publicSourceRequest struct {
+	Repository string `json:"repository"`
+	Ref        string `json:"ref"`
+	Path       string `json:"path"`
+}

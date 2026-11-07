@@ -14,6 +14,11 @@ const pageSize = 100
 // Service owns repository discovery, identity checks, REST reads, and guarded
 // mutations. Callers own pull request eligibility, rebase, and merge policy.
 type Service interface {
+	// ReadPublicSource reads a public GitHub repository without App credentials.
+	// It resolves ref to a commit, validates a complete regular-file tree, and
+	// returns either one complete text file or a directory's regular file paths.
+	ReadPublicSource(ctx context.Context, repository, ref, path string) (*PublicSource, error)
+
 	// ReadSourceFiles batches uncached regular entries from ListSourceFiles at a fixed
 	// revision. Only complete UTF-8 blobs matching the repository, tree SHA and
 	// byte size are returned, keyed by path. Binary entries are omitted; failed,

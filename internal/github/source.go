@@ -27,6 +27,9 @@ const (
 	blobType       = "Blob"
 )
 
+// ReadSourceFiles retrieves regular-file text at revision in one GraphQL query
+// without automatic retries. Binary blobs are omitted; missing or inconsistent
+// repository identities, text, byte sizes, or blob hashes reject the whole group.
 func (s *service) ReadSourceFiles(ctx context.Context, repo *Repository, revision string, files []*TreeEntry) (map[string]string, error) {
 	payload, err := newSourceFilesRequest(repo, revision, files)
 	if err != nil {
@@ -48,6 +51,9 @@ func (s *service) ReadSourceFiles(ctx context.Context, repo *Repository, revisio
 	return response.files(repo, files)
 }
 
+// ListSourceFiles reads a complete recursive tree at revision, preserving
+// nonregular entries as metadata. Truncated trees, invalid or duplicate paths,
+// and missing regular-file blob identities return an error.
 func (s *service) ListSourceFiles(ctx context.Context, repo *Repository, revision string) ([]*TreeEntry, error) {
 	if strings.IsEmpty(revision) {
 		return nil, errors.New("github: source revision missing")

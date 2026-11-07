@@ -88,6 +88,8 @@ module Abgleich
     end
 
     get '/repos/:owner/:repository' do
+      halt 200, public_repository_response if params.fetch('owner') == 'upstream'
+
       repository = "#{params.fetch('owner')}/#{params.fetch('repository')}"
       halt 503 if Abgleich.github.failure(repository) == 'repository settings'
       halt 403 if Abgleich.github.failure(repository) == 'repository access'

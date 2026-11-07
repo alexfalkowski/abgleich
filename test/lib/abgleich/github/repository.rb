@@ -60,6 +60,14 @@ module Abgleich
       end
     end
 
+    def record_public_request(details)
+      @mutex.synchronize { (@state[:public_requests] ||= []) << details }
+    end
+
+    def public_requests
+      @mutex.synchronize { @state.fetch(:public_requests, []).dup }
+    end
+
     def fail_repository(repository, failure)
       @mutex.synchronize { @state[:repository_failures][repository] = failure }
     end

@@ -12,6 +12,8 @@ type loggingProvider struct {
 	logger *logger.Logger
 }
 
+// Generate delegates to Provider and logs duration, outcome, and available token
+// usage without recording prompt or completion text.
 func (p *loggingProvider) Generate(ctx context.Context, prompt Prompt) (*Completion, error) {
 	started := time.Now()
 	completion, err := p.Provider.Generate(ctx, prompt)

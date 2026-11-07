@@ -53,14 +53,20 @@ func NewClient(cfg *Config, fs *os.FS, conn *http.Client) (*Client, error) {
 		return nil, err
 	}
 
-	return &Client{installation: installation, application: application}, nil
+	public, err := github.NewClient(github.WithHTTPClient(&tokenConnection), github.WithURLs(&endpoint, &endpoint))
+	if err != nil {
+		return nil, err
+	}
+
+	return &Client{installation: installation, application: application, public: public}, nil
 }
 
-// Client supplies installation access to the worker and webhook. The private
-// application client uses JWT authentication to validate installation ownership.
+// Client supplies installation access and credential-free public repository
+// reads. The application client uses JWTs to validate installation ownership.
 type Client struct {
 	installation *github.Client
 	application  *github.Client
+	public       *github.Client
 }
 
 // GitHub rejects Hookshot user agents on API requests. Clear the inbound
@@ -69,6 +75,8 @@ type userAgentTransport struct {
 	http.RoundTripper
 }
 
+// RoundTrip clears the inbound user-agent metadata on a cloned request so the
+// wrapped transport uses the SDK or worker identity when contacting GitHub.
 func (t *userAgentTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	ctx := meta.WithAttributes(req.Context(), meta.WithUserAgent(meta.Blank()))
 	return t.RoundTripper.RoundTrip(req.Clone(ctx))
@@ -83,6 +91,9 @@ type installationTransport struct {
 	requests       chan struct{}
 }
 
+// RoundTrip obtains an installation token with cancellable waiting, then sends
+// an authenticated request through the wrapped transport. Token failures close
+// the request body without sending it.
 func (t *installationTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	token, err := t.token(req.Context())
 	if err != nil {
