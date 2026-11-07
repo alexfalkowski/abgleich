@@ -83,16 +83,6 @@ module Abgleich
       end
     end
 
-    def public_source_calls(mode)
-      request = { repository: 'upstream/chart', ref: 'v1.0.0', path: 'chart/values.yaml' }
-      case mode
-      when 'directory' then [request.merge(path: 'chart'), request]
-      when 'corrected path' then [request.merge(path: 'chart/missing.yaml'), request]
-      when /^invalid (repository|ref|path)$/ then [request.merge(Regexp.last_match(1).to_sym => '../private')]
-      else [request]
-      end.map { |arguments| ['read_github_source', arguments] }
-    end
-
     def batch_source_calls(mode)
       case mode
       when 'review source a batch of related files' then [['read_sources', { paths: %w[helpers/guard.go go.mod] }]]
@@ -104,7 +94,6 @@ module Abgleich
 
     def dependency_source_calls(mode)
       case mode
-      when /^review source public / then public_source_calls(mode.delete_prefix('review source public '))
       when 'review source a nested dependency package', 'review source a corrected dependency path'
         directory = mode == 'review source a corrected dependency path' ? 'pkg/missing' : 'pkg'
         [['read_go_dependency', { manifest: 'go.mod', module: 'example.com/library', path: directory }],
@@ -136,7 +125,7 @@ module Abgleich
 
     def source_final_reply(payload, outputs)
       source = outputs.map { |item| item.fetch('output') }.join("\n")
-      text = { overview: source_review_text(source), findings: [], complete: true }.to_json
+      text = { overview: source_review_text(source), findings: [], complete: Abgleich.openai.mode != 'review source incomplete' }.to_json
       { id: 'resp_source_final', object: 'response', status: 'completed', model: payload.fetch('model'),
         output: response_output(response_content(text, nil), nil), usage: token_usage(nil) }
     end

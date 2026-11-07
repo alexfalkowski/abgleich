@@ -28,6 +28,7 @@ type reviewReply struct {
 	Findings   []reviewFinding
 	Sources    []string
 	Missing    []string
+	External   []string
 	Binary     []string
 	RequestID  int64
 }
@@ -105,7 +106,7 @@ func (c *Command) reply(task *reviewTask, completion *ai.Completion, review *rev
 		Title:      c.profile.Title,
 		Missing:    missing,
 		Sources:    review.source.inspected,
-		Binary:     review.source.binary,
+		External:   review.source.external, Binary: review.source.binary,
 		HeadSHA:    task.request.GetHead().GetSHA(),
 		BaseSHA:    task.request.GetBase().GetSHA(),
 		Marker:     marker,

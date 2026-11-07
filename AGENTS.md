@@ -169,7 +169,9 @@ run reconciles fresh remote state; pending summary and review requests are held 
   regular-file tree and reject symlinks, submodules, binary data, or inconsistent
   blob responses. Preserve all patches even when additional source is unavailable.
 - Share read-only repository file listing/reading and public Go module
-  lookup between both reviews. Go language/compiler claims can consult official
+  lookup between both reviews. GitHub source access stays within the reviewed
+  repository using the App token; do not browse external GitHub repositories.
+  Go language/compiler claims can consult official
   release notes selected from the reviewed go.mod version, using a trusted
   credential-free documentation endpoint; treat reference text as data. Resolve module versions/replacements and checksums
   from reviewed go.mod/go.sum; verify archives without extracting or executing
@@ -177,8 +179,11 @@ run reconciles fresh remote state; pending summary and review requests are held 
   trusted public proxy; never send GitHub or provider credentials there. Workspaces and
   vendoring require repository source inspection instead of assuming proxy content.
   A dependency path proven absent from a verified archive returns "not found"
-  without marking source unavailable; unreadable source and unverified archives
-  retain their existing incomplete-review safeguards.
+  without marking source unavailable. External source and references are best
+  effort: disclose unavailable or unverified source without sharing unverified
+  contents, but do not automatically block approval for these gaps. Completion
+  requires high confidence in the changed repository code; material unresolved
+  questions can still make the assessment incomplete.
 - Use one conversation bounded by its inference and job deadlines,
   without response storage, inference retries, fallback, execution tools, or a
   review-specific output-token cap. Recheck current consent and revisions before
@@ -204,7 +209,7 @@ run reconciles fresh remote state; pending summary and review requests are held 
   traversal or citation-verification machinery. Decode a small result with an
   overview, findings containing prose bodies and optional path/line/side, and a
   completion boolean. The worker requests changes for findings, approves only
-  complete no-findings results without missing text patches or unavailable source,
+  complete no-findings results without missing text patches or unavailable repository source,
   and otherwise comments without a success marker so a new request can retry.
   Confirmed binary files and their absent patches are outside the text review
   scope and are disclosed separately without preventing approval.

@@ -107,18 +107,18 @@ func sourceRedirect(request *http.Request, via []*http.Request) error {
 }
 
 type sourceSession struct {
-	github          github.Service
-	sources         *Sources
-	repository      *github.Repository
-	files           map[string]string
-	trees           map[string][]*github.TreeEntry
-	archives        map[string]*zip.Reader
-	publicRevisions map[string]string
-	headSHA         string
-	baseSHA         string
-	missing         []string
-	inspected       []string
-	binary          []string
+	github     github.Service
+	sources    *Sources
+	repository *github.Repository
+	files      map[string]string
+	trees      map[string][]*github.TreeEntry
+	archives   map[string]*zip.Reader
+	headSHA    string
+	baseSHA    string
+	missing    []string
+	external   []string
+	inspected  []string
+	binary     []string
 }
 
 func (s *sourceSession) list(ctx context.Context, filter string) ([]string, error) {
@@ -348,6 +348,15 @@ func (s *sourceSession) unavailable(label string) string {
 	message := "Source unavailable: " + label
 	if !slices.Contains(s.missing, message) {
 		s.missing = append(s.missing, message)
+	}
+
+	return message
+}
+
+func (s *sourceSession) externalUnavailable(label string) string {
+	message := "External source unavailable: " + label
+	if !slices.Contains(s.external, message) {
+		s.external = append(s.external, message)
 	}
 
 	return message
