@@ -13,6 +13,9 @@ import (
 	"github.com/alexfalkowski/go-sync"
 )
 
+// ReviewCommand is the exact /ab suffix authorizing all configured review features.
+const ReviewCommand = "review"
+
 // Definition supplies the identity, model, and instructions for
 // one review command. Feature packages own these values and registration.
 // Name is the exact /ab command suffix and the persisted result namespace.
@@ -103,7 +106,7 @@ func (c *Command) authorize(ctx context.Context, task *reviewTask) (*reviewTask,
 		return nil, nil, nil
 	}
 
-	comment, comments, err := c.authorizer.AuthorizeWithHistory(ctx, c.definition.Name, repo, pull.GetNumber(), task.commandComment)
+	comment, comments, err := c.authorizer.AuthorizeWithHistory(ctx, c.requestCommand(task), repo, pull.GetNumber(), task.commandComment)
 	if err != nil || comment == nil {
 		return nil, nil, err
 	}
@@ -113,6 +116,14 @@ func (c *Command) authorize(ctx context.Context, task *reviewTask) (*reviewTask,
 		pullRequest:    pull,
 		commandComment: comment,
 	}, comments, nil
+}
+
+// Preserve the original command across all consent rechecks, including cancellation.
+func (c *Command) requestCommand(task *reviewTask) string {
+	if commands.Parse(task.commandComment.GetBody()) == ReviewCommand {
+		return ReviewCommand
+	}
+	return c.definition.Name
 }
 
 func (c *Command) eligible(repo *github.Repository, pull *github.PullRequest) bool {

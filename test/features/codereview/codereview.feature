@@ -35,6 +35,13 @@ Feature: Request a code review with a GitHub verdict
     When a maintainer with "write" access comments "/ab codereview"
     Then the code review should describe no findings within the inspected scope
 
+  Scenario: Request the only configured review through the aggregate command
+    Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
+    When a maintainer with "write" access comments "/ab review"
+    Then the command comment should show "receipt and acceptance" feedback
+    And the code review should identify the request and revisions
+    And exactly 1 request should reach the AI service
+
   Scenario Outline: Ignore unsupported command spellings and arguments
     Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
     When a maintainer with "write" access comments "<command>"
@@ -43,7 +50,7 @@ Feature: Request a code review with a GitHub verdict
     Examples:
       | command               |
       | /ab code_review       |
-      | /ab review            |
+      | /ab review please     |
       | /ab codereview please |
       | /ab secreview         |
 

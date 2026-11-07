@@ -25,7 +25,7 @@ run reconciles fresh remote state; pending summary and review requests are held 
 | `internal/cleanup` | Optional merged and inactive branch cleanup policy, pre-deletion rechecks, exclusions, and registration of its own job. |
 | `internal/status` | Status comment authorization, snapshot rechecks, reply rendering and publication, and registration of its own command. |
 | `internal/summarise` | Summary authorization, all changed-file patches returned by GitHub, queued processing, reply publication, and registration of its own job and command. |
-| `internal/review` | Composition of review configuration, shared source access, and code/security feature modules. |
+| `internal/review` | Composition of review configuration, shared source access, code/security feature modules, and aggregate review command registration. |
 | `internal/review/code` | Code-review prompt, model configuration, and registration of its own job and command. |
 | `internal/review/sec` | Security-review prompt, model configuration, and registration of its own job and command. |
 | `internal/review/internal/workflow` | Shared review PR eligibility, consent rechecks, changed-file and related source context, revision checks, result identity, safe reply rendering/publication, and per-instance queues. |
@@ -158,6 +158,11 @@ run reconciles fresh remote state; pending summary and review requests are held 
   with both branches in the repository. Ignore forks. Topic, `hold`, and auto-merge settings do not gate reviews.
   Recheck comment identity and both branch identities/revisions before source
   submission and reply publication; discard stale results.
+- `/ab review` requests every enabled review constructed by `workflow.Factory`.
+  Keep the original aggregate comment as consent at every recheck, and preserve
+  per-feature queues, jobs, results, and deduplication with individual commands.
+  Attempt every configured feature and retain accepted work when another fails;
+  acceptance requires at least one enabled feature and acceptance by all of them.
 - Include PR metadata, every available changed-file patch from complete GitHub
   pagination, and complete changed-file text where available. Read source at
   the reviewed head SHA (deleted files at the base SHA); require a complete
@@ -260,15 +265,16 @@ run reconciles fresh remote state; pending summary and review requests are held 
   test-only App keys and webhook secrets in `test/secrets/`, outside test reports.
   Keep these fixtures unchanged during scenarios; select invalid or missing
   fixture paths through test configuration for credential-failure coverage.
-- Keep operator setup, defaults, recovery, and monitoring guidance in
-  `README.md`. Update it when those contracts change, retaining scannable emoji
-  headings and concise examples. Keep this file focused on project decisions;
-  shared language and workflow rules stay in `bin/AGENTS.md` and its skills.
-- Read the complete README before and after editing it. Its Configuration section
+- Keep the overview, quickstart, and documentation links in `README.md`, with
+  detailed guides in `docs/`. Update the owning guide when contracts change,
+  retaining scannable emoji headings and concise examples. Keep this file focused
+  on project decisions; shared language and workflow rules stay in `bin/AGENTS.md`
+  and its skills.
+- Read the complete README before and after editing it. `docs/configuration.md`
   owns worker settings, YAML examples, defaults, validation, and credential setup;
-  feature sections own behaviour and safeguards, and Operations owns monitoring
-  and recovery. Link to the owning section instead of duplicating its guidance,
-  and check the whole document for conflicting examples or repeated defaults.
+  feature guides own behaviour and safeguards, and `docs/operations.md` owns
+  monitoring and recovery. Link to the owning guide instead of duplicating its
+  guidance, and check moved links, conflicting examples, and repeated defaults.
 
 ## Cucumber tests
 

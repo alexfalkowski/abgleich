@@ -6,6 +6,7 @@ import (
 	"github.com/alexfalkowski/abgleich/internal/ai"
 	"github.com/alexfalkowski/abgleich/internal/commands"
 	"github.com/alexfalkowski/abgleich/internal/github"
+	"github.com/alexfalkowski/go-service/v2/context"
 	"github.com/alexfalkowski/go-service/v2/di"
 	"github.com/alexfalkowski/go-service/v2/errors"
 	"github.com/alexfalkowski/go-service/v2/strings"
@@ -43,19 +44,21 @@ func NewFactory(params FactoryParams) *Factory {
 	}
 }
 
-// Factory constructs independent review commands with shared dependencies.
+// Factory constructs independent review commands and dispatches aggregate requests.
 // Commands from one factory serialize final verdict checks and publication
-// within the worker process.
+// within the worker process. Construct all commands before serving requests.
 type Factory struct {
 	github      github.Service
 	provider    ai.Provider
 	sources     *Sources
 	authorizer  *commands.Authorizer
 	publication *sync.Worker
+	commands    []*Command
 }
 
 // NewCommand constructs an enabled review with its own bounded queue. Invalid
 // reasoning effort or a missing provider returns an error without remote calls.
+// Successful construction includes the command in aggregate review requests.
 func (f *Factory) NewCommand(definition Definition) (*Command, error) {
 	switch definition.ReasoningEffort {
 	case strings.Empty, "none", "minimal", "low", "medium", "high", "xhigh", "max":
@@ -67,7 +70,7 @@ func (f *Factory) NewCommand(definition Definition) (*Command, error) {
 		return nil, errors.New(definition.Name + ": requires AI configuration")
 	}
 
-	return &Command{
+	command := &Command{
 		definition:   definition,
 		github:       f.github,
 		provider:     f.provider,
@@ -76,5 +79,24 @@ func (f *Factory) NewCommand(definition Definition) (*Command, error) {
 		queue:        commands.NewQueue(),
 		authorizer:   f.authorizer,
 		staleMessage: fmt.Sprintf("🔄 The pull request revision changed. Post a new /ab %s request.", definition.Name),
-	}, nil
+	}
+	f.commands = append(f.commands, command)
+	return command, nil
+}
+
+// Handle queues every configured review using the original comment as consent.
+// It attempts every command and preserves their errors. Acceptance requires at
+// least one configured command and acceptance by all of them; accepted work is
+// retained when another command declines or fails.
+func (f *Factory) Handle(ctx context.Context, event *github.IssueCommentEvent) (bool, error) {
+	accepted := len(f.commands) > 0
+	var failures error
+	for _, command := range f.commands {
+		ok, err := command.Handle(ctx, event)
+		accepted = accepted && ok
+		if err != nil {
+			failures = errors.Join(failures, fmt.Errorf("%s: %w", command.definition.Name, err))
+		}
+	}
+	return accepted && failures == nil, failures
 }

@@ -238,7 +238,7 @@ func (c *Command) authorizeCancellation(ctx context.Context, task *reviewTask) (
 		return nil, nil, errors.New("review: pull request identity changed before cancellation")
 	}
 
-	comment, comments, err := c.authorizer.AuthorizeWithHistory(ctx, c.definition.Name, repo, pull.GetNumber(), task.commandComment)
+	comment, comments, err := c.authorizer.AuthorizeWithHistory(ctx, c.requestCommand(task), repo, pull.GetNumber(), task.commandComment)
 	if err != nil || comment == nil {
 		return nil, nil, err
 	}
