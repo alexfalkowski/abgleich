@@ -89,14 +89,22 @@ func (f *Factory) NewCommand(definition Definition) (*Command, error) {
 // least one configured command and acceptance by all of them; accepted work is
 // retained when another command declines or fails.
 func (f *Factory) Handle(ctx context.Context, event *github.IssueCommentEvent) (bool, error) {
-	accepted := len(f.commands) > 0
+	if len(f.commands) == 0 {
+		return false, nil
+	}
+
+	allAccepted := true
+
 	var failures error
 	for _, command := range f.commands {
-		ok, err := command.Handle(ctx, event)
-		accepted = accepted && ok
+		accepted, err := command.Handle(ctx, event)
+		if !accepted || err != nil {
+			allAccepted = false
+		}
 		if err != nil {
 			failures = errors.Join(failures, fmt.Errorf("%s: %w", command.definition.Name, err))
 		}
 	}
-	return accepted && failures == nil, failures
+
+	return allAccepted, failures
 }
