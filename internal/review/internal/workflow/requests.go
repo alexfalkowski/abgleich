@@ -15,7 +15,7 @@ type goReferenceRequest struct {
 	Manifest string `json:"manifest"`
 }
 
-// dependencyRequest selects a declared module and file or package using the reviewed manifest.
+// dependencyRequest selects a declared module and file or directory using the reviewed manifest.
 type dependencyRequest struct {
 	Manifest string `json:"manifest"`
 	Module   string `json:"module"`

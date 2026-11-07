@@ -91,13 +91,18 @@ Then('the reviewer should receive the complete related file') do
   expect(body).to include('Inspected source', "#{revision}:helpers/guard.go")
 end
 
-Then('the reviewer should discover the dependency packages and inspect one') do
-  wait_for_review('code')
+Then(/^the (code|security) reviewer should discover dependency files and inspect only the selected file$/) do |kind|
+  body = review_text(kind)
   source = review_source_results
+  expected = "package alpha\n// dependency-alpha-context\nfunc Query() string { return \"alpha\" }\n"
+  expect(source).to include("go.mod\npkg/alpha/query.go\npkg/zeta/query.go\nquery.go"), 'expected paths from the module root'
   expect(source).to include("pkg/alpha/query.go\npkg/zeta/query.go"), 'expected complete dependency paths in name order'
-  expect(source).to include(a_string_including('dependency-alpha-context')), 'expected the selected package source'
-  body = review_text('code')
+  expect(source).to include('pkg/alpha/query.go'), 'expected file paths when listing a Go package'
+  expect(source).to include(a_string_including(expected)), 'expected the complete selected dependency file'
+  expect(source.join).not_to include('dependency-query-context', 'dependency-zeta-context')
   expect(body).to include('Inspected source', 'example.com/library@v1.0.0/pkg/alpha/query.go')
+  expect(body).not_to include('example.com/library@v1.0.0/query.go', 'example.com/library@v1.0.0/pkg/zeta/query.go')
+  expect_no_automation_mutations
 end
 
 Then(/^the (code|security) review should finish after correcting the dependency path$/) do |kind|

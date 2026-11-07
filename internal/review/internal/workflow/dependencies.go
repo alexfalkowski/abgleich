@@ -167,7 +167,6 @@ func moduleChecksum(sums string, selected module.Version) string {
 
 func (s *sourceSession) dependencySource(archive *zip.Reader, key, requested string) string {
 	prefix := key + "/"
-	var source strings.Builder
 	var names []string
 
 	for _, file := range archive.File {
@@ -176,18 +175,9 @@ func (s *sourceSession) dependencySource(archive *zip.Reader, key, requested str
 			return s.dependencyFile(file)
 		}
 
-		if packageSourceFile(filename, requested) {
-			source.WriteString(s.dependencyFile(file))
-			source.WriteString("\n")
-		}
-
 		if requested == "." || strings.HasPrefix(filename, requested+"/") {
 			names = append(names, filename)
 		}
-	}
-
-	if source.Len() > 0 {
-		return source.String()
 	}
 
 	if len(names) == 0 {
@@ -198,10 +188,6 @@ func (s *sourceSession) dependencySource(archive *zip.Reader, key, requested str
 	slices.Sort(names)
 
 	return strings.Join("\n", names...)
-}
-
-func packageSourceFile(filename, directory string) bool {
-	return path.Dir(filename) == directory && strings.HasSuffix(filename, ".go") && !strings.HasSuffix(filename, "_test.go")
 }
 
 func (s *sourceSession) dependencyFile(file *zip.File) string {

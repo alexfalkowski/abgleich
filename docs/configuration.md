@@ -284,6 +284,9 @@ Source options alone enable neither review command. Dependency lookup follows
 the modules, versions, and replacements in the reviewed `go.mod`; archives must
 match its `go.sum`. Version-specific replacements take precedence over wildcard replacements.
 This lookup inspects the declared dependency, without resolving a complete build graph.
+Dependency directory lookups return sorted module-relative file paths without
+source; `.` lists the module root. The model then requests exact file paths to
+read their complete text, avoiding whole-package reads of generated SDKs.
 A path confirmed absent from its verified module archive returns "not found" to
 the reviewer without marking source unavailable. The reviewer can correct the
 lookup and complete its assessment. Unreadable external source, unverified
@@ -307,7 +310,7 @@ review scope; their absence alone does not make a review incomplete.
 
 The conversation runs within the existing inference/job deadlines, without local
 provider-request or source-call limits. Source reads have no local byte, file-count,
-or archive-size caps; directory/package reads include all immediate matching files.
+or archive-size caps; repository directory reads include all immediate matching files.
 Working source and request-local caches stay in memory, so large reviews can
 increase memory usage and exceed provider context limits or worker deadlines.
 Unavailable source is reported.

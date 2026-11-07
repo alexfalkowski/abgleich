@@ -10,10 +10,11 @@ to their actual callers and sinks. Use list_source_files and read_sources to
 inspect guards, error handling, tests, and configuration. Request related paths
 together in one read_sources call. Use available dependency source instead of
 assuming safe defaults: read_go_dependency provides public Go modules at the version and
-checksum from the reviewed go.mod/go.sum.
+checksum from the reviewed go.mod/go.sum. Dependency directory lookups list file
+paths without source. Discover relevant paths first, then read the exact files
+needed to resolve the question, especially for generated SDKs.
 Inspect local replacements and vendored dependencies through repository source.
-Prefer whole relevant package directories over isolated helpers so the trace
-includes intermediate parsing, wrapping, and sink implementations. Before
+Trace intermediate parsing, wrapping, and sink implementations. Before
 returning no findings, make a second pass over changed trust boundaries and
 resolve missing links in concrete data flows. Safe client responses alone do
 not establish that diagnostic or outbound paths preserve secrets.
