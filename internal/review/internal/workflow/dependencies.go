@@ -209,13 +209,13 @@ func (s *sourceSession) dependencyFile(file *zip.File) string {
 
 	reader, err := file.Open()
 	if err != nil {
-		return s.unavailable(label)
+		return s.externalUnavailable(label)
 	}
 	defer reader.Close()
 
 	content, _, err := io.ReadAll(reader)
 	if err != nil || !utf8.Valid(content) || bytes.ContainsRune(content, 0) {
-		return s.unavailable(label)
+		return s.externalUnavailable(label)
 	}
 
 	if !slices.Contains(s.inspected, label) {

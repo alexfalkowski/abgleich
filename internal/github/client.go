@@ -53,20 +53,14 @@ func NewClient(cfg *Config, fs *os.FS, conn *http.Client) (*Client, error) {
 		return nil, err
 	}
 
-	public, err := github.NewClient(github.WithHTTPClient(&tokenConnection), github.WithURLs(&endpoint, &endpoint))
-	if err != nil {
-		return nil, err
-	}
-
-	return &Client{installation: installation, application: application, public: public}, nil
+	return &Client{installation: installation, application: application}, nil
 }
 
-// Client supplies installation access and credential-free public repository
-// reads. The application client uses JWTs to validate installation ownership.
+// Client supplies installation access. The application client uses JWTs to
+// validate installation ownership.
 type Client struct {
 	installation *github.Client
 	application  *github.Client
-	public       *github.Client
 }
 
 // GitHub rejects Hookshot user agents on API requests. Clear the inbound

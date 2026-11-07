@@ -46,10 +46,10 @@ With the default two-minute job, that is at most one minute. Increase the featur
 source tools without GitHub credentials. Each review uses one conversation bounded by its deadline, with no
 response storage or automatic retries, and no review-specific output-token cap.
 Large changes can exceed provider context limits or worker deadlines.
-Both reviews can also inspect public upstream files in other GitHub repositories,
-including chart templates and documentation, without additional configuration.
-Those reads use no credentials and disclose the resolved commit and inspected
-paths; see [review source access](configuration.md#-review-source-access).
+Reviews focus on the PR's changes and related source in the reviewed repository,
+with verified Go dependency and language references available through the
+[source tools](configuration.md#-review-source-access). They do not browse other
+GitHub repositories; missing implementations outside those tools do not prevent completion.
 These are static source reviews: running tests, rendering Helm manifests,
 deploying, and inspecting live services are outside their scope. Lack of execution
 alone does not make a review unfinished; material unresolved source gaps still do.
@@ -68,18 +68,22 @@ from the structured result:
 | Assessment | GitHub verdict |
 | --- | --- |
 | One or more supported findings, including overview-only findings | `REQUEST_CHANGES` |
-| No findings, explicit model completion, and no worker-recorded missing text patches or unavailable source | `APPROVE` |
+| No findings, high-confidence model completion, and no missing text patches or unavailable repository source | `APPROVE` |
 | No findings with incomplete investigation or missing context | `COMMENT`; approval withheld |
 
 The overview shows the worker's assessment and decision separately from model
 prose, with ✅ for approval, ❗ for requested changes, and ⚠️ for comments.
 With no findings, **Review unfinished** means the model explicitly reports that
 it did not finish. **Review completed with limitations** means the model reports
-completion but missing patches or unavailable source limit the assessment. A
-**Limitations** list identifies each missing patch and unavailable source. Both
+completion but missing patches or unavailable repository source limit the assessment. A
+**Limitations** list identifies each missing patch and unavailable repository source. Both
 outcomes withhold approval, carry no successful-result marker, and allow a new
 manual request on the same revisions. Findings still request changes when other
 source is unavailable. Model completion is a self-report, not proof of coverage.
+**External source notes** disclose unavailable dependencies and language references
+separately. These gaps alone do not prevent approval when the reviewer has high
+confidence in the changed repository code. Material unresolved questions still
+require an incomplete assessment.
 Confirmed binary files are outside the text review scope. **Excluded binary files**
 lists them separately; their omitted contents and patches do not prevent approval.
 Every body contains escaped model text, with links and mentions inactive.

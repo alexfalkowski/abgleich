@@ -286,8 +286,11 @@ match its `go.sum`. Version-specific replacements take precedence over wildcard 
 This lookup inspects the declared dependency, without resolving a complete build graph.
 A path confirmed absent from its verified module archive returns "not found" to
 the reviewer without marking source unavailable. The reviewer can correct the
-lookup and complete its assessment; unreadable source and unverified archives
-still prevent approval.
+lookup and complete its assessment. Unreadable external source, unverified
+archives, and unavailable language references are disclosed as external source
+notes; unverified contents are never submitted to the model. These gaps alone
+do not prevent approval when the reviewer has high confidence in the repository
+changes. Material unresolved questions can still make the assessment incomplete.
 Local replacements, workspaces, vendored source, dependencies in other
 languages, and private dependencies require repository source inspection. Lookup
 uses `https://proxy.golang.org` without GitHub or AI credentials. Override
@@ -297,20 +300,10 @@ a trusted documentation mirror. These requests also carry no credentials.
 These Go tools accept neither arbitrary URLs nor model-selected versions.
 Public dependency archives and language references remain cached per request.
 
-Both reviews also receive `read_github_source` without additional configuration.
-It reads public upstream source and documentation through the configured GitHub
-API, using a separate SDK client without App or provider credentials. The model
-supplies `repository` (`owner/name`), `ref` (a relevant tag, branch, or commit), and
-`path` (a file or directory; `.` lists all regular files). The first resolved
-commit is pinned for that repository/ref during the review. Directory reads list
-paths; file reads validate complete text against the tree's blob identity and byte
-size. Private or unconfirmed repositories, incomplete trees, symlinks, submodules,
-binary text, and inconsistent blobs are unavailable source and prevent a clean
-approval. A path confirmed absent returns "not found" so the model can correct it.
-Every lookup rechecks the original review consent and head/base revisions.
-Inspected upstream repository paths and commit SHAs appear in the review details.
-GitHub's unauthenticated API rate limits apply. This tool reads repository files;
-it does not fetch arbitrary websites, release archives, or rendered manifests.
+GitHub source access is limited to the reviewed repository and uses the App's
+installation token. Reviews do not browse other GitHub repositories or arbitrary
+websites. Implementations outside the supported source tools are outside the
+review scope; their absence alone does not make a review incomplete.
 
 The conversation runs within the existing inference/job deadlines, without local
 provider-request or source-call limits. Source reads have no local byte, file-count,

@@ -116,10 +116,11 @@ Feature: Follow changed behavior into related source
       | secreview  | security | digest mismatch                        |
       | secreview  | security | missing response data                  |
 
-  Scenario Outline: Disclose unsupported source and public dependency limitations
+  Scenario Outline: Complete a confident review when external dependency source is unavailable
     Given related source is "<problem>"
     When a maintainer with "write" access comments "/ab <command>"
-    Then the <kind> review should disclose "<limitation>"
+    Then the <kind> review should disclose external source note "<limitation>"
+    And the <kind> review decision should be "APPROVED"
     And no unverified <scope> source should be shared
     And the public dependency proxy should receive <proxy requests> requests without credentials
 
@@ -128,11 +129,13 @@ Feature: Follow changed behavior into related source
       | command    | kind     | problem                                    | limitation            | scope      | proxy requests |
       | codereview | code     | unverified against the dependency checksum | checksum mismatch     | dependency | 1              |
       | codereview | code     | managed by a Go workspace                  | workspace or vendored | dependency | 0              |
+      | codereview | code     | public dependency unavailable              | source unavailable    | dependency | 1              |
 
     @secreview
     Examples:
       | command    | kind     | problem                                    | limitation            | scope      | proxy requests |
       | secreview  | security | vendored in the repository                 | workspace or vendored | dependency | 0              |
+      | secreview  | security | public dependency rate limited             | source unavailable    | dependency | 1              |
 
   @codereview
   Scenario: Approve after a related directory lookup excludes an unchanged binary asset
@@ -219,21 +222,25 @@ Feature: Follow changed behavior into related source
   Scenario: Refuse a dependency redirect to an unrelated origin
     Given related source is "redirected to an unrelated origin"
     When a maintainer with "write" access comments "/ab codereview"
-    Then the code review should disclose "public dependency source unavailable"
+    Then the code review should disclose external source note "public dependency source unavailable"
+    And the code review decision should be "APPROVED"
     And no unverified dependency source should be shared
     And public dependency access should omit credentials
 
-  Scenario Outline: Constrain model-requested source access
-    Given the reviewer needs "<lookup>"
-    When a maintainer with "write" access comments "/ab <command>"
-    Then the <kind> review should disclose "<limitation>"
+  @codereview
+  Scenario: Constrain model-requested repository source access
+    Given the reviewer needs "a file outside the repository"
+    When a maintainer with "write" access comments "/ab codereview"
+    Then the code review should disclose "invalid repository path"
     And the rejected path or dependency should not be fetched
 
-    @codereview
-    Examples:
-      | command    | kind | lookup                        | limitation                            |
-      | codereview | code | a file outside the repository | invalid repository path               |
-      | codereview | code | an undeclared Go dependency   | not required by the reviewed manifest |
+  @codereview
+  Scenario: Constrain model-requested dependency source access
+    Given the reviewer needs "an undeclared Go dependency"
+    When a maintainer with "write" access comments "/ab codereview"
+    Then the code review should disclose external source note "not required by the reviewed manifest"
+    And the code review decision should be "APPROVED"
+    And the rejected path or dependency should not be fetched
 
   Scenario Outline: Stop source lookup when consent or the reviewed revision changes
     Given review authorization changes through "<change>" during investigation
@@ -343,7 +350,8 @@ Feature: Follow changed behavior into related source
   Scenario Outline: Inspect workspace dependencies through repository source
     Given the reviewed module has a workspace "<location>"
     When a maintainer with "write" access comments "/ab <command>"
-    Then the <kind> review should disclose "workspace or vendored"
+    Then the <kind> review should disclose external source note "workspace or vendored"
+    And the <kind> review decision should be "APPROVED"
     And no unverified dependency source should be shared
     And the public dependency proxy should receive 0 requests without credentials
 
@@ -417,3 +425,20 @@ Feature: Follow changed behavior into related source
     Examples:
       | command    | kind     |
       | secreview  | security |
+
+  @codereview
+  Scenario: Complete a confident review without external language documentation
+    Given external Go reference documentation is unavailable
+    When a maintainer with "write" access comments "/ab codereview"
+    Then the code review should disclose external source note "Go 1.22 release notes"
+    And the code review decision should be "APPROVED"
+
+  @secreview
+  Scenario: Keep an uncertain review incomplete when external source is unavailable
+    Given related source is "public dependency unavailable"
+    And the reviewer remains uncertain after inspecting available source
+    When a maintainer with "write" access comments "/ab secreview"
+    Then the security review should disclose external source note "source unavailable"
+    And the security review assessment should be "Review unfinished"
+    And the security review decision should be "COMMENTED"
+    And the incomplete review should have no success marker

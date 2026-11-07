@@ -30,15 +30,14 @@ func (c *Command) context(ctx context.Context, task *reviewTask) (*reviewContext
 	}
 
 	review.source = &sourceSession{
-		github:          c.github,
-		sources:         c.sources,
-		repository:      task.repository,
-		headSHA:         task.request.GetHead().GetSHA(),
-		baseSHA:         task.request.GetBase().GetSHA(),
-		files:           make(map[string]string),
-		trees:           make(map[string][]*github.TreeEntry),
-		archives:        make(map[string]*zip.Reader),
-		publicRevisions: make(map[string]string),
+		github:     c.github,
+		sources:    c.sources,
+		repository: task.repository,
+		headSHA:    task.request.GetHead().GetSHA(),
+		baseSHA:    task.request.GetBase().GetSHA(),
+		files:      make(map[string]string),
+		trees:      make(map[string][]*github.TreeEntry),
+		archives:   make(map[string]*zip.Reader),
 	}
 	source, err := review.completeSource(ctx)
 	if err != nil {

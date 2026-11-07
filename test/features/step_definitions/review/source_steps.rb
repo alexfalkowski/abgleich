@@ -28,6 +28,15 @@ Given('the reviewer needs {string}') do |lookup|
   Abgleich.openai.mode = "review source #{lookup}"
 end
 
+Given('the reviewer remains uncertain after inspecting available source') do
+  Abgleich.openai.mode = 'review source incomplete'
+end
+
+Given('external Go reference documentation is unavailable') do
+  Abgleich.github.fail_with('source Go reference unavailable')
+  Abgleich.openai.mode = 'review source the declared Go language rules'
+end
+
 Given('the AI service omits usage for one round of investigation') do
   Abgleich.openai.mode = 'review source a response without usage details'
 end
@@ -129,6 +138,11 @@ end
 Then(/^the (code|security) review should disclose "([^"]*)"$/) do |kind, limitation|
   body = review_text(kind)
   expect(body).to include('Limitations', limitation)
+  expect_no_automation_mutations
+end
+
+Then(/^the (code|security) review should disclose external source note "([^"]*)"$/) do |kind, note|
+  expect(review_text(kind)).to include('**External source notes:**', note, 'do not by themselves prevent approval')
   expect_no_automation_mutations
 end
 
