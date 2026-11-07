@@ -42,7 +42,8 @@ func (t *sourceTools) definitions() []ai.Tool {
 		{
 			Name: "read_go_dependency", Parameters: toolSchema("manifest", "module", "path"), Call: t.dependency,
 			Description: "Read a public Go module using the reviewed go.mod version and go.sum checksum. " +
-				"manifest: repository-relative go.mod; module: required module path; path: file or Go package directory (. reads root package). " +
+				"manifest: repository-relative go.mod; module: required module path; path: exact file or directory (. lists the module root). " +
+				"Directories return sorted module-relative file paths without source; request exact files to read their complete text. " +
 				"No arbitrary versions or URLs. Inspect local replacements and vendored code with read_sources.",
 		},
 	}

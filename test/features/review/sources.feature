@@ -81,11 +81,21 @@ Feature: Follow changed behavior into related source
       | secreview  | security | base changed             |
       | secreview  | security | request deleted          |
 
-  @codereview
-  Scenario: Locate dependency source inside nested package directories
+  Scenario Outline: Inspect selected dependency files after discovering their paths
     Given the reviewer needs "a nested dependency package"
-    When a maintainer with "write" access comments "/ab codereview"
-    Then the reviewer should discover the dependency packages and inspect one
+    When a maintainer with "write" access comments "/ab <command>"
+    Then the <kind> reviewer should discover dependency files and inspect only the selected file
+    And public dependency access should omit credentials
+
+    @codereview
+    Examples:
+      | command    | kind |
+      | codereview | code |
+
+    @secreview
+    Examples:
+      | command   | kind     |
+      | secreview | security |
 
   Scenario Outline: Stop before inference when repository source cannot be retrieved completely
     Given related source is "<problem>"

@@ -96,8 +96,9 @@ module Abgleich
       case mode
       when 'review source a nested dependency package', 'review source a corrected dependency path'
         directory = mode == 'review source a corrected dependency path' ? 'pkg/missing' : 'pkg'
-        [['read_go_dependency', { manifest: 'go.mod', module: 'example.com/library', path: directory }],
-         ['read_go_dependency', { manifest: 'go.mod', module: 'example.com/library', path: 'pkg/alpha' }]]
+        paths = [directory, 'pkg/alpha', 'pkg/alpha/query.go']
+        paths.unshift('.') if mode == 'review source a nested dependency package'
+        paths.map { |path| ['read_go_dependency', { manifest: 'go.mod', module: 'example.com/library', path: }] }
       when 'review source an undeclared Go dependency'
         [['read_go_dependency', { manifest: 'go.mod', module: 'example.com/undeclared', path: 'query.go' }]]
       else related_source_calls(mode)
@@ -107,7 +108,7 @@ module Abgleich
     def related_source_calls(mode)
       manifest = mode == 'review source a nested Go module' ? 'tools/app/go.mod' : 'go.mod'
       [['list_source_files', { filter: 'helpers' }], ['read_sources', { paths: ['helpers'] }],
-       ['read_go_dependency', { manifest:, module: 'example.com/library', path: '.' }]]
+       ['read_go_dependency', { manifest:, module: 'example.com/library', path: 'query.go' }]]
     end
 
     def source_function_reply(payload, call, index)
