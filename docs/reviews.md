@@ -50,6 +50,12 @@ Reviews focus on the PR's changes and related source in the reviewed repository,
 with verified Go dependency and language references available through the
 [source tools](configuration.md#-review-source-access). They do not browse other
 GitHub repositories; missing implementations outside those tools do not prevent completion.
+The code-review prompt requires input and state handling findings to trace a
+supported triggering path through producers and callers, accounting for upstream
+generation and validation. Hypothetical inputs outside those preconditions alone
+do not justify findings unless an explicit contract or trust boundary requires
+handling them. The reviewer must challenge candidates against inspected evidence
+that they are not bugs and describe the surviving trigger and prerequisites.
 These are static source reviews: running tests, rendering Helm manifests,
 deploying, and inspecting live services are outside their scope. Lack of execution
 alone does not make a review unfinished; material unresolved source gaps still do.
