@@ -8,12 +8,19 @@ import (
 	"github.com/bluekeyes/go-gitdiff/gitdiff"
 )
 
+type severity string
+
 const (
-	severityP0 = "P0"
-	severityP1 = "P1"
-	severityP2 = "P2"
-	severityP3 = "P3"
+	severityP0 severity = "P0"
+	severityP1 severity = "P1"
+	severityP2 severity = "P2"
+	severityP3 severity = "P3"
 )
+
+// String returns the severity identifier used in review output.
+func (s severity) String() string {
+	return string(s)
+}
 
 type reviewResult struct {
 	Complete *bool           `json:"complete"`
@@ -22,14 +29,14 @@ type reviewResult struct {
 }
 
 type reviewFinding struct {
-	Title    string `json:"title"`
-	Severity string `json:"severity"`
-	Trigger  string `json:"trigger"`
-	Impact   string `json:"impact"`
-	Fix      string `json:"fix"`
-	Path     string `json:"path"`
-	Side     string `json:"side"`
-	Line     int    `json:"line"`
+	Title    string          `json:"title"`
+	Severity severity        `json:"severity"`
+	Trigger  string          `json:"trigger"`
+	Impact   string          `json:"impact"`
+	Fix      string          `json:"fix"`
+	Path     string          `json:"path"`
+	Side     github.DiffSide `json:"side"`
+	Line     int             `json:"line"`
 }
 
 // canPlaceInline reports whether the finding's location is present on the requested side of GitHub's patch.
@@ -47,7 +54,7 @@ func (f *reviewFinding) canPlaceInline(files []*github.CommitFile) bool {
 	return false
 }
 
-func patchContainsLine(patch string, lineNumber int, side string) bool {
+func patchContainsLine(patch string, lineNumber int, side github.DiffSide) bool {
 	// GitHub supplies hunks only; the parser requires file headers.
 	files, _, err := gitdiff.Parse(strings.NewReader("--- a/file\n+++ b/file\n" + patch))
 	if err != nil {

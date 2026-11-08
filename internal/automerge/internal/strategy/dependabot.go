@@ -49,6 +49,7 @@ func (s *Dependabot) Assess(_ context.Context, repository *github.Repository, pu
 
 	decision, err := decideMerge(repository, pull)
 	decision.Policy = dependabotPolicy
+
 	return decision, err
 }
 

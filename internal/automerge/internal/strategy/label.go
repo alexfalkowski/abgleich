@@ -45,6 +45,7 @@ func (s *Label) Assess(ctx context.Context, repository *github.Repository, pull 
 
 	decision, err := decideMerge(repository, pull)
 	decision.Policy = labelPolicy
+
 	return decision, err
 }
 

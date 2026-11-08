@@ -23,7 +23,7 @@
 
 {{.Completion.Text | markdown}}
 
-{{range .Findings}}{{if or .Path .Line .Side}}📍 **Location unavailable on the diff:** {{.Path | markdown}}:{{.Line}} ({{.Side | markdown}}).
+{{range .Findings}}{{if or .Path .Line .Side.IsDefined}}📍 **Location unavailable on the diff:** {{.Path | markdown}}:{{.Line}} ({{.Side.String | markdown}}).
 
 {{end}}{{template "finding.md.tmpl" .}}
 {{end}}

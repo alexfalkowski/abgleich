@@ -61,7 +61,7 @@ func (c *Command) otherReviewRequestsChanges(ctx context.Context, task *reviewTa
 	// including across revisions. A completed clean peer assessment can clear them
 	// even when its own approval was withheld to preserve this feature's findings.
 	for _, review := range slices.Backward(reviews) {
-		switch review.GetState() {
+		switch github.ReviewState(review.GetState()) {
 		case github.ReviewChangesRequested:
 			return true, nil
 		case github.ReviewApproved, github.ReviewDismissed:

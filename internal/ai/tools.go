@@ -77,6 +77,7 @@ func (c *conversation) configureTools() error {
 		c.tools[tool.Name] = tool
 		definition := responses.ToolParamOfFunction(tool.Name, tool.Parameters, true)
 		definition.OfFunction.Description = openai.String(tool.Description)
+
 		c.params.Tools = append(c.params.Tools, definition)
 	}
 
@@ -84,6 +85,7 @@ func (c *conversation) configureTools() error {
 		c.params.ToolChoice = responses.ResponseNewParamsToolChoiceUnion{OfToolChoiceMode: openai.Opt(responses.ToolChoiceOptionsAuto)}
 		c.params.Include = []responses.ResponseIncludable{responses.ResponseIncludableReasoningEncryptedContent}
 	}
+
 	return nil
 }
 
@@ -102,7 +104,6 @@ func (c *conversation) request(ctx context.Context) (*responses.Response, error)
 	if ctx.Err() != nil {
 		return nil, requestFailure(ctx.Err())
 	}
-
 	if err != nil {
 		return nil, requestFailure(err)
 	}
@@ -110,6 +111,7 @@ func (c *conversation) request(ctx context.Context) (*responses.Response, error)
 	if err := validateResponse(response); err != nil {
 		return nil, err
 	}
+
 	return response, nil
 }
 
@@ -141,6 +143,7 @@ func (c *conversation) accept(response *responses.Response) ([]responses.Respons
 			return nil, err
 		}
 	}
+
 	return requested, nil
 }
 
@@ -157,6 +160,7 @@ func (c *conversation) remember(output responses.ResponseOutputItemUnion) error 
 	}
 
 	c.input = append(c.input, item.ToParam())
+
 	return nil
 }
 
@@ -170,6 +174,7 @@ func (c *conversation) validateCall(call responses.ResponseFunctionToolCall) err
 	}
 
 	c.seen[call.CallID] = true
+
 	return nil
 }
 
@@ -188,6 +193,7 @@ func (c *conversation) call(ctx context.Context, requested []responses.ResponseF
 		item.OfFunctionCallOutput.CallID = openai.String(call.CallID)
 		c.input = append(c.input, item)
 	}
+
 	return nil
 }
 
@@ -213,14 +219,15 @@ func validateResponse(response *responses.Response) error {
 	}
 
 	isCompleted := response.Status == responses.ResponseStatusCompleted
-	hasErrorCode := !strings.IsEmpty(string(response.Error.Code))
+	responseCode := ProviderErrorCode(response.Error.Code)
+	hasErrorCode := responseCode.IsDefined()
 	hasErrorMessage := !strings.IsEmpty(response.Error.Message)
 	if !isCompleted || hasErrorCode || hasErrorMessage {
-		var code string
+		var code ProviderErrorCode
 		if response.Status == responses.ResponseStatusIncomplete {
 			code = knownProviderCode(response.IncompleteDetails.Reason)
 		} else {
-			code = knownProviderCode(string(response.Error.Code))
+			code = knownProviderCode(responseCode.String())
 		}
 
 		return &GenerationError{

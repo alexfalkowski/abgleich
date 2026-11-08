@@ -57,8 +57,8 @@ func (f *Factory) NewClient(cfg *client.Config, timeout time.Duration, opts ...t
 	if err != nil {
 		return nil, err
 	}
-
 	connection.CheckRedirect = http.SameOriginRedirect
+
 	f.lifecycle.Append(di.Hook{
 		OnStop: func(context.Context) error {
 			pool.CloseIdleConnections()

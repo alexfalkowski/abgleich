@@ -3,13 +3,27 @@ package strategy
 import (
 	"github.com/alexfalkowski/abgleich/internal/github"
 	"github.com/alexfalkowski/go-service/v2/errors"
+	"github.com/alexfalkowski/go-service/v2/strings"
 )
 
+// Action identifies a requested mutation; its zero value requests no mutation.
+type Action string
+
 const (
-	actionMerge  = "merge"
-	actionEnable = "enable"
-	actionRebase = "rebase"
+	actionMerge  Action = "merge"
+	actionEnable Action = "enable"
+	actionRebase Action = "rebase"
 )
+
+// String returns the mutation identifier, or empty when no mutation is requested.
+func (a Action) String() string {
+	return string(a)
+}
+
+// IsDefined reports whether an action value is present.
+func (a Action) IsDefined() bool {
+	return !strings.IsEmpty(a.String())
+}
 
 // Reason identifies the evidence or limit behind a strategy decision.
 type Reason string
@@ -48,7 +62,7 @@ type Decision struct {
 	Policy string
 
 	// Action is merge, enable, rebase, or empty when no mutation is justified.
-	Action string
+	Action Action
 
 	// Reason records the evidence or limitation for feature-owned explanations.
 	Reason Reason

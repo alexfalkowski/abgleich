@@ -6,7 +6,6 @@ import (
 
 	"github.com/alexfalkowski/abgleich/internal/automerge"
 	"github.com/alexfalkowski/abgleich/internal/github"
-	"github.com/alexfalkowski/go-service/v2/strings"
 	"github.com/alexfalkowski/go-service/v2/time"
 )
 
@@ -18,9 +17,6 @@ var statusTemplate = template.Must(template.ParseFS(statusTemplates, "status.md.
 // Reply holds the observed assessment and display values for a status comment.
 // CheckedAt is formatted in UTC, and RequestID identifies the request comment.
 type Reply struct {
-	// Assessment supplies the observed automation policy and its explanation.
-	Assessment automerge.Assessment
-
 	// Emoji distinguishes unavailable assessments, possible actions, and paused outcomes.
 	Emoji string
 
@@ -32,6 +28,9 @@ type Reply struct {
 
 	// CheckedAt records the assessment time formatted in UTC.
 	CheckedAt string
+
+	// Assessment supplies the observed automation policy and its explanation.
+	Assessment automerge.Assessment
 
 	// RequestID links the reply to the authorizing status command comment.
 	RequestID int64
@@ -47,9 +46,9 @@ func reply(assessment automerge.Assessment, pull *github.PullRequest, requestID 
 
 	var emoji string
 	switch {
-	case assessment.Decision == automerge.DecisionUnavailable:
+	case assessment.Unavailable:
 		emoji = "❓"
-	case !strings.IsEmpty(assessment.Action):
+	case assessment.Action.IsDefined():
 		emoji = "▶️"
 	default:
 		emoji = "⏸️"

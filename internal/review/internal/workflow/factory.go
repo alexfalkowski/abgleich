@@ -7,7 +7,6 @@ import (
 	"github.com/alexfalkowski/go-service/v2/context"
 	"github.com/alexfalkowski/go-service/v2/di"
 	"github.com/alexfalkowski/go-service/v2/errors"
-	"github.com/alexfalkowski/go-service/v2/strings"
 	"github.com/alexfalkowski/go-sync"
 )
 
@@ -59,7 +58,7 @@ type Factory struct {
 // Successful construction includes the command in aggregate review requests.
 func (f *Factory) NewCommand(profile ReviewProfile) (*Command, error) {
 	switch profile.ReasoningEffort {
-	case strings.Empty, ai.EffortNone, ai.EffortMinimal, ai.EffortLow, ai.EffortMedium, ai.EffortHigh, ai.EffortXhigh, ai.EffortMax:
+	case "", ai.EffortNone, ai.EffortMinimal, ai.EffortLow, ai.EffortMedium, ai.EffortHigh, ai.EffortExtraHigh, ai.EffortMax:
 	default:
 		return nil, errors.New("review: invalid reasoning effort")
 	}

@@ -17,5 +17,6 @@ func registerSchedule(schedules *scheduler.Scheduler, command *Command) error {
 	if command == nil {
 		return nil
 	}
+
 	return schedules.RegisterTriggered(codeReviewCommand, command.config, command)
 }

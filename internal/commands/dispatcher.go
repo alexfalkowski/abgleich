@@ -40,6 +40,7 @@ func (d *Dispatcher) Register(name string, handler Handler) error {
 	}
 
 	d.handlers[name] = handler
+
 	return nil
 }
 
@@ -83,8 +84,7 @@ func (d *Dispatcher) acknowledgeReceipt(ctx context.Context, event *github.Issue
 }
 
 func (d *Dispatcher) reportOutcome(ctx context.Context, event *github.IssueCommentEvent, accepted bool) {
-	var reaction string
-
+	var reaction github.Reaction
 	if accepted {
 		reaction = github.ReactionThumbsUp
 	} else {
@@ -94,7 +94,7 @@ func (d *Dispatcher) reportOutcome(ctx context.Context, event *github.IssueComme
 	d.react(ctx, event, reaction)
 }
 
-func (d *Dispatcher) react(ctx context.Context, event *github.IssueCommentEvent, content string) {
+func (d *Dispatcher) react(ctx context.Context, event *github.IssueCommentEvent, content github.Reaction) {
 	if ctx.Err() != nil {
 		return
 	}

@@ -9,6 +9,9 @@ import (
 // DecisionUnavailable identifies assessments that lack the evidence needed for a policy decision.
 const DecisionUnavailable = "Assessment unavailable"
 
+// Action aliases [strategy.Action] for read-only automation assessments.
+type Action = strategy.Action
+
 // Assessment explains an observed automation decision and its evidence limits.
 // Action describes a possible request, not a promise that reconciliation or
 // GitHub will perform it. Creating an assessment never requests automation.
@@ -26,7 +29,10 @@ type Assessment struct {
 	NextStep string
 
 	// Action identifies a possible merge, enable, or rebase request; empty means no action is indicated.
-	Action string
+	Action Action
+
+	// Unavailable reports that evidence was insufficient to assess automation policy.
+	Unavailable bool
 }
 
 // Assess explains the first applicable policy for the supplied repository and
@@ -48,7 +54,7 @@ func (r *Reconciler) Assess(ctx context.Context, repo *github.Repository, pull *
 
 	if err := github.ValidatePullRequestMetadata(pull); err != nil {
 		return Assessment{
-			Policy: "pull request metadata", Decision: DecisionUnavailable,
+			Policy: "pull request metadata", Decision: DecisionUnavailable, Unavailable: true,
 			Reason:   "Pull request branch metadata is incomplete; the worker cannot establish an automation decision.",
 			NextStep: "Retry /ab status after GitHub supplies complete pull request metadata.",
 		}
@@ -86,6 +92,7 @@ func (r *Reconciler) SamePolicyState(currentRepo, expectedRepo *github.Repositor
 	sameSettings := sameRepositorySettings(currentRepo, expectedRepo)
 	sameEligibility := sameStatusEligibility(current, expected)
 	sameMergeState := sameStatusMergeState(current, expected)
+
 	return sameSettings && sameEligibility && sameMergeState && sameRevision
 }
 
@@ -116,11 +123,11 @@ func explainDecision(decision strategy.Decision) Assessment {
 			"Missing application events and equal timestamps do not authorize automation."
 		assessment.NextStep = "Remove and reapply automerge to renew the request. Wait at least a second before reapplying it."
 	case strategy.ReasonHistoryUnavailable:
-		assessment.Decision = DecisionUnavailable
+		assessment.Decision, assessment.Unavailable = DecisionUnavailable, true
 		assessment.Reason = "Complete automation history is unavailable; label authorization cannot be established."
 		assessment.NextStep = "Retry /ab status when GitHub history is available. No authorization is inferred from missing evidence."
 	case strategy.ReasonComparisonUnavailable:
-		assessment.Decision = DecisionUnavailable
+		assessment.Decision, assessment.Unavailable = DecisionUnavailable, true
 		assessment.Reason = "Branch comparison evidence is unavailable; branch freshness cannot be established."
 		assessment.NextStep = "Retry /ab status when GitHub can compare the branches."
 	case strategy.ReasonBranchCurrent:
@@ -141,6 +148,7 @@ func sameRepositorySettings(current, expected *github.Repository) bool {
 	sameDisabled := current.GetDisabled() == expected.GetDisabled()
 	sameAutoMerge := current.GetAllowAutoMerge() == expected.GetAllowAutoMerge()
 	sameSquashMerge := current.GetAllowSquashMerge() == expected.GetAllowSquashMerge()
+
 	return sameArchived && sameDisabled && sameAutoMerge && sameSquashMerge
 }
 
@@ -150,6 +158,7 @@ func sameStatusEligibility(current, expected *github.PullRequest) bool {
 	sameAuthor := current.GetUser().GetLogin() == expected.GetUser().GetLogin()
 	sameHold := github.HasLabel(current.GetLabels(), strategy.HoldLabel) == github.HasLabel(expected.GetLabels(), strategy.HoldLabel)
 	sameAutoMergeLabel := github.HasLabel(current.GetLabels(), strategy.AutoMergeLabel) == github.HasLabel(expected.GetLabels(), strategy.AutoMergeLabel)
+
 	return sameState && sameDraft && sameAuthor && sameHold && sameAutoMergeLabel
 }
 
@@ -158,6 +167,7 @@ func sameStatusMergeState(current, expected *github.PullRequest) bool {
 	sameMergeableState := current.GetMergeableState() == expected.GetMergeableState()
 	sameAutoMerge := (current.GetAutoMerge() == nil) == (expected.GetAutoMerge() == nil)
 	sameMergeMethod := current.GetAutoMerge().GetMergeMethod() == expected.GetAutoMerge().GetMergeMethod()
+
 	return sameMergeable && sameMergeableState && sameAutoMerge && sameMergeMethod
 }
 

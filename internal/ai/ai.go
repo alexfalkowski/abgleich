@@ -22,7 +22,7 @@ type Prompt struct {
 	Task string
 
 	// ReasoningEffort optionally selects the provider's reasoning effort; empty leaves its default.
-	ReasoningEffort string
+	ReasoningEffort ReasoningEffort
 
 	// BeforeRequest rechecks consent before each source submission, including continuations.
 	BeforeRequest func(context.Context) error
@@ -42,6 +42,7 @@ func (p *Prompt) GetTimeout() time.Duration {
 	if p.Timeout == 0 {
 		return time.Minute
 	}
+
 	return p.Timeout
 }
 

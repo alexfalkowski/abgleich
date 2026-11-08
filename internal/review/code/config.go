@@ -1,6 +1,7 @@
 package code
 
 import (
+	"github.com/alexfalkowski/abgleich/internal/ai"
 	"github.com/alexfalkowski/abgleich/internal/scheduler"
 	"github.com/alexfalkowski/go-service/v2/time"
 )
@@ -14,7 +15,7 @@ const (
 // Omit the block to disable code reviews. Zero durations use 30s and 2m.
 type Config struct {
 	// ReasoningEffort optionally selects provider reasoning effort; empty leaves its default.
-	ReasoningEffort string `yaml:"reasoning_effort,omitempty" json:"reasoning_effort,omitempty" toml:"reasoning_effort,omitempty"`
+	ReasoningEffort ai.ReasoningEffort `yaml:"reasoning_effort,omitempty" json:"reasoning_effort,omitempty" toml:"reasoning_effort,omitempty"`
 
 	// Model selects the required provider model for code reviews.
 	Model string `yaml:"model,omitempty" json:"model,omitempty" toml:"model,omitempty" validate:"required"`
@@ -34,6 +35,7 @@ func (c *Config) GetInterval() time.Duration {
 	if c.Interval == 0 {
 		return defaultInterval
 	}
+
 	return c.Interval
 }
 
@@ -43,5 +45,6 @@ func (c *Config) GetTimeout() time.Duration {
 	if c.Timeout == 0 {
 		return defaultTimeout
 	}
+
 	return c.Timeout
 }
