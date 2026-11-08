@@ -9,7 +9,7 @@ require (
 	github.com/bluekeyes/go-gitdiff v0.9.0
 	github.com/bradleyfalzon/ghinstallation/v2 v2.19.0
 	github.com/google/go-github/v93 v93.0.0
-	github.com/openai/openai-go/v3 v3.91.1
+	github.com/openai/openai-go/v3 v3.95.0
 	golang.org/x/mod v0.42.0
 )
 
@@ -97,7 +97,7 @@ require (
 	github.com/sony/gobreaker v1.0.0 // indirect
 	github.com/spf13/cast v1.10.0 // indirect
 	github.com/standard-webhooks/standard-webhooks/libraries v0.0.1 // indirect
-	github.com/tidwall/gjson v1.19.0 // indirect
+	github.com/tidwall/gjson v1.20.0 // indirect
 	github.com/tidwall/match v1.1.1 // indirect
 	github.com/tidwall/pretty v1.2.1 // indirect
 	github.com/tidwall/sjson v1.2.5 // indirect
