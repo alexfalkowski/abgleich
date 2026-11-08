@@ -19,6 +19,10 @@ Given('related source becomes {string} during investigation') do |condition|
   Abgleich.openai.on_request = -> { Abgleich.github.fail_with("source #{condition}") }
 end
 
+Given('the AI provider rejects the review after source investigation') do
+  Abgleich.openai.mode = 'review source context limit'
+end
+
 Given('the reviewed module has a workspace {string}') do |location|
   Abgleich.github.fail_with("source workspace #{location}")
   Abgleich.openai.mode = 'review source a nested Go module'
@@ -95,9 +99,10 @@ Then(/^the (code|security) reviewer should discover dependency files and inspect
   body = review_text(kind)
   source = review_source_results
   expected = "package alpha\n// dependency-alpha-context\nfunc Query() string { return \"alpha\" }\n"
-  expect(source).to include("go.mod\npkg/alpha/query.go\npkg/zeta/query.go\nquery.go"), 'expected paths from the module root'
-  expect(source).to include("pkg/alpha/query.go\npkg/zeta/query.go"), 'expected complete dependency paths in name order'
-  expect(source).to include('pkg/alpha/query.go'), 'expected file paths when listing a Go package'
+  listings = source.first(3).map { |listing| listing.lines.map { |line| line.split("\t").first.strip } }
+  expect(listings).to include(%w[go.mod pkg/alpha/query.go pkg/zeta/query.go query.go]), 'expected paths from the module root'
+  expect(listings).to include(%w[pkg/alpha/query.go pkg/zeta/query.go]), 'expected complete dependency paths in name order'
+  expect(listings).to include(['pkg/alpha/query.go']), 'expected file paths when listing a Go package'
   expect(source).to include(a_string_including(expected)), 'expected the complete selected dependency file'
   expect(source.join).not_to include('dependency-query-context', 'dependency-zeta-context')
   expect(body).to include('Inspected source', 'example.com/library@v1.0.0/pkg/alpha/query.go')
@@ -264,4 +269,34 @@ Then(/^the (code|security) review should use all requested source$/) do |kind|
   expect(body).to include('Inspected related source paths')
   expect(body).not_to include('Limitations')
   expect_no_automation_mutations
+end
+
+Then(/^the (code|security) reviewer should receive only the requested source lines$/) do |kind|
+  body = review_text(kind)
+  source = review_source_results
+  expect(source.first).to match(/^query\.go\t\d+ bytes$/)
+  expect(source.last).to include('Excerpt lines 2-2:', '2: // dependency-query-context')
+  expect(source.join).not_to include('package worker', 'package library', 'func Query', 'unrelated-source-padding')
+  expect(body).to include('query.go (lines 2-2)')
+  Abgleich.openai.requests.each do |request|
+    expect(request.to_json.bytesize).to be < 20_000, 'expected compact dependency excerpts'
+  end
+  expect(Abgleich::GitHubService.request_counts.fetch(:source_reads)).to eq(3), 'expected manifest reuse across dependency reads'
+  expect(Abgleich.github.module_requests).to eq([nil]), 'expected one credential-free verified dependency download'
+end
+
+Then('the excerpt should not claim inspection of the related file') do
+  expect(review_text('code')).not_to include('example.com/library@v1.0.0/query.go')
+end
+
+Then('the dependency excerpt should contain no source lines') do
+  expect(review_source_results.last).to include('No lines in the requested range.')
+end
+
+Then(/^the (code|security) generation log should identify "([^"]*)" as its largest source response$/) do |kind, tool|
+  expected = { 'msg' => 'ai generation', 'task' => review_command(kind),
+               'largest_tool' => tool, 'largest_tool_output_bytes' => review_source_results.map(&:bytesize).max }
+  wait_for { Abgleich.logs.select { |record| record['msg'] == 'ai generation' && record['task'] == review_command(kind) } }
+    .to contain_exactly(a_hash_including(expected))
+  expect(Abgleich.logs.to_json).not_to include('helper-context', 'dependency-query-context', 'unrelated-source-padding')
 end

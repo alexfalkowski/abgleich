@@ -20,4 +20,12 @@ type dependencyRequest struct {
 	Manifest string `json:"manifest"`
 	Module   string `json:"module"`
 	Path     string `json:"path"`
+
+	sourceRange
+}
+
+// sourceRange optionally selects inclusive one-based lines; zero values read the whole file.
+type sourceRange struct {
+	StartLine int `json:"start_line"`
+	EndLine   int `json:"end_line"`
 }

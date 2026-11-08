@@ -54,6 +54,9 @@ comment contents.
 the submitted `event` (`COMMENT`, `APPROVE`, or `REQUEST_CHANGES`).
 
 Monitor `ai generation` for task (including `codereview` and `secreview`), model, duration, and successful token usage.
+`largest_tool` and `largest_tool_output_bytes` identify the largest successful tool
+response's name and returned text size in bytes, including when later inference fails.
+With no nonempty successful tool response, these are an empty name and zero bytes.
 Success logs at info and failure at error. Provider failures add `http_status`,
 `provider_code`, `provider_type`, and `provider_request_id` when available;
 codes and types must be recognized, and request IDs must match the supported format.

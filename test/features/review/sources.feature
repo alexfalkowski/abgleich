@@ -12,6 +12,7 @@ Feature: Follow changed behavior into related source
     Then the <kind> review should explain the related implementation
     And the reviewer should receive complete files at the reviewed revisions
     And public dependency access should omit credentials
+    And the <kind> generation log should identify "read_go_dependency" as its largest source response
 
     @codereview
     Examples:
@@ -452,3 +453,54 @@ Feature: Follow changed behavior into related source
     And the security review assessment should be "Review unfinished"
     And the security review decision should be "COMMENTED"
     And the incomplete review should have no success marker
+
+  Scenario Outline: Read a relevant dependency excerpt without sending unrelated source
+    Given the reviewer needs "related source excerpts"
+    When a maintainer with "write" access comments "/ab <command>"
+    Then the <kind> reviewer should receive only the requested source lines
+
+    @codereview
+    Examples:
+      | command    | kind |
+      | codereview | code |
+
+    @secreview
+    Examples:
+      | command   | kind     |
+      | secreview | security |
+
+  @codereview
+  Scenario: Reject an invalid excerpt before fetching source
+    Given the reviewer needs "an invalid excerpt"
+    When a maintainer with "write" access comments "/ab codereview"
+    Then the code review should disclose external source note "invalid source line range"
+    And the code review decision should be "APPROVED"
+    And the excerpt should not claim inspection of the related file
+    And the public dependency proxy should receive 0 requests without credentials
+
+  @codereview
+  Scenario: Preserve an empty dependency excerpt without inventing inspected lines
+    Given the reviewer needs "an empty excerpt"
+    When a maintainer with "write" access comments "/ab codereview"
+    Then the code review should have no context limitations
+    And the dependency excerpt should contain no source lines
+    And the excerpt should not claim inspection of the related file
+
+  Scenario Outline: Preserve source-size diagnostics when later inference exceeds context
+    Given related source is "a large related file"
+    And the AI provider rejects the review after source investigation
+    When a maintainer with "write" access comments "/ab <command>"
+    Then the <kind> review should fail without publishing findings
+    And its failure comment should explain "context window" with recovery advice
+    And the <kind> generation log should identify "read_sources" as its largest source response
+    And exactly 4 requests should reach the AI service
+
+    @codereview
+    Examples:
+      | command    | kind |
+      | codereview | code |
+
+    @secreview
+    Examples:
+      | command   | kind     |
+      | secreview | security |
