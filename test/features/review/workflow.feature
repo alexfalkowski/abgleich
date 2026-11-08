@@ -1,4 +1,4 @@
-@github @manual @commands @codereview @review
+@manual @commands @codereview
 Feature: Authorize and publish reviews
   Maintainers can request a first review of GitHub pull request patches.
   Reviews report findings and select a verdict without requesting merge automation.

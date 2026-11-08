@@ -1,4 +1,4 @@
-@github @manual @commands @summaries
+@manual @commands @summaries
 Feature: Understand AI usage in pull request summaries
   Maintainers can see which model produced a summary and how many tokens it used.
   Unavailable usage does not prevent an advisory summary.

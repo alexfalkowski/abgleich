@@ -1,4 +1,4 @@
-@github @manual
+@manual
 Feature: Start with a usable worker configuration
   A readable RSA private key is required at startup.
   Restored or replaced credentials take effect after restarting the worker.

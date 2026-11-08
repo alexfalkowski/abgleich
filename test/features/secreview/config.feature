@@ -1,4 +1,4 @@
-@github @manual @commands @secreview
+@manual @commands @secreview
 Feature: Choose whether maintainers can request security reviews
   Security reviews are separately enabled and require a configured model and provider.
 

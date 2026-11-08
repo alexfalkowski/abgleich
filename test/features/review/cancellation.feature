@@ -1,4 +1,4 @@
-@github @manual @commands @review
+@manual @commands
 Feature: Explain canceled reviews
   Maintainers know when an accepted review can no longer be published.
 

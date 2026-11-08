@@ -1,4 +1,4 @@
-@github @manual @commands @review
+@manual @commands
 Feature: Explain failed reviews
   Maintainers can see why a review failed and operators can trace the failed provider request.
 

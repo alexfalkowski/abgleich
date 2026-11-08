@@ -1,4 +1,4 @@
-@github @manual @commands @review
+@manual @commands @review-results
 Feature: Discuss findings beside the changed code
   Maintainers receive one review overview and a separate conversation for each located finding.
 

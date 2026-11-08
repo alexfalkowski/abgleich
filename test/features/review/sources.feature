@@ -1,4 +1,4 @@
-@github @manual @commands @review
+@manual @commands @review-results
 Feature: Follow changed behavior into related source
   Maintainers receive reviews grounded in complete changed files and related source.
   Source permissions and the reviewed revisions are respected during investigation.

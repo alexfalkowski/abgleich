@@ -1,4 +1,4 @@
-@github @manual @reconciliation
+@manual @reconciliation
 Feature: Let CI synchronize branches before event-driven rebasing
   CI reaches its own sync stage before Abgleich repairs a branch on notification.
   Missing completion evidence leaves repair to the scheduled recovery sweep.

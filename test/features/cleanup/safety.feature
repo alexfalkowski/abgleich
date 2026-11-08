@@ -1,4 +1,4 @@
-@github @manual
+@manual
 Feature: Preserve work during branch cleanup
   Branch cleanup respects new work and maintainer decisions.
   If GitHub cannot confirm that deletion is safe, the branch is preserved.

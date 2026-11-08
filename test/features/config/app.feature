@@ -1,4 +1,4 @@
-@github @manual @reconciliation
+@manual @reconciliation
 Feature: Shared App installation access
   Scheduled automation and maintainer requests use the same authorized App installation.
   Installation tokens renew without restarting the worker.

@@ -1,4 +1,4 @@
-@github @manual @commands @review
+@manual @commands
 Feature: Retire outdated review conversations
   Existing App conversations are maintained without another review request or AI inference.
 

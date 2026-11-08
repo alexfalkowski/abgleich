@@ -1,4 +1,4 @@
-@github @manual @commands @secreview
+@manual @commands @secreview
 Feature: Request a security review with a GitHub verdict
   Maintainers can request a first security review of GitHub pull request patches.
   Reviews report findings and select a verdict without requesting merge automation.

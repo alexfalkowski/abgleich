@@ -24,6 +24,14 @@ features-commands:
 features-codereview:
 	@$(MAKE) features tags="@codereview"
 
+# Run code-review source, finding placement, and verdict features.
+features-codereview-results:
+	@$(MAKE) features tags="@codereview and @review-results"
+
+# Run the remaining code-review command and lifecycle features.
+features-codereview-workflow:
+	@$(MAKE) features tags="@codereview and not @review-results"
+
 # Run security-review and shared review workflow features, including source access.
 features-secreview:
 	@$(MAKE) features tags="@secreview"

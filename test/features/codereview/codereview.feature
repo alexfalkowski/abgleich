@@ -1,4 +1,4 @@
-@github @manual @commands @codereview
+@manual @commands @codereview
 Feature: Request a code review with a GitHub verdict
   Maintainers can request a first review of GitHub pull request patches.
   Reviews report findings and select a verdict without requesting merge automation.
