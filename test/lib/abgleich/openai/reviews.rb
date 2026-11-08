@@ -85,6 +85,10 @@ module Abgleich
 
     def batch_source_calls(mode)
       case mode
+      when 'review source an invalid excerpt'
+        [['read_go_dependency', { manifest: 'go.mod', module: 'example.com/library', path: 'query.go', start_line: 3, end_line: 2 }]]
+      when 'review source an empty excerpt'
+        [['read_go_dependency', { manifest: 'go.mod', module: 'example.com/library', path: 'query.go', start_line: 100, end_line: 110 }]]
       when 'review source a batch of related files' then [['read_sources', { paths: %w[helpers/guard.go go.mod] }]]
       when 'review source a batch with an invalid path' then [['read_sources', { paths: %w[helpers/guard.go ../keys/private go.mod] }]]
       when 'review source a malformed batch' then [['read_sources', { paths: 'helpers/guard.go' }]]
@@ -107,12 +111,18 @@ module Abgleich
 
     def related_source_calls(mode)
       manifest = mode == 'review source a nested Go module' ? 'tools/app/go.mod' : 'go.mod'
+      if mode.end_with?('excerpts')
+        return ['.', 'query.go'].map do |path|
+          ['read_go_dependency', { manifest:, module: 'example.com/library', path: }]
+        end
+      end
       [['list_source_files', { filter: 'helpers' }], ['read_sources', { paths: ['helpers'] }],
        ['read_go_dependency', { manifest:, module: 'example.com/library', path: 'query.go' }]]
     end
 
     def source_function_reply(payload, call, index)
       name, arguments = call
+      arguments = arguments.merge(start_line: 2, end_line: 2) if Abgleich.openai.mode.end_with?('excerpts') && name == 'read_go_dependency'
       { id: "resp_source_#{index}", object: 'response', status: 'completed', model: payload.fetch('model'),
         output: [{ type: 'function_call', id: "fc_#{index}", call_id: "source_#{index}", name:, arguments: arguments.to_json }],
         usage: source_call_usage(index) }
@@ -125,6 +135,8 @@ module Abgleich
     end
 
     def source_final_reply(payload, outputs)
+      reject_review_request('too much source') if Abgleich.openai.mode == 'review source context limit'
+
       source = outputs.map { |item| item.fetch('output') }.join("\n")
       text = { overview: source_review_text(source), findings: [], complete: Abgleich.openai.mode != 'review source incomplete' }.to_json
       { id: 'resp_source_final', object: 'response', status: 'completed', model: payload.fetch('model'),

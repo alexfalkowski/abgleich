@@ -2,6 +2,7 @@ package workflow
 
 import (
 	"archive/zip"
+	"fmt"
 	"path"
 	"unicode/utf8"
 
@@ -45,7 +46,7 @@ func (s *sourceSession) dependency(ctx context.Context, args dependencyRequest) 
 		s.archives[key] = archive
 	}
 
-	return s.dependencySource(archive, key, args.Path), nil
+	return s.dependencySource(archive, key, args.Path, args.sourceRange), nil
 }
 
 func (s *sourceSession) resolveDependency(ctx context.Context, args dependencyRequest) (*dependencyRef, error) {
@@ -165,18 +166,18 @@ func moduleChecksum(sums string, selected module.Version) string {
 	return strings.Empty
 }
 
-func (s *sourceSession) dependencySource(archive *zip.Reader, key, requested string) string {
+func (s *sourceSession) dependencySource(archive *zip.Reader, key, requested string, lines sourceRange) string {
 	prefix := key + "/"
 	var names []string
 
 	for _, file := range archive.File {
 		filename := strings.TrimPrefix(file.Name, prefix)
 		if filename == requested {
-			return s.dependencyFile(file)
+			return s.dependencyFile(file, lines)
 		}
 
 		if requested == "." || strings.HasPrefix(filename, requested+"/") {
-			names = append(names, filename)
+			names = append(names, fmt.Sprintf("%s\t%d bytes", filename, file.UncompressedSize64))
 		}
 	}
 
@@ -190,7 +191,7 @@ func (s *sourceSession) dependencySource(archive *zip.Reader, key, requested str
 	return strings.Join("\n", names...)
 }
 
-func (s *sourceSession) dependencyFile(file *zip.File) string {
+func (s *sourceSession) dependencyFile(file *zip.File, lines sourceRange) string {
 	label := file.Name
 
 	reader, err := file.Open()
@@ -204,9 +205,8 @@ func (s *sourceSession) dependencyFile(file *zip.File) string {
 		return s.externalUnavailable(label)
 	}
 
-	if !slices.Contains(s.inspected, label) {
-		s.inspected = append(s.inspected, label)
-	}
-
-	return strings.Concat("Source: ", label, " (reviewed go.sum verified)\n", bytes.String(content))
+	return strings.Concat(
+		"Source: ", label, " (reviewed go.sum verified)\n",
+		s.sourceText(label, bytes.String(content), lines),
+	)
 }

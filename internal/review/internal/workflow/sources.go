@@ -122,15 +122,20 @@ type sourceSession struct {
 }
 
 func (s *sourceSession) list(ctx context.Context, filter string) ([]string, error) {
-	files, err := s.treeFiles(ctx, s.headSHA)
+	files, err := s.treeEntries(ctx, s.headSHA)
 	if err != nil {
 		return nil, err
 	}
 
 	var paths []string
-	for _, name := range files {
-		if strings.Contains(name, filter) {
-			paths = append(paths, name)
+	for _, file := range files {
+		if github.IsRegularSourceFile(file) && strings.Contains(file.GetPath(), filter) {
+			size := "size unavailable"
+			if file.Size != nil {
+				size = fmt.Sprintf("%d bytes", file.GetSize())
+			}
+
+			paths = append(paths, file.GetPath()+"\t"+size)
 		}
 	}
 

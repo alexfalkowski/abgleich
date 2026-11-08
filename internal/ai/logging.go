@@ -3,6 +3,8 @@ package ai
 import (
 	"github.com/alexfalkowski/go-service/v2/context"
 	"github.com/alexfalkowski/go-service/v2/errors"
+	"github.com/alexfalkowski/go-service/v2/slices"
+	"github.com/alexfalkowski/go-service/v2/strings"
 	"github.com/alexfalkowski/go-service/v2/telemetry/logger"
 	"github.com/alexfalkowski/go-service/v2/time"
 )
@@ -16,11 +18,31 @@ type loggingProvider struct {
 // usage without recording prompt or completion text.
 func (p *loggingProvider) Generate(ctx context.Context, prompt Prompt) (*Completion, error) {
 	started := time.Now()
+	largestTool, largestBytes := strings.Empty, 0
+	prompt.Tools = slices.Clone(prompt.Tools)
+
+	for i, tool := range prompt.Tools {
+		if tool.Call == nil {
+			continue
+		}
+
+		prompt.Tools[i].Call = func(ctx context.Context, input string) (string, error) {
+			output, err := tool.Call(ctx, input)
+			if err == nil && len(output) > largestBytes {
+				largestTool, largestBytes = tool.Name, len(output)
+			}
+
+			return output, err
+		}
+	}
+
 	completion, err := p.Provider.Generate(ctx, prompt)
 	fields := []any{
 		"task", prompt.Task,
 		"model", prompt.Model,
 		"duration", time.Since(started),
+		"largest_tool", largestTool,
+		"largest_tool_output_bytes", largestBytes,
 	}
 
 	if err != nil {

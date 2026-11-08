@@ -60,7 +60,8 @@ module Abgleich
           mode = '160000' if Abgleich.github.failure == 'source a submodule' && path == 'helpers/guard.go'
           mode = '040000' if %w[helpers helpers/empty].include?(path)
           type = { '160000' => 'commit', '040000' => 'tree' }.fetch(mode, 'blob')
-          { path:, mode:, type:, sha: source_digest(source_content(path)) }
+          content = source_content(path)
+          { path:, mode:, type:, sha: source_digest(content), size: content.bytesize }
         end }.to_json
     end
 
@@ -140,7 +141,9 @@ module Abgleich
         return "package worker\n// updated-helper-context\nfunc Allowed() bool { return false }\n"
       end
 
-      "package worker\n// helper-context\nfunc Allowed() bool { return true }\n"
+      content = "package worker\n// helper-context\nfunc Allowed() bool { return true }\n"
+      content += "// unrelated-source-padding\n" * 200_000 if Abgleich.github.failure == 'source a large related file'
+      content
     end
 
     def directory_source(filename)

@@ -250,6 +250,19 @@ provider request still rechecks current consent and both branch revisions. Withi
 each check, one fresh complete discussion read serves both command authorization
 and duplicate-result detection; authorization is never cached between checks.
 
+Discovery lists include byte sizes when available. Reviewers prefer relevant
+README, `AGENTS.md`, `doc.go`, and migration guides as fallible reference data,
+never runtime instructions. Documentation is read at the reviewed revision or
+from the verified dependency archive; links to published documentation are not followed.
+`read_go_dependency` accepts optional inclusive one-based `start_line` and
+`end_line` bounds alongside its `manifest`, `module`, and exact file `path`.
+Both bounds must be null or omitted for whole-file reads. Invalid ranges are
+rejected before file reads. Excerpts carry line numbers and are recorded as partial
+inspection; an empty range does not claim the file was inspected. Repository reads
+remain whole-file reads. The worker still validates complete dependency archives
+and includes complete changed files before inference. Large complete reads or
+individual lines can still exhaust context.
+
 Changed files and each source lookup download their uncached files together in a
 GraphQL query. A complete REST tree pins each regular path to its expected blob
 identity; returned text must match that identity and its byte size. Source queries
@@ -284,7 +297,7 @@ Source options alone enable neither review command. Dependency lookup follows
 the modules, versions, and replacements in the reviewed `go.mod`; archives must
 match its `go.sum`. Version-specific replacements take precedence over wildcard replacements.
 This lookup inspects the declared dependency, without resolving a complete build graph.
-Dependency directory lookups return sorted module-relative file paths without
+Dependency directory lookups return sorted module-relative file paths and byte sizes without
 source; `.` lists the module root. The model then requests exact file paths to
 read their complete text, avoiding whole-package reads of generated SDKs.
 A path confirmed absent from its verified module archive returns "not found" to
