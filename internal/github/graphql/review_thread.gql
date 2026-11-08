@@ -1,0 +1,3 @@
+query PullRequestReviewThread($id: ID!) {
+  node(id: $id) { ... on PullRequestReviewThread { ...ReviewThreadFields } }
+}

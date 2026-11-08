@@ -1,6 +1,9 @@
 package github
 
-import "github.com/alexfalkowski/go-service/v2/strings"
+import (
+	"github.com/alexfalkowski/go-service/v2/strings"
+	"github.com/google/go-github/v93/github"
+)
 
 // IsRepository compares the complete owner/repository name case-insensitively.
 func (s *service) IsRepository(repo *Repository, name string) bool {
@@ -46,4 +49,10 @@ func (s *service) IsSamePullRequest(current, expected *PullRequest) bool {
 		strings.ToLower(currentBase.GetRepo().GetFullName()) == strings.ToLower(expectedBase.GetRepo().GetFullName())
 
 	return sameID && sameHead && sameBase
+}
+
+type repositoryIdentity interface {
+	GetOwner() *github.User
+	GetName() string
+	GetFullName() string
 }

@@ -1,0 +1,17 @@
+query PullRequestAutomationEvents($id: ID!, $after: String) {
+  node(id: $id) {
+    ... on PullRequest {
+      id
+      timelineItems(first: 100, after: $after,
+        itemTypes: [LABELED_EVENT, UNLABELED_EVENT, AUTO_MERGE_DISABLED_EVENT]) {
+        nodes {
+          event: __typename
+          ... on LabeledEvent { created_at: createdAt label { name } }
+          ... on UnlabeledEvent { created_at: createdAt label { name } }
+          ... on AutoMergeDisabledEvent { created_at: createdAt }
+        }
+        pageInfo { endCursor hasNextPage }
+      }
+    }
+  }
+}

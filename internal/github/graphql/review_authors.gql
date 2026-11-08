@@ -1,0 +1,5 @@
+query PullRequestReviewAuthors($ids: [ID!]!) {
+  nodes(ids: $ids) {
+    ... on PullRequestReview { id viewer_did_author: viewerDidAuthor }
+  }
+}

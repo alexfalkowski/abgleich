@@ -1,0 +1,7 @@
+%s: repository(owner: $owner, name: $repository) {
+  node_id: id full_name: nameWithOwner
+  object(expression: $%s) {
+    type: __typename
+    ... on Blob { content: text size: byteSize sha: oid binary: isBinary truncated: isTruncated }
+  }
+}

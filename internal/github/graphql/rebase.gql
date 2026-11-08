@@ -1,0 +1,5 @@
+mutation RebasePullRequest($input: UpdatePullRequestBranchInput!) {
+  updatePullRequestBranch(input: $input) {
+    pullRequest { id }
+  }
+}
