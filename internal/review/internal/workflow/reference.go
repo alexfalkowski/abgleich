@@ -18,7 +18,7 @@ func (s *sourceSession) goReference(ctx context.Context, manifest string) (strin
 		return strings.Empty, errors.New("review: invalid Go manifest path")
 	}
 
-	manifestContent, err := s.repositoryFile(ctx, manifest, false)
+	manifestContent, err := s.repositoryFile(ctx, s.headSHA, manifest)
 	if err != nil {
 		return strings.Empty, err
 	}

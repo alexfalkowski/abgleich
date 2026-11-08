@@ -2,6 +2,7 @@ package workflow
 
 import (
 	"github.com/alexfalkowski/abgleich/internal/ai"
+	"github.com/alexfalkowski/go-service/v2/context"
 	"github.com/alexfalkowski/go-service/v2/errors"
 )
 
@@ -66,4 +67,18 @@ func (c *Command) failureReply(task *reviewTask, stage string, err error) (strin
 	}
 
 	return render("failure.md.tmpl", failure)
+}
+
+// reportFailure preserves the operation error and skips feedback after cancellation.
+func (c *Command) reportFailure(ctx context.Context, task *reviewTask, stage string, cause error) error {
+	if ctx.Err() != nil {
+		return cause
+	}
+
+	body, err := c.failureReply(task, stage, cause)
+	if err != nil {
+		return errors.Join(cause, err)
+	}
+
+	return errors.Join(cause, c.publish(ctx, task, body))
 }

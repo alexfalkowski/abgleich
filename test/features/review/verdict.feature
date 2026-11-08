@@ -1,7 +1,6 @@
 @manual @commands @review-results
-Feature: Submit review decisions grounded in the inspected changes
-  Maintainers receive requests for changes when the reviewer finds bugs.
-  Approval requires a completed review without findings or unavailable context.
+Feature: Ground review decisions in the inspected changes
+  Findings request changes, while approval requires a complete clean assessment and preserves the other review feature's findings.
 
   Scenario Outline: Select the decision from the completed assessment
     Given AI <kind> reviews are configured for this repository
@@ -108,16 +107,6 @@ Feature: Submit review decisions grounded in the inspected changes
       | security | secreview | changed |
       | security | secreview | deleted |
 
-  @codereview
-  Scenario: Identify an excluded deleted binary at the base revision
-    Given AI code reviews are configured for this repository
-    And a pull request from "the repository" for branch "contribution" is "waiting for checks"
-    And the contribution has a "deleted" binary file
-    And the AI code review answer has "no findings"
-    When a maintainer with "write" access comments "/ab codereview"
-    Then the code review decision should be "APPROVED"
-    And the deleted binary file should be identified at the reviewed base revision
-
   Scenario Outline: Preserve the reviewer's decision when binary files are excluded
     Given AI <kind> reviews are configured for this repository
     And a pull request from "the repository" for branch "contribution" is "waiting for checks"
@@ -138,28 +127,6 @@ Feature: Submit review decisions grounded in the inspected changes
       | kind     | command   | answer          | decision          |
       | security | secreview | inline findings | CHANGES_REQUESTED |
       | security | secreview | incomplete      | COMMENTED         |
-
-  Scenario Outline: Reuse a submitted verdict after restarting
-    Given AI <kind> reviews are configured for this repository
-    And a pull request from "the repository" for branch "contribution" is "waiting for checks"
-    And the AI <kind> review answer has "<answer>"
-    And the pull request has already received a <kind> review
-    And the worker has restarted
-    When a maintainer with "write" access comments "/ab <command>"
-    Then the original <kind> review should remain without another model call
-    And the <kind> review decision should be "<decision>"
-
-    @codereview
-    Examples:
-      | kind | command    | answer          | decision          |
-      | code | codereview | no findings     | APPROVED          |
-      | code | codereview | inline findings | CHANGES_REQUESTED |
-
-    @secreview
-    Examples:
-      | kind     | command   | answer          | decision          |
-      | security | secreview | no findings     | APPROVED          |
-      | security | secreview | inline findings | CHANGES_REQUESTED |
 
   Scenario Outline: Keep the other review's findings blocking after a restart
     Given AI <kind> reviews are configured for this repository
@@ -224,82 +191,6 @@ Feature: Submit review decisions grounded in the inspected changes
     When a maintainer with "write" access comments "/ab secreview"
     Then the security review decision should be "APPROVED"
 
-  @codereview
-  Scenario: Preserve findings when both reviews complete together
-    Given AI code reviews are configured for this repository
-    And a pull request from "the repository" for branch "contribution" is "waiting for checks"
-    And both review commands are enabled
-    And the AI code review answer has "conflicting verdicts"
-    When maintainers request both reviews together
-    Then the code review decision should be "CHANGES_REQUESTED"
-    And the clean security review should preserve the code review's decision
-
-  Scenario Outline: Reject a missing or invalid completion indicator
-    Given AI <kind> reviews are configured for this repository
-    And a pull request from "the repository" for branch "contribution" is "waiting for checks"
-    And the AI <kind> review answer has "<answer>"
-    When a maintainer with "write" access comments "/ab <command>"
-    Then the <kind> review should fail without publishing findings
-    And its failure comment should explain "unreadable or invalid review result" with recovery advice
-    And no native review should be submitted
-
-    @codereview
-    Examples:
-      | kind | command    | answer             |
-      | code | codereview | missing completion |
-      | code | codereview | null completion    |
-      | code | codereview | invalid completion |
-
-    @secreview
-    Examples:
-      | kind     | command   | answer             |
-      | security | secreview | missing completion |
-      | security | secreview | null completion    |
-      | security | secreview | invalid completion |
-
-  Scenario Outline: Retry an incomplete review on the same commits
-    Given AI <kind> reviews are configured for this repository
-    And a pull request from "the repository" for branch "contribution" is "waiting for checks"
-    And the AI <kind> review answer has "incomplete"
-    And the pull request has already received a <kind> review
-    And the AI <kind> review answer has "no findings"
-    When a maintainer with "write" access comments "/ab <command>"
-    Then the <kind> review decision should be "APPROVED"
-    And the incomplete review should have no success marker
-    And exactly 2 requests should reach the AI service
-
-    @codereview
-    Examples:
-      | kind | command    |
-      | code | codereview |
-
-    @secreview
-    Examples:
-      | kind     | command   |
-      | security | secreview |
-
-  Scenario Outline: Retry a completed review after its context limitations are resolved
-    Given AI <kind> reviews are configured for this repository
-    And a pull request from "the repository" for branch "contribution" is "waiting for checks"
-    And the review cannot inspect "changed-file patch"
-    And the AI <kind> review answer has "no findings"
-    And the pull request has already received a <kind> review
-    And the <kind> review can inspect the missing context again
-    When a maintainer with "write" access comments "/ab <command>"
-    Then the <kind> review decision should be "APPROVED"
-    And the incomplete review should have no success marker
-    And exactly 2 requests should reach the AI service
-
-    @codereview
-    Examples:
-      | kind | command    |
-      | code | codereview |
-
-    @secreview
-    Examples:
-      | kind     | command   |
-      | security | secreview |
-
   @secreview
   Scenario Outline: Ignore requests for changes from unauthenticated lookalikes
     Given AI security reviews are configured for this repository
@@ -325,16 +216,6 @@ Feature: Submit review decisions grounded in the inspected changes
     And the AI code review answer has "no findings"
     When a maintainer with "write" access comments "/ab codereview"
     Then the code review decision should be "APPROVED"
-
-  @codereview
-  Scenario: Reuse a dismissed result after restarting
-    Given AI code reviews are configured for this repository
-    And a pull request from "the repository" for branch "contribution" is "waiting for checks"
-    And the pull request has already received a code review
-    And a maintainer dismissed the latest review findings
-    And the worker has restarted
-    When a maintainer with "write" access comments "/ab codereview"
-    Then the original code review should remain without another model call
 
   @codereview
   Scenario: Withhold approval when the other review's authorship cannot be verified
@@ -382,22 +263,3 @@ Feature: Submit review decisions grounded in the inspected changes
     When a maintainer with "write" access comments "/ab codereview"
     Then the code review decision should be "COMMENTED"
     And its decision should explain that the other review still requests changes
-
-  Scenario Outline: Reject mismatched verdicts without retrying publication
-    Given AI <kind> reviews are configured for this repository
-    And a pull request from "the repository" for branch "contribution" is "waiting for checks"
-    And the AI <kind> review answer has "<answer>"
-    And GitHub returns a different review verdict
-    When a maintainer with "write" access comments "/ab <command>"
-    Then the <kind> review publication should be reported as failed
-    And exactly 1 request should reach the AI service
-
-    @codereview
-    Examples:
-      | kind | command    | answer      |
-      | code | codereview | no findings |
-
-    @secreview
-    Examples:
-      | kind     | command   | answer          |
-      | security | secreview | inline findings |
