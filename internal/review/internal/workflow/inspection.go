@@ -20,9 +20,11 @@ func (s *sourceSession) list(ctx context.Context, filter string) ([]string, erro
 	var paths []string
 	for _, file := range files {
 		if github.IsRegularSourceFile(file) && strings.Contains(file.GetPath(), filter) {
-			size := "size unavailable"
+			var size string
 			if file.Size != nil {
 				size = fmt.Sprintf("%d bytes", file.GetSize())
+			} else {
+				size = "size unavailable"
 			}
 
 			paths = append(paths, file.GetPath()+"\t"+size)

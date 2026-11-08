@@ -79,11 +79,14 @@ func (r *reviewContext) completeSource(ctx context.Context) (string, error) {
 
 	var source strings.Builder
 	for _, file := range r.Files {
-		revision := r.HeadSHA
-		contents := headSource
+		var revision string
+		var contents map[string]string
 		if file.GetStatus() == github.FileRemoved {
 			revision = r.BaseSHA
 			contents = baseSource
+		} else {
+			revision = r.HeadSHA
+			contents = headSource
 		}
 
 		if strings.IsEmpty(file.GetPatch()) && !slices.Contains(r.source.binary, revision+":"+file.GetFilename()) {

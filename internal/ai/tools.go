@@ -216,9 +216,11 @@ func validateResponse(response *responses.Response) error {
 	hasErrorCode := !strings.IsEmpty(string(response.Error.Code))
 	hasErrorMessage := !strings.IsEmpty(response.Error.Message)
 	if !isCompleted || hasErrorCode || hasErrorMessage {
-		code := knownProviderCode(string(response.Error.Code))
+		var code string
 		if response.Status == responses.ResponseStatusIncomplete {
 			code = knownProviderCode(response.IncompleteDetails.Reason)
+		} else {
+			code = knownProviderCode(string(response.Error.Code))
 		}
 
 		return &GenerationError{

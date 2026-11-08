@@ -19,24 +19,9 @@ func (c *Command) generateReview(ctx context.Context, task *reviewTask, review *
 		inferenceTimeout = time.Until(deadline) / inferenceTimeoutDivisor
 	}
 
-	needsSubmissionCheck := true
-	var submissionCheckErr error
+	// Keep checks read-only; the failure path owns feedback publication.
 	guard := func(ctx context.Context) error {
-		if !needsSubmissionCheck {
-			return c.guard(ctx, task)
-		}
-		// The initial source-submission check can publish cancellation or stale-revision feedback.
-		needsSubmissionCheck = false
-
-		task, submissionCheckErr = c.recheck(ctx, task)
-		if submissionCheckErr != nil {
-			return submissionCheckErr
-		}
-		if task == nil {
-			return errReviewStopped
-		}
-
-		return ctx.Err()
+		return c.guard(ctx, task)
 	}
 
 	tools := sourceTools{session: review.source, beforeLookup: guard}
@@ -50,11 +35,6 @@ func (c *Command) generateReview(ctx context.Context, task *reviewTask, review *
 		BeforeRequest:   guard,
 		Timeout:         inferenceTimeout,
 	})
-	// Return submission-check errors directly: feedback may already have been
-	// published, including after an ambiguous response.
-	if submissionCheckErr != nil {
-		return submissionCheckErr
-	}
 	if errors.Is(err, errReviewStopped) {
 		return nil
 	}
