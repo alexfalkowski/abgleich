@@ -59,7 +59,6 @@ func (s *Sources) reference(ctx context.Context, version string) (string, error)
 	if err != nil {
 		return strings.Empty, err
 	}
-
 	if !utf8.Valid(content) {
 		return strings.Empty, errors.New("review: Go reference is not usable text")
 	}

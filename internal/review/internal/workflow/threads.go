@@ -46,6 +46,7 @@ func (c *Command) reconcileRepositoryThreads(ctx context.Context, repository *gi
 		if err := ctx.Err(); err != nil {
 			return errors.Join(failures, err)
 		}
+
 		if err := c.reconcilePullThreads(ctx, repository, pull); err != nil {
 			failures = errors.Join(failures, errors.Prefix(strings.Concat("review: pull request #", strconv.Itoa(pull.GetNumber())), err))
 			if github.IsRateLimited(err) || ctx.Err() != nil {
@@ -53,6 +54,7 @@ func (c *Command) reconcileRepositoryThreads(ctx context.Context, repository *gi
 			}
 		}
 	}
+
 	return failures
 }
 
@@ -74,9 +76,11 @@ func (c *Command) reconcilePullThreads(ctx context.Context, repository *github.R
 		if err := ctx.Err(); err != nil {
 			return errors.Join(failures, err)
 		}
+
 		if !c.outdatedThread(thread) {
 			continue
 		}
+
 		if err := c.resolveThread(ctx, repository, pull, thread); err != nil {
 			failures = errors.Join(failures, errors.Prefix(strings.Concat("review: thread ", thread.ID), err))
 			if github.IsRateLimited(err) || ctx.Err() != nil {
@@ -84,6 +88,7 @@ func (c *Command) reconcilePullThreads(ctx context.Context, repository *github.R
 			}
 		}
 	}
+
 	return failures
 }
 
@@ -96,6 +101,7 @@ func (c *Command) resolveThread(ctx context.Context, repository *github.Reposito
 	if !c.github.IsSamePullRequestIdentity(repository, current, pull) {
 		return errors.New("review: pull request identity changed before thread resolution")
 	}
+
 	if !c.eligibleForThreadMaintenance(repository, current) {
 		return nil
 	}
@@ -105,6 +111,7 @@ func (c *Command) resolveThread(ctx context.Context, repository *github.Reposito
 	if !canResolve {
 		return err
 	}
+
 	if err := ctx.Err(); err != nil {
 		return err
 	}

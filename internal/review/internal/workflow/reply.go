@@ -57,6 +57,7 @@ func (c *Command) reply(task *reviewTask, completion *ai.Completion, review *rev
 		if err != nil {
 			return nil, err
 		}
+
 		reply.Comments = append(reply.Comments, &github.DraftReviewComment{
 			Path: new(finding.Path), Line: new(finding.Line), Side: new(finding.Side),
 			Body: new(body),
@@ -64,6 +65,7 @@ func (c *Command) reply(task *reviewTask, completion *ai.Completion, review *rev
 	}
 
 	reply.assess(result)
+
 	if reply.Event != github.ReviewComment {
 		reply.Marker = c.resultMarker(task)
 	}

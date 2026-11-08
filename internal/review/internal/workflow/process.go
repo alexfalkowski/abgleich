@@ -24,6 +24,7 @@ func (c *Command) Process(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
 		return errors.Join(failures, err)
 	}
+
 	return errors.Join(failures, c.reconcileThreads(ctx))
 }
 

@@ -51,6 +51,7 @@ func (c *Command) otherReviewRequestsChanges(ctx context.Context, task *reviewTa
 			candidates = append(candidates, review)
 		}
 	}
+
 	reviews, err = c.github.AppReviews(ctx, candidates)
 	if err != nil {
 		return false, err

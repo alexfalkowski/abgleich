@@ -57,15 +57,19 @@ func (s *sourceSession) uncachedFiles(revision string, filenames []string) (map[
 		if seen[filename] {
 			continue
 		}
+
 		seen[filename] = true
+
 		if !io.ValidPath(filename) || strings.Contains(filename, "\\") {
 			contents[filename] = s.unavailable("invalid repository path")
 			continue
 		}
+
 		if content, ok := s.files[revision+":"+filename]; ok {
 			contents[filename] = content
 			continue
 		}
+
 		missing = append(missing, filename)
 	}
 
