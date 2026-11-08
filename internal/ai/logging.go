@@ -51,6 +51,7 @@ func (p *loggingProvider) Generate(ctx context.Context, prompt Prompt) (*Complet
 			fields = append(fields, "http_status", failure.StatusCode,
 				"provider_code", failure.Code, "provider_type", failure.Type, "provider_request_id", failure.RequestID)
 		}
+
 		p.logger.Error("ai generation", fields...)
 
 		return nil, err

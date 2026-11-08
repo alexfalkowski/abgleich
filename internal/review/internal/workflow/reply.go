@@ -13,7 +13,7 @@ type reviewReply struct {
 	Marker     string
 	Assessment string
 	Decision   string
-	Event      string
+	Event      github.ReviewEvent
 	Comments   []*github.DraftReviewComment
 	Findings   []reviewFinding
 	Sources    []string
@@ -59,7 +59,7 @@ func (c *Command) reply(task *reviewTask, completion *ai.Completion, review *rev
 		}
 
 		reply.Comments = append(reply.Comments, &github.DraftReviewComment{
-			Path: new(finding.Path), Line: new(finding.Line), Side: new(finding.Side),
+			Path: new(finding.Path), Line: new(finding.Line), Side: new(finding.Side.String()),
 			Body: new(body),
 		})
 	}

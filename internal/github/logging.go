@@ -69,7 +69,7 @@ func (s *loggingService) AddComment(ctx context.Context, repo *Repository, numbe
 
 // AddCommentReaction delegates to Service and logs both failures and successful
 // reactions with their repository and comment identity.
-func (s *loggingService) AddCommentReaction(ctx context.Context, repo *Repository, comment *IssueComment, content string) error {
+func (s *loggingService) AddCommentReaction(ctx context.Context, repo *Repository, comment *IssueComment, content Reaction) error {
 	if err := s.Service.AddCommentReaction(ctx, repo, comment, content); err != nil {
 		s.logger.Error("github comment reaction failed",
 			"repository", repo.GetFullName(),

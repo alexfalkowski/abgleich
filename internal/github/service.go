@@ -63,7 +63,7 @@ type Service interface {
 
 	// AddCommentReaction adds a reaction as the App. Repeated reactions are
 	// idempotent in GitHub; mutation requests are not retried.
-	AddCommentReaction(ctx context.Context, repo *Repository, comment *IssueComment, content string) error
+	AddCommentReaction(ctx context.Context, repo *Repository, comment *IssueComment, content Reaction) error
 
 	// AddComment publishes feedback once and validates the response. An ambiguous
 	// failure may have published the comment; callers must not retry automatically.

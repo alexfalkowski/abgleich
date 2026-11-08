@@ -94,6 +94,7 @@ func (q *Queue) Process(ctx context.Context) error {
 			return errors.Join(failures, err)
 		}
 	}
+
 	return failures
 }
 

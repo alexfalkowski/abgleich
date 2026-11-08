@@ -28,7 +28,7 @@ type ReviewProfile struct {
 	Instructions string
 
 	// ReasoningEffort optionally selects provider reasoning effort; empty leaves its default.
-	ReasoningEffort string
+	ReasoningEffort ai.ReasoningEffort
 }
 
 type reviewTask struct {

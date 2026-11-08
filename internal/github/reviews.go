@@ -9,34 +9,63 @@ import (
 	"github.com/google/go-github/v93/github"
 )
 
+// ReviewEvent selects the verdict requested when publishing a native review.
+type ReviewEvent string
+
+// String returns the event value sent when publishing a review.
+func (e ReviewEvent) String() string {
+	return string(e)
+}
+
+// ReviewState identifies the recorded outcome of a submitted or dismissed review.
+type ReviewState string
+
+// String returns the state value recorded by GitHub.
+func (s ReviewState) String() string {
+	return string(s)
+}
+
+// DiffSide selects the base or head side of a pull request patch.
+type DiffSide string
+
+// String returns the side value used for inline review placement.
+func (s DiffSide) String() string {
+	return string(s)
+}
+
+// IsDefined reports whether a diff side is present, without validating its value.
+func (s DiffSide) IsDefined() bool {
+	return !strings.IsEmpty(s.String())
+}
+
 // ReviewComment submits feedback without approving or requesting changes.
-const ReviewComment = "COMMENT"
+const ReviewComment ReviewEvent = "COMMENT"
 
 // ReviewApprove submits an approving review.
-const ReviewApprove = "APPROVE"
+const ReviewApprove ReviewEvent = "APPROVE"
 
 // ReviewRequestChanges submits findings that request changes.
-const ReviewRequestChanges = "REQUEST_CHANGES"
+const ReviewRequestChanges ReviewEvent = "REQUEST_CHANGES"
 
 // ReviewCommented identifies submitted feedback without a verdict.
-const ReviewCommented = "COMMENTED"
+const ReviewCommented ReviewState = "COMMENTED"
 
 // ReviewApproved identifies a submitted approval.
-const ReviewApproved = "APPROVED"
+const ReviewApproved ReviewState = "APPROVED"
 
 // ReviewChangesRequested identifies a submitted request for changes.
-const ReviewChangesRequested = "CHANGES_REQUESTED"
+const ReviewChangesRequested ReviewState = "CHANGES_REQUESTED"
 
 // ReviewDismissed identifies a review dismissed after submission.
-const ReviewDismissed = "DISMISSED"
+const ReviewDismissed ReviewState = "DISMISSED"
 
 // DiffLeft places a finding on the base side of a pull request patch.
-const DiffLeft = "LEFT"
+const DiffLeft DiffSide = "LEFT"
 
 // DiffRight places a finding on the head side of a pull request patch.
-const DiffRight = "RIGHT"
+const DiffRight DiffSide = "RIGHT"
 
-var reviewStates = map[string]string{
+var reviewStates = map[ReviewEvent]ReviewState{
 	ReviewComment:        ReviewCommented,
 	ReviewApprove:        ReviewApproved,
 	ReviewRequestChanges: ReviewChangesRequested,
@@ -46,7 +75,7 @@ var reviewStates = map[string]string{
 // concurrent push may make it old; commit_id is not a current-head guard.
 func (s *service) AddReview(ctx context.Context, repo *Repository, pull *PullRequest, review *PullRequestReviewRequest) error {
 	publication := *review
-	expectedState, ok := reviewStates[publication.GetEvent()]
+	expectedState, ok := reviewStates[ReviewEvent(publication.GetEvent())]
 	if !ok {
 		return errors.New("github: unsupported review event")
 	}
@@ -63,7 +92,7 @@ func (s *service) AddReview(ctx context.Context, repo *Repository, pull *PullReq
 
 	bodyMatches := created.GetBody() == publication.GetBody()
 	commitMatches := created.GetCommitID() == publication.GetCommitID()
-	stateMatches := created.GetState() == expectedState
+	stateMatches := created.GetState() == expectedState.String()
 	isSubmitted := !created.GetSubmittedAt().IsZero()
 	if !bodyMatches || !commitMatches || !stateMatches || !isSubmitted {
 		return errors.New("github: review publication returned mismatched content or submission state")

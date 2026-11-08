@@ -38,5 +38,6 @@ func (c *Command) context(ctx context.Context, task *summaryTask) (string, []cha
 	}
 
 	input, err := render("context.txt.tmpl", diff)
+
 	return input, available, err
 }

@@ -15,13 +15,10 @@ var summaryFiles embed.FS
 //go:embed prompt.txt
 var instructions string
 
-var summaryTemplates = template.Must(template.New("summarise").Funcs(template.FuncMap{
-	"markdown": markdown.Escape,
-}).ParseFS(summaryFiles, "*.tmpl"))
+var summaryTemplates = template.Must(template.New("summarise").Funcs(template.FuncMap{"markdown": markdown.Escape}).ParseFS(summaryFiles, "*.tmpl"))
 
 func render(name string, value any) (string, error) {
 	var body bytes.Buffer
-
 	if err := summaryTemplates.ExecuteTemplate(&body, name, value); err != nil {
 		return strings.Empty, err
 	}

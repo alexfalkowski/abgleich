@@ -6,11 +6,18 @@ import (
 	"github.com/alexfalkowski/go-service/v2/errors"
 )
 
+type failureStage string
+
 const (
-	stageSource     = "Source collection"
-	stageGeneration = "AI generation"
-	stageResult     = "Result validation"
+	stageSource     failureStage = "Source collection"
+	stageGeneration failureStage = "AI generation"
+	stageResult     failureStage = "Result validation"
 )
+
+// String returns the workflow stage's display text.
+func (s failureStage) String() string {
+	return string(s)
+}
 
 // reviewFailure supplies failure reply data with exported fields for template access.
 type reviewFailure struct {
@@ -33,7 +40,7 @@ type reviewFailure struct {
 	BaseSHA string
 
 	// Stage names the workflow phase that failed.
-	Stage string
+	Stage failureStage
 
 	// Reason explains the failure without exposing the underlying error text.
 	Reason string
@@ -45,7 +52,7 @@ type reviewFailure struct {
 	RequestID int64
 }
 
-func (c *Command) failureReply(task *reviewTask, stage string, err error) (string, error) {
+func (c *Command) failureReply(task *reviewTask, stage failureStage, err error) (string, error) {
 	failure := reviewFailure{
 		Title: c.profile.Title, Command: c.profile.Name, Model: c.profile.Model,
 		RequestID: task.comment.GetID(), HeadSHA: task.request.GetHead().GetSHA(), BaseSHA: task.request.GetBase().GetSHA(),
@@ -60,6 +67,8 @@ func (c *Command) failureReply(task *reviewTask, stage string, err error) (strin
 	case stageResult:
 		failure.Reason = "The model returned an unreadable or invalid review result."
 		failure.Recovery = "Check the model's review output format before requesting another review."
+	case stageGeneration:
+		// The initial reason and recovery describe generation failures.
 	}
 	if provider, ok := errors.AsType[*ai.GenerationError](err); ok {
 		failure.Provider = provider
@@ -70,7 +79,7 @@ func (c *Command) failureReply(task *reviewTask, stage string, err error) (strin
 }
 
 // reportFailure preserves the operation error and skips feedback after cancellation.
-func (c *Command) reportFailure(ctx context.Context, task *reviewTask, stage string, cause error) error {
+func (c *Command) reportFailure(ctx context.Context, task *reviewTask, stage failureStage, cause error) error {
 	if ctx.Err() != nil {
 		return cause
 	}

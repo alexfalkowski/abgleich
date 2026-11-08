@@ -28,7 +28,7 @@ func (c *Command) hasReview(ctx context.Context, task *reviewTask, comments []*g
 
 	var candidates []*github.PullRequestReview
 	for _, review := range reviews {
-		switch review.GetState() {
+		switch github.ReviewState(review.GetState()) {
 		case github.ReviewCommented, github.ReviewApproved, github.ReviewChangesRequested, github.ReviewDismissed:
 		default:
 			continue

@@ -8,38 +8,66 @@ import (
 	"github.com/alexfalkowski/go-service/v2/context"
 	"github.com/alexfalkowski/go-service/v2/errors"
 	"github.com/alexfalkowski/go-service/v2/net/http"
+	"github.com/alexfalkowski/go-service/v2/strings"
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/responses"
 )
 
-const (
-	codeContextLimit      = "context_length_exceeded"
-	codeInvalidReasoning  = "invalid_encrypted_content"
-	codeInvalidKey        = "invalid_api_key"
-	codeModelNotFound     = "model_not_found"
-	codeRateLimit         = string(responses.ResponseErrorCodeRateLimitExceeded)
-	codeInsufficientQuota = "insufficient_quota"
-	codeBillingLimit      = "billing_hard_limit_reached"
-	codeServerError       = string(responses.ResponseErrorCodeServerError)
-	codeServerOverloaded  = "server_is_overloaded"
-	codeSlowDown          = "slow_down"
-	codeOrgSpendLimit     = "organization_spend_limit_exceeded"
-	codeProjectSpendLimit = "project_spend_limit_exceeded"
-	codeOrgUsageLimit     = "organization_usage_limit_exceeded"
-	codeInvalidPrompt     = string(responses.ResponseErrorCodeInvalidPrompt)
-	codeContentFilter     = "content_filter"
-	codeMaxOutputTokens   = "max_output_tokens"
-	codeMaxMessages       = "max_messages"
-)
+// ProviderErrorCode covers HTTP errors, failed responses, and incomplete-response reasons.
+// Generation diagnostics retain only codes accepted by the local allowlist.
+type ProviderErrorCode string
 
 const (
-	typeInvalidRequest    = "invalid_request_error"
-	typeAuthentication    = "authentication_error"
-	typePermission        = "permission_error"
-	typeRateLimit         = "rate_limit_error"
-	typeServer            = "server_error"
-	typeInsufficientQuota = "insufficient_quota"
+	codeContextLimit      ProviderErrorCode = "context_length_exceeded"
+	codeInvalidReasoning  ProviderErrorCode = "invalid_encrypted_content"
+	codeInvalidKey        ProviderErrorCode = "invalid_api_key"
+	codeModelNotFound     ProviderErrorCode = "model_not_found"
+	codeRateLimit         ProviderErrorCode = ProviderErrorCode(responses.ResponseErrorCodeRateLimitExceeded)
+	codeInsufficientQuota ProviderErrorCode = "insufficient_quota"
+	codeBillingLimit      ProviderErrorCode = "billing_hard_limit_reached"
+	codeServerError       ProviderErrorCode = ProviderErrorCode(responses.ResponseErrorCodeServerError)
+	codeServerOverloaded  ProviderErrorCode = "server_is_overloaded"
+	codeSlowDown          ProviderErrorCode = "slow_down"
+	codeOrgSpendLimit     ProviderErrorCode = "organization_spend_limit_exceeded"
+	codeProjectSpendLimit ProviderErrorCode = "project_spend_limit_exceeded"
+	codeOrgUsageLimit     ProviderErrorCode = "organization_usage_limit_exceeded"
+	codeInvalidPrompt     ProviderErrorCode = ProviderErrorCode(responses.ResponseErrorCodeInvalidPrompt)
+	codeContentFilter     ProviderErrorCode = "content_filter"
+	codeMaxOutputTokens   ProviderErrorCode = "max_output_tokens"
+	codeMaxMessages       ProviderErrorCode = "max_messages"
 )
+
+// String returns the provider diagnostic code without changing its protocol value.
+func (c ProviderErrorCode) String() string {
+	return string(c)
+}
+
+// IsDefined reports whether a diagnostic code is present, without validating it.
+func (c ProviderErrorCode) IsDefined() bool {
+	return !strings.IsEmpty(c.String())
+}
+
+// ProviderErrorType identifies HTTP error categories retained in generation diagnostics.
+type ProviderErrorType string
+
+const (
+	typeInvalidRequest    ProviderErrorType = "invalid_request_error"
+	typeAuthentication    ProviderErrorType = "authentication_error"
+	typePermission        ProviderErrorType = "permission_error"
+	typeRateLimit         ProviderErrorType = "rate_limit_error"
+	typeServer            ProviderErrorType = "server_error"
+	typeInsufficientQuota ProviderErrorType = "insufficient_quota"
+)
+
+// String returns the provider's HTTP error category.
+func (t ProviderErrorType) String() string {
+	return string(t)
+}
+
+// IsDefined reports whether an error category is present, without validating it.
+func (t ProviderErrorType) IsDefined() bool {
+	return !strings.IsEmpty(t.String())
+}
 
 var providerRequestID = regexp.MustCompile(`^req_[a-fA-F0-9]{32}$`)
 
@@ -53,10 +81,10 @@ func requestFailure(err error) *GenerationError {
 		failure.StatusCode = response.StatusCode
 		failure.Code = knownProviderCode(response.Code)
 
-		switch response.Type {
+		switch kind := ProviderErrorType(response.Type); kind {
 		case typeInvalidRequest, typeAuthentication, typePermission,
 			typeRateLimit, typeServer, typeInsufficientQuota:
-			failure.Type = response.Type
+			failure.Type = kind
 		}
 		if response.Response != nil {
 			id := response.Response.Header.Get("X-Request-ID")
@@ -67,6 +95,7 @@ func requestFailure(err error) *GenerationError {
 
 		failure.classifyHTTP()
 		failure.classifyCode()
+
 		return failure
 	}
 
@@ -97,8 +126,8 @@ func requestFailure(err error) *GenerationError {
 type GenerationError struct {
 	Reason     string
 	Recovery   string
-	Code       string
-	Type       string
+	Code       ProviderErrorCode
+	Type       ProviderErrorType
 	RequestID  string
 	StatusCode int
 }
@@ -152,19 +181,25 @@ func (f *GenerationError) classifyCode() {
 	case codeInvalidReasoning:
 		f.Reason = "The AI provider rejected the conversation's encrypted reasoning state."
 		f.Recovery = "Check the provider's stateless conversation handling and the worker's conversation diagnostics."
+	case codeInvalidKey, codeModelNotFound, codeRateLimit, codeServerError,
+		codeServerOverloaded, codeSlowDown, codeInvalidPrompt, codeContentFilter,
+		codeMaxOutputTokens, codeMaxMessages:
+		// These codes retain the HTTP or generic failure classification.
+		return
 	}
 }
 
-func knownProviderCode(code string) string {
+func knownProviderCode(code string) ProviderErrorCode {
 	// These are protocol identifiers, never arbitrary provider text echoed from input.
-	switch code {
+	providerCode := ProviderErrorCode(code)
+	switch providerCode {
 	case codeContextLimit, codeInvalidReasoning, codeInvalidKey,
 		codeModelNotFound, codeRateLimit, codeInsufficientQuota,
 		codeBillingLimit, codeServerError, codeServerOverloaded,
 		codeSlowDown, codeOrgSpendLimit, codeProjectSpendLimit,
 		codeOrgUsageLimit, codeInvalidPrompt, codeContentFilter,
 		codeMaxOutputTokens, codeMaxMessages:
-		return code
+		return providerCode
 	default:
 		return ""
 	}

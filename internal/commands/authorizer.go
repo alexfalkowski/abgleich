@@ -41,6 +41,7 @@ func (a *Authorizer) AuthorizeWithHistory(ctx context.Context, name string, repo
 	}
 
 	comment, err = a.authorize(ctx, name, repo, comment)
+
 	return comment, comments, err
 }
 
@@ -65,5 +66,6 @@ func (a *Authorizer) authorize(ctx context.Context, name string, repo *github.Re
 	if !allowed {
 		return nil, ErrWriteAccessRequired
 	}
+
 	return comment, nil
 }

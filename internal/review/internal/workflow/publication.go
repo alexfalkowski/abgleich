@@ -53,6 +53,6 @@ func (c *Command) submitReview(ctx context.Context, task *reviewTask, reply *rev
 	}
 
 	return c.github.AddReview(ctx, task.repository, task.request, &github.PullRequestReviewRequest{
-		Body: new(body), Comments: reply.Comments, Event: new(reply.Event),
+		Body: new(body), Comments: reply.Comments, Event: new(reply.Event.String()),
 	})
 }

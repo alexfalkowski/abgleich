@@ -15,26 +15,39 @@ import (
 	"github.com/openai/openai-go/v3/shared"
 )
 
+// ReasoningEffort selects provider reasoning effort; its zero value preserves the model default.
+type ReasoningEffort shared.ReasoningEffort
+
 // EffortNone exposes the SDK reasoning effort setting to AI features.
-const EffortNone = string(shared.ReasoningEffortNone)
+const EffortNone = ReasoningEffort(shared.ReasoningEffortNone)
 
 // EffortMinimal exposes the SDK reasoning effort setting to AI features.
-const EffortMinimal = string(shared.ReasoningEffortMinimal)
+const EffortMinimal = ReasoningEffort(shared.ReasoningEffortMinimal)
 
 // EffortLow exposes the SDK reasoning effort setting to AI features.
-const EffortLow = string(shared.ReasoningEffortLow)
+const EffortLow = ReasoningEffort(shared.ReasoningEffortLow)
 
 // EffortMedium exposes the SDK reasoning effort setting to AI features.
-const EffortMedium = string(shared.ReasoningEffortMedium)
+const EffortMedium = ReasoningEffort(shared.ReasoningEffortMedium)
 
 // EffortHigh exposes the SDK reasoning effort setting to AI features.
-const EffortHigh = string(shared.ReasoningEffortHigh)
+const EffortHigh = ReasoningEffort(shared.ReasoningEffortHigh)
 
-// EffortXhigh exposes the SDK reasoning effort setting to AI features.
-const EffortXhigh = string(shared.ReasoningEffortXhigh)
+// EffortExtraHigh exposes the SDK reasoning effort setting to AI features.
+const EffortExtraHigh = ReasoningEffort(shared.ReasoningEffortXhigh)
 
 // EffortMax exposes the SDK reasoning effort setting to AI features.
-const EffortMax = string(shared.ReasoningEffortMax)
+const EffortMax = ReasoningEffort(shared.ReasoningEffortMax)
+
+// String returns the provider's reasoning effort value, or empty for the model default.
+func (e ReasoningEffort) String() string {
+	return string(e)
+}
+
+// IsDefined reports whether a reasoning effort was explicitly selected.
+func (e ReasoningEffort) IsDefined() bool {
+	return !strings.IsEmpty(e.String())
+}
 
 // Provider generates text using configuration resolved once at startup. Features
 // own source authorization, instructions, and generation budgets.
@@ -125,7 +138,7 @@ func (p *provider) Generate(ctx context.Context, prompt Prompt) (*Completion, er
 		params.MaxOutputTokens = openai.Int(prompt.MaxOutputTokens)
 	}
 
-	if !strings.IsEmpty(prompt.ReasoningEffort) {
+	if prompt.ReasoningEffort.IsDefined() {
 		params.Reasoning.Effort = shared.ReasoningEffort(prompt.ReasoningEffort)
 	}
 

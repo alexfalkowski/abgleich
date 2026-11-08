@@ -9,7 +9,7 @@ Post a new `/ab {{.Command}}` request after recovery.
 <details>
 <summary>🔎 Failure details</summary>
 
-**📍 Stage:** {{.Stage}}
+**📍 Stage:** {{.Stage.String}}
 
 [💬 {{.Title}} request](#issuecomment-{{.RequestID}})
 
@@ -23,9 +23,9 @@ Post a new `/ab {{.Command}}` request after recovery.
 
 {{with .Provider}}**🌐 HTTP status:** {{if .StatusCode}}{{.StatusCode}}{{else}}Unavailable.{{end}}
 
-**🏷️ Provider code:** {{if .Code}}{{.Code | markdown}}{{else}}Unavailable or unrecognized.{{end}}
+**🏷️ Provider code:** {{if .Code.IsDefined}}{{.Code.String | markdown}}{{else}}Unavailable or unrecognized.{{end}}
 
-**🧩 Provider type:** {{if .Type}}{{.Type | markdown}}{{else}}Unavailable or unrecognized.{{end}}
+**🧩 Provider type:** {{if .Type.IsDefined}}{{.Type.String | markdown}}{{else}}Unavailable or unrecognized.{{end}}
 
 **🆔 Provider request ID:** {{if .RequestID}}{{.RequestID | markdown}}{{else}}Unavailable or unrecognized.{{end}}
 
