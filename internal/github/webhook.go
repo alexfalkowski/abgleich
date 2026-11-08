@@ -33,12 +33,6 @@ type Delivery struct {
 	Repository string
 }
 
-type repositoryIdentity interface {
-	GetOwner() *github.User
-	GetName() string
-	GetFullName() string
-}
-
 // NewWebhook resolves optional delivery credentials at startup, returning nil
 // when webhook configuration is disabled. A configured webhook requires App
 // credentials, a nonempty secret, and a timeout below ten seconds.

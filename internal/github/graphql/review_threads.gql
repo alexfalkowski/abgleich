@@ -1,0 +1,11 @@
+query PullRequestReviewThreads($id: ID!, $after: String) {
+  node(id: $id) {
+    ... on PullRequest {
+      id number state repository { nameWithOwner }
+      reviewThreads(first: 100, after: $after) {
+        nodes { ...ReviewThreadFields }
+        pageInfo { endCursor hasNextPage }
+      }
+    }
+  }
+}

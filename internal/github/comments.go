@@ -9,6 +9,13 @@ import (
 	"github.com/google/go-github/v93/github"
 )
 
+// HasCommentMetadata checks for an author login and edit timestamp on a comment
+// whose PR, author ID, and creation timestamp were already validated by GetComment
+// or GetCommentWithHistory.
+func HasCommentMetadata(comment *IssueComment) bool {
+	return !strings.IsEmpty(comment.GetUser().GetLogin()) && !comment.GetUpdatedAt().IsZero()
+}
+
 // AddComment validates publication identity and body without retrying the POST.
 func (s *service) AddComment(ctx context.Context, repo *Repository, number int, body string) error {
 	comment, _, err := s.client.installation.Issues.CreateComment(ctx, repo.GetOwner().GetLogin(), repo.GetName(), number,
@@ -63,6 +70,43 @@ func (s *service) ListComments(ctx context.Context, repo *Repository, number int
 	}
 }
 
+// GetComment rejects mismatched comment, author, timestamp, and PR identities.
+func (s *service) GetComment(ctx context.Context, repo *Repository, number int, expected *IssueComment) (*IssueComment, error) {
+	comment, _, err := s.client.installation.Issues.GetComment(ctx, repo.GetOwner().GetLogin(), repo.GetName(), expected.GetID())
+	if err != nil {
+		return nil, err
+	}
+
+	if err := s.validateCommandComment(repo, number, comment, expected); err != nil {
+		return nil, err
+	}
+
+	return comment, nil
+}
+
+// GetCommentWithHistory reads complete fresh discussion history so command
+// consent and result detection can share one snapshot. A missing command returns
+// nil with the history; a mismatched identity or incomplete history is an error.
+func (s *service) GetCommentWithHistory(ctx context.Context, repo *Repository, number int, expected *IssueComment) (*IssueComment, []*IssueComment, error) {
+	comments, err := s.ListComments(ctx, repo, number)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	for _, comment := range comments {
+		if comment.GetID() != expected.GetID() {
+			continue
+		}
+
+		if err := s.validateCommandComment(repo, number, comment, expected); err != nil {
+			return nil, nil, err
+		}
+		return comment, comments, nil
+	}
+
+	return nil, comments, nil
+}
+
 func (s *service) validateComment(repo *Repository, number int, comment *IssueComment) error {
 	issueURL := strings.Concat(s.client.installation.BaseURL(), "repos/", repo.GetFullName(), "/issues/", strconv.Itoa(number))
 	if comment.GetID() <= 0 || strings.ToLower(comment.GetIssueURL()) != strings.ToLower(issueURL) {
@@ -79,5 +123,18 @@ func (s *service) validateComments(repo *Repository, number int, comments []*Iss
 		}
 	}
 
+	return nil
+}
+
+func (s *service) validateCommandComment(repo *Repository, number int, comment, expected *IssueComment) error {
+	issueURL := strings.Concat(s.client.installation.BaseURL(), "repos/", repo.GetFullName(), "/issues/", strconv.Itoa(number))
+	sameComment := comment.GetID() == expected.GetID() &&
+		comment.GetUser().GetID() == expected.GetUser().GetID() &&
+		comment.GetCreatedAt().Equal(expected.GetCreatedAt())
+	samePullRequest := strings.ToLower(comment.GetIssueURL()) == strings.ToLower(issueURL)
+
+	if !sameComment || !samePullRequest {
+		return errors.New("github: comment does not match the requested pull request and author")
+	}
 	return nil
 }

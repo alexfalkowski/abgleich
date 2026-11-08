@@ -1,6 +1,8 @@
 package github
 
 import (
+	_ "embed"
+
 	"github.com/alexfalkowski/go-service/v2/context"
 	"github.com/alexfalkowski/go-service/v2/errors"
 	"github.com/alexfalkowski/go-service/v2/strings"
@@ -11,28 +13,14 @@ const (
 	eventLabeled           = "LabeledEvent"
 	eventUnlabeled         = "UnlabeledEvent"
 	eventAutoMergeDisabled = "AutoMergeDisabledEvent"
-
-	// Alias GraphQL fields onto SDK issue events. AutoMergeDisabledEvent is exposed
-	// by GraphQL, so REST issue events alone cannot preserve a disabled auto-merge.
-	// https://docs.github.com/en/graphql/reference/pulls#automergedisabledevent
-	automationEventsQuery = `query PullRequestAutomationEvents($id: ID!, $after: String) {
-  node(id: $id) {
-    ... on PullRequest {
-      id
-      timelineItems(first: 100, after: $after,
-        itemTypes: [LABELED_EVENT, UNLABELED_EVENT, AUTO_MERGE_DISABLED_EVENT]) {
-        nodes {
-          event: __typename
-          ... on LabeledEvent { created_at: createdAt label { name } }
-          ... on UnlabeledEvent { created_at: createdAt label { name } }
-          ... on AutoMergeDisabledEvent { created_at: createdAt }
-        }
-        pageInfo { endCursor hasNextPage }
-      }
-    }
-  }
-}`
 )
+
+// Alias GraphQL fields onto SDK issue events. AutoMergeDisabledEvent is exposed
+// by GraphQL, so REST issue events alone cannot preserve a disabled auto-merge.
+// https://docs.github.com/en/graphql/reference/pulls#automergedisabledevent
+//
+//go:embed graphql/automation_events.gql
+var automationEventsQuery string
 
 // LatestAutomationEventTimes returns the latest label application, removal, and
 // auto-merge disable timestamps, in that order. Missing events return zero times.

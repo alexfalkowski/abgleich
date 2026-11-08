@@ -1,0 +1,13 @@
+fragment ReviewThreadFields on PullRequestReviewThread {
+  id isOutdated isResolved viewerCanResolve
+  pullRequest { id number state repository { nameWithOwner } }
+  comments(first: 1) {
+    nodes {
+      id viewerDidAuthor author { __typename }
+      pullRequestReview {
+        id body viewerDidAuthor author { __typename }
+        pullRequest { id number state repository { nameWithOwner } }
+      }
+    }
+  }
+}

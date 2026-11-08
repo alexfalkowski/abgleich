@@ -43,7 +43,7 @@ linters:
       - .*\.pb*
     rules:
       # GitHub GraphQL payloads must match the external API's field names.
-      - path: internal/github/(branches|events|pull_request|threads)\.go
+      - path: internal/github/(automerge|branch_delete|events|rebase|thread|thread_resolve|threads)\.go
         text: 'json\(snake\)'
         linters:
           - tagliatelle

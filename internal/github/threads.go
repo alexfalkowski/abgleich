@@ -1,91 +1,38 @@
 package github
 
 import (
+	_ "embed"
+
 	"github.com/alexfalkowski/go-service/v2/context"
 	"github.com/alexfalkowski/go-service/v2/errors"
 	"github.com/alexfalkowski/go-service/v2/strings"
 )
 
-const (
-	graphQLOpen   = "OPEN"
-	graphQLClosed = "CLOSED"
-	graphQLMerged = "MERGED"
-)
+// reviewThreadFields keeps discovery and final rechecks on the same evidence.
+// Only the root comment is needed: viewerDidAuthor on it and its parent review
+// authenticates App ownership, while the review body identifies the feature's
+// result namespace. Replies do not affect maintenance eligibility.
+//
+//go:embed graphql/review_thread_fields.gql
+var reviewThreadFields string
 
-// ReviewThread contains the state and authenticated ownership needed to maintain
-// an existing conversation. IsAppAuthor requires both its root and parent review.
-type ReviewThread struct {
-	// ID is the GraphQL node identity used for final rechecks and resolution.
-	ID string
+// reviewThreadsQuery pages through a PR's inline conversations by PR node ID.
+// Parent identities prevent accepting threads from another PR or repository;
+// pageInfo lets the caller finish discovery before resolving any thread.
+//
+//go:embed graphql/review_threads.gql
+var reviewThreadsQuery string
 
-	// ReviewBody contains the parent review's result marker for feature ownership checks.
-	ReviewBody string
-
-	// IsOutdated reports stale placement from GitHub, without establishing that a finding was fixed.
-	IsOutdated bool
-
-	// IsResolved reports whether the conversation is already closed.
-	IsResolved bool
-
-	// ViewerCanResolve reports whether the authenticated installation may resolve the thread.
-	ViewerCanResolve bool
-
-	// IsAppAuthor requires API-authenticated Bot authorship of both the root comment and parent review.
-	IsAppAuthor bool
-}
-
-const (
-	// reviewThreadFields keeps discovery and final rechecks on the same evidence.
-	// Only the root comment is needed: viewerDidAuthor on it and its parent review
-	// authenticates App ownership, while the review body identifies the feature's
-	// result namespace. Replies do not affect maintenance eligibility.
-	reviewThreadFields = `
- id isOutdated isResolved viewerCanResolve
- pullRequest { id number state repository { nameWithOwner } }
- comments(first: 1) {
-   nodes {
-     id viewerDidAuthor author { __typename }
-     pullRequestReview {
-       id body viewerDidAuthor author { __typename }
-       pullRequest { id number state repository { nameWithOwner } }
-     }
-   }
- }`
-
-	// reviewThreadsQuery pages through a PR's inline conversations by PR node ID.
-	// Parent identities prevent accepting threads from another PR or repository;
-	// pageInfo lets the caller finish discovery before resolving any thread.
-	reviewThreadsQuery = `query PullRequestReviewThreads($id: ID!, $after: String) {
- node(id: $id) {
-   ... on PullRequest {
-     id number state repository { nameWithOwner }
-     reviewThreads(first: 100, after: $after) {
-       nodes { ` + reviewThreadFields + ` }
-       pageInfo { endCursor hasNextPage }
-     }
-   }
- }
-}`
-
-	// reviewThreadQuery refreshes one candidate by thread node ID before resolution.
-	// The shared fields recheck ownership, outdated/resolved state, permission,
-	// and whether the parent PR is still open.
-	reviewThreadQuery = `query PullRequestReviewThread($id: ID!) {
- node(id: $id) { ... on PullRequestReviewThread { ` + reviewThreadFields + ` } }
-}`
-
-	// resolveReviewThreadMutation returns the thread ID and resolved state so the
-	// service can confirm acceptance. GitHub has no expected-state guard; callers
-	// refresh eligibility beforehand, but a change after that read can still race.
-	// https://docs.github.com/en/graphql/reference/pulls#resolvereviewthread
-	resolveReviewThreadMutation = `mutation ResolveReviewThread($input: ResolveReviewThreadInput!) {
- resolveReviewThread(input: $input) { thread { id isResolved } }
-}`
-)
+// reviewThreadQuery refreshes one candidate by thread node ID before resolution.
+// The shared fields recheck ownership, outdated/resolved state, permission,
+// and whether the parent PR is still open.
+//
+//go:embed graphql/review_thread.gql
+var reviewThreadQuery string
 
 // ListReviewThreads reads complete pagination and only the root of each thread.
 func (s *service) ListReviewThreads(ctx context.Context, repo *Repository, pull *PullRequest) ([]*ReviewThread, error) {
-	body := ReviewThreadsRequest{Query: reviewThreadsQuery}
+	body := ReviewThreadsRequest{Query: reviewThreadsQuery + reviewThreadFields}
 	body.Variables.ID = pull.GetNodeID()
 
 	var threads []*ReviewThread
@@ -122,7 +69,7 @@ func (s *service) ListReviewThreads(ctx context.Context, repo *Repository, pull 
 // GetReviewThread refreshes state and authenticated ownership for one thread.
 // A closed parent PR returns nil so callers leave its conversations unchanged.
 func (s *service) GetReviewThread(ctx context.Context, repo *Repository, pull *PullRequest, id string) (*ReviewThread, error) {
-	body := ReviewThreadRequest{Query: reviewThreadQuery}
+	body := ReviewThreadRequest{Query: reviewThreadQuery + reviewThreadFields}
 	body.Variables.ID = id
 
 	var response ReviewThreadResponse
@@ -147,31 +94,6 @@ func (s *service) GetReviewThread(ctx context.Context, repo *Repository, pull *P
 	}
 
 	return thread, nil
-}
-
-// ResolveReviewThread confirms matching resolved state without retrying failures.
-// Callers own eligibility and must refresh the PR and thread before mutation.
-func (s *service) ResolveReviewThread(ctx context.Context, _ *Repository, _ *PullRequest, thread *ReviewThread) error {
-	body := ResolveReviewThreadRequest{Query: resolveReviewThreadMutation}
-	body.Variables.Input.ThreadID = thread.ID
-
-	var response ResolveReviewThreadResponse
-	if err := s.graphql(ctx, body, &response); err != nil {
-		return err
-	}
-	if err := response.Errors.Validate(); err != nil {
-		return err
-	}
-
-	resolved := response.Data.Resolve.Thread
-	sameThread := resolved != nil && resolved.ID == thread.ID
-	isResolved := resolved != nil && resolved.IsResolved != nil && *resolved.IsResolved
-
-	if !sameThread || !isResolved {
-		return errors.New("github: resolve review thread returned no matching resolved thread")
-	}
-
-	return nil
 }
 
 // ReviewThreadsRequest queries one page of threads by pull request node ID.
@@ -267,122 +189,4 @@ type ReviewThreadResponse struct {
 
 	// Errors retains GraphQL failures even when the HTTP response succeeds.
 	Errors Errors `json:"errors"`
-}
-
-// ResolveReviewThreadRequest resolves a thread by node ID without an
-// expected-state guard; callers must refresh eligibility before submission.
-type ResolveReviewThreadRequest struct {
-	// Query contains the GraphQL operation submitted with these variables.
-	Query string `json:"query"`
-
-	// Variables binds the operation's GraphQL arguments.
-	Variables struct {
-		// Input supplies the mutation arguments, including the target identity.
-		Input struct {
-			// ThreadID identifies the thread to resolve after final eligibility rechecks.
-			ThreadID string `json:"threadId"`
-		} `json:"input"`
-	} `json:"variables"`
-}
-
-// ResolveReviewThreadResponse confirms a matching thread's resolved state.
-// GraphQL errors or missing confirmation must not be treated as acceptance.
-type ResolveReviewThreadResponse struct {
-	// Data contains returned operation data, which still requires error and identity validation.
-	Data struct {
-		// Resolve contains the resolveReviewThread acceptance payload.
-		Resolve struct {
-			// Thread confirms the target thread and its resolved state; nil cannot confirm acceptance.
-			Thread *struct {
-				// ID must match the requested thread node ID to confirm acceptance.
-				ID string `json:"id"`
-
-				// IsResolved must be present and true to confirm that the mutation resolved the thread.
-				IsResolved *bool `json:"isResolved"`
-			} `json:"thread"`
-		} `json:"resolveReviewThread"`
-	} `json:"data"`
-
-	// Errors retains GraphQL failures even when the HTTP response succeeds.
-	Errors Errors `json:"errors"`
-}
-
-type threadPullRequest struct {
-	ID         string `json:"id"`
-	State      string `json:"state"`
-	Repository struct {
-		NameWithOwner string `json:"nameWithOwner"`
-	} `json:"repository"`
-	Number int `json:"number"`
-}
-
-func (p *threadPullRequest) matches(repo *Repository, pull *PullRequest) bool {
-	sameNodeID := p.ID == pull.GetNodeID()
-	sameNumber := p.Number == pull.GetNumber()
-	sameRepository := strings.ToLower(p.Repository.NameWithOwner) == strings.ToLower(repo.GetFullName())
-	validState := p.State == graphQLOpen || p.State == graphQLClosed || p.State == graphQLMerged
-
-	return sameNodeID && sameNumber && sameRepository && validState
-}
-
-type reviewThreadNode struct {
-	ID               string            `json:"id"`
-	IsOutdated       *bool             `json:"isOutdated"`
-	IsResolved       *bool             `json:"isResolved"`
-	ViewerCanResolve *bool             `json:"viewerCanResolve"`
-	PullRequest      threadPullRequest `json:"pullRequest"`
-	Comments         struct {
-		Nodes []*struct {
-			ID              string `json:"id"`
-			ViewerDidAuthor *bool  `json:"viewerDidAuthor"`
-			Author          struct {
-				Type string `json:"__typename"`
-			} `json:"author"`
-			Review *struct {
-				ID              string  `json:"id"`
-				Body            *string `json:"body"`
-				ViewerDidAuthor *bool   `json:"viewerDidAuthor"`
-				Author          struct {
-					Type string `json:"__typename"`
-				} `json:"author"`
-				PullRequest threadPullRequest `json:"pullRequest"`
-			} `json:"pullRequestReview"`
-		} `json:"nodes"`
-	} `json:"comments"`
-}
-
-func (n *reviewThreadNode) validate(repo *Repository, pull *PullRequest) (*ReviewThread, error) {
-	if n == nil || strings.IsEmpty(n.ID) || n.IsOutdated == nil || n.IsResolved == nil || n.ViewerCanResolve == nil || !n.PullRequest.matches(repo, pull) {
-		return nil, errors.New("github: review thread returned incomplete or mismatched state")
-	}
-	if err := n.validateOwnership(repo, pull); err != nil {
-		return nil, err
-	}
-	return n.snapshot(), nil
-}
-
-func (n *reviewThreadNode) snapshot() *ReviewThread {
-	root := n.Comments.Nodes[0]
-	review := root.Review
-	return &ReviewThread{
-		ID: n.ID, ReviewBody: *review.Body, IsOutdated: *n.IsOutdated, IsResolved: *n.IsResolved, ViewerCanResolve: *n.ViewerCanResolve,
-		IsAppAuthor: *root.ViewerDidAuthor && *review.ViewerDidAuthor && root.Author.Type == UserBot && review.Author.Type == UserBot,
-	}
-}
-
-func (n *reviewThreadNode) validateOwnership(repo *Repository, pull *PullRequest) error {
-	if len(n.Comments.Nodes) != 1 || n.Comments.Nodes[0] == nil {
-		return errors.New("github: review thread returned no root comment")
-	}
-
-	root := n.Comments.Nodes[0]
-	review := root.Review
-	if strings.IsEmpty(root.ID) || root.ViewerDidAuthor == nil || review == nil {
-		return errors.New("github: review thread returned incomplete ownership")
-	}
-	if strings.IsEmpty(review.ID) || review.Body == nil || review.ViewerDidAuthor == nil || !review.PullRequest.matches(repo, pull) {
-		return errors.New("github: review thread returned incomplete or mismatched review ownership")
-	}
-
-	return nil
 }
