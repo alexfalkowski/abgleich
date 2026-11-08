@@ -1,6 +1,6 @@
 @manual @commands
 Feature: Explain failed reviews
-  Maintainers can see why a review failed and operators can trace the failed provider request.
+  Maintainers receive actionable failure feedback without exposing source, provider responses, or credentials.
 
   Scenario Outline: Explain a rejected provider request without exposing its contents
     Given AI <kind> reviews are configured for this repository
@@ -52,3 +52,25 @@ Feature: Explain failed reviews
       | an unfinished answer    | incomplete or failed response |
       | no answer               | returned no response          |
       | an answer arriving late | exceeded its deadline         |
+
+  @review-results
+  Scenario Outline: Preserve source-size diagnostics when later inference exceeds context
+    Given repository source and public Go dependencies are available for review
+    And a pull request from "the repository" for branch "contribution" is "waiting for checks"
+    And related source is "a large related file"
+    And the AI provider rejects the review after source investigation
+    When a maintainer with "write" access comments "/ab <command>"
+    Then the <kind> review should fail without publishing findings
+    And its failure comment should explain "context window" with recovery advice
+    And the <kind> generation log should identify "read_sources" as its largest source response
+    And exactly 4 requests should reach the AI service
+
+    @codereview
+    Examples:
+      | command    | kind |
+      | codereview | code |
+
+    @secreview
+    Examples:
+      | command   | kind     |
+      | secreview | security |

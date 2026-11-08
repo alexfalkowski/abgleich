@@ -34,7 +34,6 @@ func (c *Command) context(ctx context.Context, task *reviewTask) (*reviewContext
 		sources:    c.sources,
 		repository: task.repository,
 		headSHA:    task.request.GetHead().GetSHA(),
-		baseSHA:    task.request.GetBase().GetSHA(),
 		files:      make(map[string]string),
 		trees:      make(map[string][]*github.TreeEntry),
 		archives:   make(map[string]*zip.Reader),
@@ -68,22 +67,21 @@ func (r *reviewContext) completeSource(ctx context.Context) (string, error) {
 		}
 	}
 
-	headSource, err := r.source.repositoryFiles(ctx, headFiles, false)
+	headSource, err := r.source.repositoryFiles(ctx, r.HeadSHA, headFiles)
 	if err != nil {
 		return strings.Empty, err
 	}
 
-	baseSource, err := r.source.repositoryFiles(ctx, baseFiles, true)
+	baseSource, err := r.source.repositoryFiles(ctx, r.BaseSHA, baseFiles)
 	if err != nil {
 		return strings.Empty, err
 	}
 
 	var source strings.Builder
 	for _, file := range r.Files {
-		base := file.GetStatus() == github.FileRemoved
 		revision := r.HeadSHA
 		contents := headSource
-		if base {
+		if file.GetStatus() == github.FileRemoved {
 			revision = r.BaseSHA
 			contents = baseSource
 		}

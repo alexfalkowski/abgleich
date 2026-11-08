@@ -1,15 +1,10 @@
 package workflow
 
 import (
-	"crypto/sha256"
-	"fmt"
-	"strconv"
-
 	"github.com/alexfalkowski/abgleich/internal/ai"
 	"github.com/alexfalkowski/abgleich/internal/commands"
 	"github.com/alexfalkowski/abgleich/internal/github"
 	"github.com/alexfalkowski/go-service/v2/context"
-	"github.com/alexfalkowski/go-service/v2/strings"
 	"github.com/alexfalkowski/go-sync"
 )
 
@@ -84,100 +79,4 @@ func (c *Command) Handle(ctx context.Context, event *github.IssueCommentEvent) (
 	})
 
 	return err == nil, err
-}
-
-func (c *Command) authorize(ctx context.Context, task *reviewTask) (*reviewTask, []*github.IssueComment, error) {
-	if err := c.github.ValidateInstallation(ctx); err != nil {
-		return nil, nil, err
-	}
-
-	repo, err := c.github.GetRepository(ctx, task.repository)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	pull, err := c.github.GetPullRequest(ctx, repo, task.request.GetNumber())
-	if err != nil {
-		return nil, nil, err
-	}
-
-	if pull.GetNumber() != task.request.GetNumber() || !c.eligible(repo, pull) {
-		return nil, nil, nil
-	}
-
-	comment, comments, err := c.authorizer.AuthorizeWithHistory(ctx, c.requestCommand(task), repo, pull.GetNumber(), task.comment)
-	if err != nil || comment == nil {
-		return nil, nil, err
-	}
-
-	return &reviewTask{
-		repository: repo,
-		request:    pull,
-		comment:    comment,
-	}, comments, nil
-}
-
-// Preserve the original command across all consent rechecks, including cancellation.
-func (c *Command) requestCommand(task *reviewTask) string {
-	if commands.Parse(task.comment.GetBody()) == ReviewCommand {
-		return ReviewCommand
-	}
-	return c.profile.Name
-}
-
-func (c *Command) eligible(repo *github.Repository, pull *github.PullRequest) bool {
-	return pull.GetState() == github.PullOpen &&
-		!pull.GetDraft() &&
-		c.github.IsSameRepository(repo, pull) &&
-		!strings.IsEmpty(pull.GetBase().GetSHA()) &&
-		github.ValidatePullRequestMetadata(pull) == nil
-}
-
-func (c *Command) revisionChanged(expected, current *reviewTask) bool {
-	return !c.github.IsSamePullRequest(current.request, expected.request) ||
-		current.request.GetBase().GetSHA() != expected.request.GetBase().GetSHA()
-}
-
-func (c *Command) hasReview(ctx context.Context, task *reviewTask, comments []*github.IssueComment) (bool, error) {
-	marker := c.resultMarker(task)
-	for _, comment := range comments {
-		if c.github.IsAppComment(comment) && strings.Contains(comment.GetBody(), "\n"+marker) {
-			return true, nil
-		}
-	}
-
-	return c.hasNativeReview(ctx, task, marker)
-}
-
-func (c *Command) hasNativeReview(ctx context.Context, task *reviewTask, marker string) (bool, error) {
-	reviews, err := c.github.ListReviews(ctx, task.repository, task.request)
-	if err != nil {
-		return false, err
-	}
-
-	var candidates []*github.PullRequestReview
-	for _, review := range reviews {
-		switch review.GetState() {
-		case github.ReviewCommented, github.ReviewApproved, github.ReviewChangesRequested, github.ReviewDismissed:
-		default:
-			continue
-		}
-		if strings.Contains(review.GetBody(), "\n"+marker) {
-			candidates = append(candidates, review)
-		}
-	}
-
-	return c.github.HasAppReview(ctx, candidates)
-}
-
-func (c *Command) resultMarker(task *reviewTask) string {
-	identity := strings.Join("\n",
-		c.profile.Name,
-		strings.ToLower(task.repository.GetFullName()),
-		strconv.Itoa(task.request.GetNumber()),
-		task.request.GetNodeID(),
-		task.request.GetHead().GetSHA(),
-		task.request.GetBase().GetSHA(),
-	)
-	return fmt.Sprintf("<!-- abgleich:%s:v2:%x -->", c.profile.Name, sha256.Sum256(strings.Bytes(identity)))
 }

@@ -1,16 +1,30 @@
 package workflow
 
 import (
+	"github.com/alexfalkowski/abgleich/internal/ai"
 	"github.com/alexfalkowski/abgleich/internal/github"
 	"github.com/alexfalkowski/go-service/v2/context"
-	"github.com/alexfalkowski/go-service/v2/slices"
-	"github.com/alexfalkowski/go-service/v2/strings"
+	"github.com/alexfalkowski/go-sync"
 )
 
-const (
-	codeNamespace     = "codereview"
-	securityNamespace = "secreview"
-)
+func (c *Command) publishReview(ctx context.Context, task *reviewTask, completion *ai.Completion, review *reviewContext) error {
+	reply, err := c.reply(task, completion, review)
+	if err != nil {
+		return c.reportFailure(ctx, task, stageResult, err)
+	}
+
+	result := make(chan error, 1)
+	err = c.publication.Schedule(ctx, sync.Hook{OnRun: func(ctx context.Context) error {
+		result <- c.submitReview(ctx, task, reply)
+		return nil
+	}})
+	if err != nil {
+		return err
+	}
+
+	// The feature owns this operation through completion, including cancellation.
+	return <-result
+}
 
 func (c *Command) submitReview(ctx context.Context, task *reviewTask, reply *reviewReply) error {
 	task, err := c.recheck(ctx, task)
@@ -41,44 +55,4 @@ func (c *Command) submitReview(ctx context.Context, task *reviewTask, reply *rev
 	return c.github.AddReview(ctx, task.repository, task.request, &github.PullRequestReviewRequest{
 		Body: new(body), Comments: reply.Comments, Event: new(reply.Event),
 	})
-}
-
-func (c *Command) otherReviewRequestsChanges(ctx context.Context, task *reviewTask) (bool, error) {
-	reviews, err := c.github.ListReviews(ctx, task.repository, task.request)
-	if err != nil {
-		return false, err
-	}
-
-	var candidates []*github.PullRequestReview
-	for _, review := range reviews {
-		if c.hasOtherReviewMarker(review) {
-			candidates = append(candidates, review)
-		}
-	}
-	reviews, err = c.github.AppReviews(ctx, candidates)
-	if err != nil {
-		return false, err
-	}
-
-	// History is chronological. Incomplete comments do not clear prior findings,
-	// including across revisions. A completed clean peer assessment can clear them
-	// even when its own approval was withheld to preserve this feature's findings.
-	for _, review := range slices.Backward(reviews) {
-		switch review.GetState() {
-		case github.ReviewChangesRequested:
-			return true, nil
-		case github.ReviewApproved, github.ReviewDismissed:
-			return false, nil
-		case github.ReviewCommented:
-			if strings.Contains(review.GetBody(), cleanAssessment) {
-				return false, nil
-			}
-		}
-	}
-	return false, nil
-}
-
-func (c *Command) hasOtherReviewMarker(review *github.PullRequestReview) bool {
-	marker := reviewThreadMarker.FindStringSubmatch(review.GetBody())
-	return len(marker) == 2 && marker[1] != c.profile.Name && (marker[1] == codeNamespace || marker[1] == securityNamespace)
 }

@@ -1,7 +1,6 @@
 package workflow
 
 import (
-	"regexp"
 	"strconv"
 
 	"github.com/alexfalkowski/abgleich/internal/github"
@@ -9,8 +8,6 @@ import (
 	"github.com/alexfalkowski/go-service/v2/errors"
 	"github.com/alexfalkowski/go-service/v2/strings"
 )
-
-var reviewThreadMarker = regexp.MustCompile(`(?m)^<!-- abgleich:([a-z]+):v2:[a-f0-9]{64} -->$`)
 
 func (c *Command) reconcileThreads(ctx context.Context) error {
 	repositories, err := c.github.ListRepositories(ctx)

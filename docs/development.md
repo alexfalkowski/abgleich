@@ -27,6 +27,17 @@ CI splits code review between `make features-codereview-results` for source acce
 finding placement, and verdicts, and `make features-codereview-workflow` for the
 remaining command and lifecycle cases. The `@review-results` tag selects the first
 group; `make features-codereview` still runs both groups locally.
+Shared review scenarios are grouped by domain in
+[`test/features/review`](../test/features/review). Names such as
+`authorization.feature`, `inspection.feature`, `manifest.feature`, and
+`verdict.feature` match the corresponding files in
+[`workflow`](../internal/review/internal/workflow). Run one domain from the
+repository root:
+
+```sh
+make features feature=features/review/authorization.feature
+```
+
 Run groups one at a time: the harness shares ports. Untagged features belong to the
 worker group; group definitions live in [Makefile](../Makefile).
 Keep `@manual` and `@startup` for Nonnative lifecycle hooks: `@manual` stops workers
