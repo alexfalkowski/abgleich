@@ -17,9 +17,9 @@ case "$action" in
     readonly partition="$2"
 
     case "$partition" in
-      merges | dependabot | labels | commands | codereview | secreview | summaries | reconciliation | worker) ;;
+      merges | dependabot | labels | commands | codereview | codereview-results | codereview-workflow | secreview | summaries | reconciliation | worker) ;;
       *)
-        printf '%s\n' 'partition must be merges, dependabot, labels, commands, codereview, secreview, summaries, reconciliation, or worker' >&2
+        printf '%s\n' 'partition must be merges, dependabot, labels, commands, codereview, codereview-results, codereview-workflow, secreview, summaries, reconciliation, or worker' >&2
         exit 1
         ;;
     esac

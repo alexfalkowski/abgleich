@@ -1,4 +1,4 @@
-@github @manual @commands @review
+@manual @commands
 Feature: Reduce GitHub source reads across reviews
   Maintainers can request independent reviews without downloading the same source again.
   Reused source remains tied to its repository and verified contents.

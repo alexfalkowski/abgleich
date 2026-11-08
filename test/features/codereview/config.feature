@@ -1,4 +1,4 @@
-@github @manual @commands @codereview
+@manual @commands @codereview
 Feature: Choose whether maintainers can request code reviews
   Code reviews are separately enabled and require a configured model and provider.
 

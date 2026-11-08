@@ -1,4 +1,4 @@
-@github @manual @reconciliation
+@manual @reconciliation
 Feature: Keep pull requests current when GitHub reports changes
   GitHub notifications prompt fresh checks of the affected repository.
   Scheduled sweeps recover missed events and serialize with notification work.

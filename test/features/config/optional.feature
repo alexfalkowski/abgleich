@@ -1,4 +1,4 @@
-@github @manual @commands
+@manual @commands
 Feature: Leave optional commands and jobs disabled unless configured
   Maintainers receive rejection feedback for disabled AI commands.
   Merge automation remains available without optional background jobs.

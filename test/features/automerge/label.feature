@@ -1,4 +1,4 @@
-@github @manual @merges @labels
+@manual @merges @labels
 Feature: Request squash merging with the automerge label
   Maintainers opt pull requests into squash merging with the automerge label.
   Merge automation ignores forks because their contributions do not run CI.

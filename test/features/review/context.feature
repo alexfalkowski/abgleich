@@ -1,4 +1,4 @@
-@github @manual @commands @codereview @review
+@manual @commands @codereview
 Feature: Review large contributions with incomplete information
   The review uses pull request metadata and every available changed-file patch.
   Missing patches remain explicit and incomplete pagination prevents inference.

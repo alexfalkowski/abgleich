@@ -23,8 +23,14 @@ Use `make help` for commands and CI feature groups, such as
 `make features-codereview` and `make features-secreview` select separate scenarios
 and example groups, including their cases in the shared `features/review` files.
 Cases exercising both commands belong to one group so they run once across CI.
+CI splits code review between `make features-codereview-results` for source access,
+finding placement, and verdicts, and `make features-codereview-workflow` for the
+remaining command and lifecycle cases. The `@review-results` tag selects the first
+group; `make features-codereview` still runs both groups locally.
 Run groups one at a time: the harness shares ports. Untagged features belong to the
 worker group; group definitions live in [Makefile](../Makefile).
+Keep `@manual` and `@startup` for Nonnative lifecycle hooks: `@manual` stops workers
+started by scenario steps, while `@startup` starts and stops the worker automatically.
 
 The Ruby Cucumber/Nonnative harness runs the worker against independent fake
 GitHub REST/GraphQL and OpenAI APIs on one local listener, with accelerated

@@ -1,4 +1,4 @@
-@github @manual
+@manual
 Feature: Delete merged and inactive branches
   Configured cleanup removes leftover merged branches and branches whose latest
   commit is older than thirty days. Maintainers can preserve long-lived branches.

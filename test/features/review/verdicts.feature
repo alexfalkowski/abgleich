@@ -1,4 +1,4 @@
-@github @manual @commands @review
+@manual @commands @review-results
 Feature: Submit review decisions grounded in the inspected changes
   Maintainers receive requests for changes when the reviewer finds bugs.
   Approval requires a completed review without findings or unavailable context.

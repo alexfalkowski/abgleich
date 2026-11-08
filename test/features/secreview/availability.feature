@@ -1,4 +1,4 @@
-@github @manual @commands @secreview
+@manual @commands @secreview
 Feature: Keep security review recoverable and independent
   Maintainers can retry failed requests and keep using automation while a review is prepared.
 

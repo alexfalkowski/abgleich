@@ -1,4 +1,4 @@
-@github @manual @reconciliation
+@manual @reconciliation
 Feature: Resume pull request automation after GitHub recovers
   A GitHub failure must not stop the worker from keeping branches current.
 

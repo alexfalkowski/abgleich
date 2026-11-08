@@ -1,4 +1,4 @@
-@github @manual @commands @review
+@manual @commands
 Feature: Start manual reviews promptly
   Maintainers receive requested reviews without waiting for thread maintenance.
 

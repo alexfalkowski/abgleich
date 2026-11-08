@@ -1,4 +1,4 @@
-@github @manual @commands @codereview @review
+@manual @commands @codereview
 Feature: Request every configured review
   Maintainers can use one comment to request every enabled review.
   Each review retains its own consent checks, queue, and revision-specific result.

@@ -133,21 +133,37 @@ jobs:
           paths:
             - commands
     resource_class: arm.large
-  features-codereview:
+  features-codereview-results:
     executor: go
     working_directory: ~/abgleich
     steps:
       - prepare-service
-      - run: make features-codereview
+      - run: make features-codereview-results
       - store_test_results:
           path: test/reports
       - store_artifacts:
           path: test/reports
-      - run: make coverage-workspace-stage partition=codereview
+      - run: make coverage-workspace-stage partition=codereview-results
       - persist_to_workspace:
           root: /tmp/abgleich-reports
           paths:
-            - codereview
+            - codereview-results
+    resource_class: arm.large
+  features-codereview-workflow:
+    executor: go
+    working_directory: ~/abgleich
+    steps:
+      - prepare-service
+      - run: make features-codereview-workflow
+      - store_test_results:
+          path: test/reports
+      - store_artifacts:
+          path: test/reports
+      - run: make coverage-workspace-stage partition=codereview-workflow
+      - persist_to_workspace:
+          root: /tmp/abgleich-reports
+          paths:
+            - codereview-workflow
     resource_class: arm.large
   features-secreview:
     executor: go
@@ -356,7 +372,10 @@ workflows:
       - features-commands:
           requires:
             - build-features
-      - features-codereview:
+      - features-codereview-results:
+          requires:
+            - build-features
+      - features-codereview-workflow:
           requires:
             - build-features
       - features-secreview:
@@ -377,7 +396,8 @@ workflows:
             - features-dependabot
             - features-labels
             - features-commands
-            - features-codereview
+            - features-codereview-results
+            - features-codereview-workflow
             - features-secreview
             - features-summaries
             - features-reconciliation
@@ -450,7 +470,8 @@ workflows:
             - features-dependabot
             - features-labels
             - features-commands
-            - features-codereview
+            - features-codereview-results
+            - features-codereview-workflow
             - features-secreview
             - features-summaries
             - features-reconciliation

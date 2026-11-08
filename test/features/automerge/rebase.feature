@@ -1,4 +1,4 @@
-@github @manual @reconciliation
+@manual @reconciliation
 Feature: Keep auto-merge branches current
   Stale auto-merge branches are rebased onto their base branches.
   Ineligible branches and concurrent author changes are respected.

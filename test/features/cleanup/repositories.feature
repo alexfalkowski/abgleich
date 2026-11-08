@@ -1,4 +1,4 @@
-@github @manual
+@manual
 Feature: Clean up repositories independently
   A repository's unavailable history must not put its branches at risk or stop
   cleanup of another opted-in repository.

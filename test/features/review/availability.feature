@@ -1,4 +1,4 @@
-@github @manual @commands @codereview @review
+@manual @commands @codereview
 Feature: Keep code review recoverable and independent
   Maintainers can retry failed requests and keep using automation while a review is prepared.
 
