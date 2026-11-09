@@ -216,6 +216,8 @@ Then('the rejected path or dependency should not be fetched') do
 end
 
 Then(/^the (code|security) review should stop before sharing related source$/) do |kind|
+  # A scheduled idle check can finish before the queued review starts.
+  wait_for { Abgleich.openai.requests.length }.to be >= 1, "expected the #{kind} review investigation to begin"
   expect_review_check(kind)
   expect(Abgleich.openai.requests.length).to eq(1), 'expected no continuation after consent or revisions change'
   expect(Abgleich.github.source_requests.none? { |request| request[:path] == 'helpers/guard.go' }).to be(true)

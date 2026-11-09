@@ -27,6 +27,12 @@ type Service interface {
 	// repository identity and revision when ttlcache is configured.
 	ListSourceFiles(ctx context.Context, repo *Repository, revision string) ([]*TreeEntry, error)
 
+	// GetSubmoduleRepository validates submodule metadata against its tree entry
+	// at revision and resolves only active public same-owner GitHub repositories
+	// accessible to the installation. Unsupported URLs, mismatched metadata, nonpublic
+	// targets, missing visibility metadata, and missing access return an error. The URL is never fetched directly.
+	GetSubmoduleRepository(ctx context.Context, repo *Repository, revision string, entry *TreeEntry) (*Repository, error)
+
 	// ListBranches collects complete, validated branch pagination before cleanup.
 	ListBranches(ctx context.Context, repo *Repository) ([]*Branch, error)
 
@@ -180,6 +186,7 @@ func NewService(cfg *Config, cacheCfg *config.Config, client *Client, log *logge
 	if cacheCfg.IsEnabled() && cacheCfg.Kind == cacheKind {
 		remote = &cachingService{Service: remote}
 	}
+
 	return &loggingService{Service: remote, logger: log}
 }
 

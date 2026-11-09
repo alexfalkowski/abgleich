@@ -36,9 +36,14 @@ func (s *service) ListSourceFiles(ctx context.Context, repo *Repository, revisio
 }
 
 // IsRegularSourceFile reports whether an entry identifies a regular-file blob.
-// Directories, symlinks, and submodules are not followed or read as source files.
+// Directories, symlinks, and submodules are not regular-file blobs.
 func IsRegularSourceFile(entry *TreeEntry) bool {
 	return entry.GetType() == TreeBlob && (entry.GetMode() == modeRegular || entry.GetMode() == modeExecutable)
+}
+
+// IsSubmodule identifies a gitlink; its SHA pins a commit in another repository.
+func IsSubmodule(entry *TreeEntry) bool {
+	return entry.GetType() == "commit" && entry.GetMode() == "160000"
 }
 
 func sourceFiles(tree *github.Tree) ([]*TreeEntry, error) {

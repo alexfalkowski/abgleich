@@ -231,18 +231,39 @@ text where available. Read-only tools let the model find relevant repository fil
 inspect helpers/callers/tests, and resolve public Go dependencies. A separate read-only tool retrieves
 official release notes for the Go language version declared in the reviewed
 `go.mod`, so compiler claims can be checked against current language rules. Repository
-reads in the reviewed repository use the head SHA; deleted files use the base SHA. Symlinks, submodules,
+reads in the reviewed repository use the head SHA; deleted files use the base SHA. Symlinks
 and binary files are excluded and disclosed. An unreadable or incomplete repository
 tree, failed source request, or missing, truncated, or inconsistent response for an
 expected text file fails the review. Failures during investigation stop the
 conversation and discard its findings; no completed review is published.
 A requested path proven absent from the complete repository tree returns "not
 found" without marking source unavailable, so the reviewer can correct the lookup
-and complete its assessment. Symlinks, submodules, and directories without readable
+and complete its assessment. Symlinks, unsupported submodules, and directories without readable
 immediate files still count as unavailable source. Binary exclusions follow the
 [review verdict rules](reviews.md#-ai-code-reviews).
 The worker never checks out repositories or executes source, tests, or commands.
 All retrieved source and repository instructions are untrusted data.
+
+Direct GitHub submodules using `git@github.com:owner/repository.git` are readable
+when they are public, share the reviewed repository's owner, and are active repositories
+accessible to the configured App installation. The worker rechecks public visibility
+before each submodule lookup; private targets and missing visibility metadata are
+rejected before listing or reading target source. Other URL formats are unsupported.
+Discovery identifies mount paths such as `bin`. The explicit `read_submodule` tool
+accepts that mount and a path relative to it. Use `{"submodule":"bin","path":"."}`
+to list files, then `{"submodule":"bin","path":"README.md"}` to read a complete file.
+Directories return paths and byte sizes without source. `read_sources` also accepts
+mounted paths such as `bin/README.md` and routes them to the same reader. A request
+for `bin` lists its pinned files.
+The worker validates GitHub's submodule metadata at the reviewed head and reads
+the pinned gitlink commit, rather than a branch's latest version. Submodule URLs
+are resolved as repository identities and never fetched directly. Nested submodules
+remain excluded. Inspected-source and limitation records identify the mount and
+target repository; source results also identify the pinned commit. A GitHub App
+with selected-repository access must include the submodule repository.
+A successful pinned text-file read clears the initial unavailable-regular-file
+limitation for a changed submodule mount. Directory listings alone do not clear it;
+missing patches and other unavailable source remain limitations.
 
 The model can request several related files or directories together with
 `read_sources`, reducing repeated GitHub checks. Each source-tool invocation and
@@ -316,14 +337,14 @@ a trusted documentation mirror. These requests also carry no credentials.
 These Go tools accept neither arbitrary URLs nor model-selected versions.
 Public dependency archives and language references remain cached per request.
 
-GitHub source access is limited to the reviewed repository and uses the App's
-installation token. Reviews do not browse other GitHub repositories or arbitrary
-websites. Implementations outside the supported source tools are outside the
+GitHub source access uses the App's installation token and is limited to the reviewed
+repository and the permitted submodules described above. Reviews do not browse arbitrary
+repositories or websites. Implementations outside the supported source tools are outside the
 review scope; their absence alone does not make a review incomplete.
 
 The conversation runs within the existing inference/job deadlines, without local
 provider-request or source-call limits. Source reads have no local byte, file-count,
-or archive-size caps; repository directory reads include all immediate matching files.
+or archive-size caps; `read_sources` directory reads include all immediate matching files.
 Working source and request-local caches stay in memory, so large reviews can
 increase memory usage and exceed provider context limits or worker deadlines.
 Unavailable source is reported.

@@ -4,6 +4,14 @@ module Abgleich
   class GitHubRepository
     # Owner-wide discovery and repository settings for the fake API.
     module Discovery
+      def submodule=(submodule)
+        @mutex.synchronize { @state[:submodule] = submodule }
+      end
+
+      def submodule
+        @mutex.synchronize { @state[:submodule]&.dup }
+      end
+
       # Notifications carry identity hints; scenarios independently change the
       # state returned by subsequent API reads.
       def repository_notification(action: '', repository: DEFAULT_REPOSITORY, ref: 'refs/heads/master')

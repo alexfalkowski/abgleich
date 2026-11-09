@@ -120,7 +120,7 @@ module Abgleich
       halt 503 if Abgleich.github.failure == "summary files page:#{page}"
 
       repository = "#{params.fetch('owner')}/#{params.fetch('repository')}"
-      files = Abgleich.github.summary_files
+      files = submodule_changes(Abgleich.github.summary_files)
       files.each { |file| file[:patch] = GitHubRepository::Reviews::PATCH } if Abgleich.github.file_mode == 'code review'
       files.each { |file| file[:patch] = GitHubRepository::Reviews::SECURITY_PATCH } if Abgleich.github.file_mode == 'security review'
       if Abgleich.github.file_mode == 'safe security change'

@@ -24,6 +24,11 @@ module Abgleich
       REVIEW_FINDING.merge(impact: 'The unavailable location needs inspection.', path: 'renamed.go', line: 3, side: 'RIGHT')
     ].freeze
 
+    SUBMODULE_SOURCE_PATHS = {
+      'review source a submodule directory' => '.', 'review source a nested submodule' => 'nested/private.go',
+      'review source an invalid submodule path' => '../private'
+    }.freeze
+
     def source_review_response(payload, mode)
       outputs = source_review_outputs(payload)
       return source_burst_reply(payload) if source_burst?(mode, outputs)
@@ -74,11 +79,26 @@ module Abgleich
 
     def repository_source_calls(mode)
       case mode
+      when 'review source shared tooling paths'
+        [['read_sources', { paths: %w[bin bin/README.md bin/build bin/build/check helpers/guard.go] }]]
       when 'review source a corrected repository file path', 'review source a corrected repository directory path'
         missing = mode == 'review source a corrected repository file path' ? 'helpers/missing.go' : 'missing/helpers'
         [['read_sources', { paths: [missing] }], ['read_sources', { paths: ['helpers/guard.go'] }]]
       when 'review source a file beneath an excluded path' then [['read_sources', { paths: ['helpers/guard.go/private.go'] }]]
       when 'review source an empty source directory' then [['read_sources', { paths: ['helpers/empty'] }]]
+      else submodule_source_calls(mode)
+      end
+    end
+
+    def submodule_source_calls(mode)
+      case mode
+      when 'review source shared tooling'
+        [['list_source_files', { filter: 'bin' }],
+         *%w[. README.md build build/check].map { |path| ['read_submodule', { submodule: 'bin', path: }] }]
+      when 'review source a corrected submodule path'
+        %w[missing README.md].map { |path| ['read_submodule', { submodule: 'bin', path: }] }
+      when 'review source a submodule directory', 'review source a nested submodule', 'review source an invalid submodule path'
+        [['read_submodule', { submodule: 'bin', path: SUBMODULE_SOURCE_PATHS.fetch(mode) }]]
       else batch_source_calls(mode)
       end
     end
