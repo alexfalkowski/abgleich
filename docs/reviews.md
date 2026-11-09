@@ -32,7 +32,10 @@ request a review of an open, non-draft PR with both branches in the target
 repository. Fork requests are rejected without AI inference.
 A new, unedited human comment from a current writer or administrator authorizes
 sharing PR metadata, patches, whole changed-file text, and relevant repository
-source with OpenAI, including private source. No topic, auto-merge setting, label, or removal of `hold` is needed.
+source with OpenAI, including private source in the reviewed repository. Submodule
+source access is limited to public targets described under
+[source access](configuration.md#-review-source-access).
+No topic, auto-merge setting, label, or removal of `hold` is needed.
 Approve provider data handling and billing before enabling reviews.
 
 The independent `codereview` job processes at most four queued requests serially;
@@ -48,7 +51,8 @@ response storage or automatic retries, and no review-specific output-token cap.
 Large changes can exceed provider context limits or worker deadlines.
 Reviews focus on the PR's changes and related source in the reviewed repository,
 with verified Go dependency and language references available through the
-[source tools](configuration.md#-review-source-access). They do not browse other
+[source tools](configuration.md#-review-source-access). Those tools also inspect
+permitted direct submodules at their pinned commits. Reviews do not browse arbitrary
 GitHub repositories; missing implementations outside those tools do not prevent completion.
 The code-review prompt requires input and state handling findings to trace a
 supported triggering path through producers and callers, accounting for upstream

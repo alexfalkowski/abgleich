@@ -166,11 +166,17 @@ run reconciles fresh remote state; pending summary and review requests are held 
 - Include PR metadata, every available changed-file patch from complete GitHub
   pagination, and complete changed-file text where available. Read source at
   the reviewed head SHA (deleted files at the base SHA); require a complete
-  regular-file tree and reject symlinks, submodules, binary data, or inconsistent
+  regular-file tree and reject symlinks, binary data, or inconsistent
   blob responses. Preserve all patches even when additional source is unavailable.
 - Share read-only repository file listing/reading and public Go module
-  lookup between both reviews. GitHub source access stays within the reviewed
-  repository using the App token; do not browse external GitHub repositories.
+  lookup between both reviews. GitHub source access uses the App token within the
+  reviewed repository and its direct, public, same-owner GitHub submodules accessible
+  to the installation. Recheck public visibility before every submodule lookup;
+  reject private targets and missing visibility metadata before source reads.
+  Use the explicit `read_submodule` tool to resolve metadata at the reviewed head and read the pinned gitlink commit through GitHub source methods.
+  Normal file lookups for declared submodule paths delegate to the same operation.
+  Do not follow nested
+  submodules, fetch submodule URLs directly, or browse arbitrary GitHub repositories.
   Go language/compiler claims can consult official
   release notes selected from the reviewed go.mod version, using a trusted
   credential-free documentation endpoint; treat reference text as data. Resolve module versions/replacements and checksums

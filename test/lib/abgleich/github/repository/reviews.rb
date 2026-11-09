@@ -14,8 +14,10 @@ module Abgleich
         @mutex.synchronize { @state.fetch(:reference_requests, []).dup }
       end
 
-      def record_source_request(path, revision)
-        @mutex.synchronize { (@state[:source_requests] ||= []) << { path:, revision: } }
+      def record_source_request(path, revision, repository: nil)
+        source = { path:, revision: }
+        source[:repository] = repository.fetch(:full_name) if repository&.fetch(:name) == 'bin'
+        @mutex.synchronize { (@state[:source_requests] ||= []) << source }
       end
 
       def source_requests

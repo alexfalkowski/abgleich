@@ -28,6 +28,12 @@ module Abgleich
       GitHubService.record_source_read
       filename = params.fetch('splat').first
       revision = params.fetch('ref')
+      shared_submodule = filename == 'bin' && Abgleich.github.submodule
+      excluded_submodule = filename == 'helpers/guard.go' && Abgleich.github.failure == 'source a submodule'
+      if shared_submodule || excluded_submodule
+        halt 404 unless revision == Abgleich.github.pull_state('contribution').dig(:head, :sha)
+        halt submodule_metadata(filename).to_json
+      end
       Abgleich.github.record_source_request(filename, revision)
       halt 404 if Abgleich.github.failure == 'source unavailable'
       content = source_content(filename)
@@ -41,7 +47,9 @@ module Abgleich
 
     get '/repos/:owner/:repository/git/trees/:revision' do
       GitHubService.record_source_tree_read
+      halt submodule_tree.to_json if params.fetch('repository') == 'bin' && Abgleich.github.submodule
       paths = %w[main.go worker.go test.go helpers helpers/guard.go go.mod go.sum]
+      paths << 'bin' if Abgleich.github.submodule
       paths << 'image.png' if Abgleich.github.summary_paths.include?('image.png')
       paths << 'helpers/favicon.png' if Abgleich.github.failure == 'source a binary asset'
       paths.concat((1..source_directory_size).map { |index| "helpers/part#{index}.go" })
@@ -57,15 +65,43 @@ module Abgleich
       { sha: 'source-tree', truncated: Abgleich.github.failure == 'source missing part of the repository listing',
         tree: paths.map do |path|
           mode = Abgleich.github.failure == 'source behind a symbolic link' && path == 'helpers/guard.go' ? '120000' : '100644'
-          mode = '160000' if Abgleich.github.failure == 'source a submodule' && path == 'helpers/guard.go'
+          mode = '160000' if path == 'bin' || (Abgleich.github.failure == 'source a submodule' && path == 'helpers/guard.go')
           mode = '040000' if %w[helpers helpers/empty].include?(path)
           type = { '160000' => 'commit', '040000' => 'tree' }.fetch(mode, 'blob')
           content = source_content(path)
-          { path:, mode:, type:, sha: source_digest(content), size: content.bytesize }
+          { path:, mode:, type:, sha: path == 'bin' ? 'b' * 40 : source_digest(content), size: content.bytesize }
         end }.to_json
     end
 
     private
+
+    def submodule_changes(files)
+      return files unless ['submodule update', 'submodule update missing patch'].include?(Abgleich.github.file_mode)
+
+      patch = "@@ -1 +1 @@\n-Subproject commit #{'a' * 40}\n+Subproject commit #{'b' * 40}\n"
+      patch = nil if Abgleich.github.file_mode == 'submodule update missing patch'
+      files.first.merge!(filename: 'bin', sha: 'b' * 40, patch:)
+      files
+    end
+
+    def submodule_metadata(filename)
+      options = Abgleich.github.submodule || { sha: source_digest(source_content(filename)), url: 'https://example.invalid/tooling.git' }
+      { type: 'submodule', path: options.fetch(:path, filename), sha: options.fetch(:sha, 'b' * 40),
+        submodule_git_url: options.fetch(:url) }
+    end
+
+    def submodule_tree
+      halt 404 if Abgleich.github.submodule[:unavailable] || params.fetch('revision') != 'b' * 40
+
+      { sha: 'submodule-tree', truncated: false,
+        tree: %w[README.md build build/check nested].map do |path|
+          next { path:, mode: '040000', type: 'tree', sha: 'build-tree' } if path == 'build'
+          next { path:, mode: '160000', type: 'commit', sha: 'c' * 40 } if path == 'nested'
+
+          content = "# shared-tooling-pinned-context for #{path}\n"
+          { path:, mode: '100644', type: 'blob', sha: source_digest(content), size: content.bytesize }
+        end }
+    end
 
     def source_files_response(variables)
       GitHubService.record_source_read
@@ -86,19 +122,19 @@ module Abgleich
         next unless name.start_with?('file')
 
         revision, filename = expression.split(':', 2)
-        Abgleich.github.record_source_request(filename, revision)
-        object = { node_id: repository.fetch(:node_id), full_name: repository.fetch(:full_name), object: source_blob(filename) }
+        Abgleich.github.record_source_request(filename, revision, repository:)
+        object = { node_id: repository.fetch(:node_id), full_name: repository.fetch(:full_name), object: source_blob(filename, repository) }
         object[:node_id] = 'R_different' if Abgleich.github.failure == 'source from another repository'
         object = nil if Abgleich.github.failure == 'source missing repository'
         [name, object]
       end.to_h
     end
 
-    def source_blob(filename)
+    def source_blob(filename, repository)
       return nil if Abgleich.github.failure == 'source missing related file' && filename == 'helpers/guard.go'
       return nil if Abgleich.github.failure == 'source missing checksum file' && filename == 'go.sum'
 
-      content = source_content(filename)
+      content = repository.fetch(:name) == 'bin' ? "# shared-tooling-pinned-context for #{filename}\n" : source_content(filename)
       binary = content.include?("\x00")
       { type: 'Blob', content: binary ? nil : content, size: content.bytesize, sha: source_digest(content), binary:, truncated: false }
         .merge(source_blob_changes(content))
