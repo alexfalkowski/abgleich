@@ -2,6 +2,7 @@ package workflow
 
 import (
 	"github.com/alexfalkowski/abgleich/internal/ai"
+	"github.com/alexfalkowski/abgleich/internal/review/internal/sources/provider"
 	"github.com/alexfalkowski/go-service/v2/context"
 	"github.com/alexfalkowski/go-service/v2/encoding/json"
 	"github.com/alexfalkowski/go-service/v2/errors"
@@ -14,21 +15,15 @@ type sourceTools struct {
 	beforeLookup func(context.Context) error
 }
 
-func (t *sourceTools) definitions() []ai.Tool {
-	return []ai.Tool{
+func (t *sourceTools) definitions(providers []provider.Strategy) []ai.Tool {
+	tools := []ai.Tool{
 		{
-			Name: "read_go_reference", Parameters: toolSchema("manifest"), Call: t.reference,
-			Description: "Read official language release notes for the Go version declared in a repository go.mod. " +
-				"Use before making language-version/compiler compatibility claims. manifest is the repository-relative go.mod path; " +
-				"the worker chooses the version and trusted documentation endpoint. No arbitrary URLs or versions.",
-		},
-		{
-			Name: "list_source_files", Parameters: toolSchema("filter"), Call: t.list,
+			Name: "list_source_files", Parameters: provider.Schema("filter"), Call: t.list,
 			Description: "Find file paths and byte sizes at the reviewed head revision. Filter is a literal substring. " +
 				"Locate relevant documentation, helpers, callers, tests, and manifests before reading large source files.",
 		},
 		{
-			Name: "read_sources", Parameters: toolSchema("paths"), Call: t.read,
+			Name: "read_sources", Parameters: provider.Schema("paths"), Call: t.read,
 			Description: strings.Concat("Read complete text for one or more repository files or directories at the reviewed head revision in one lookup. ",
 				"Supply paths as an array, including for a single path. Group related paths in one call. ",
 				"Declared submodule paths are routed to read_submodule's pinned reader; submodule directories list files. ",
@@ -36,22 +31,35 @@ func (t *sourceTools) definitions() []ai.Tool {
 			),
 		},
 		{
-			Name: "read_submodule", Parameters: toolSchema("submodule", "path"), Call: t.submodule,
+			Name: "read_submodule", Parameters: provider.Schema("submodule", "path"), Call: t.submodule,
 			Description: strings.Concat("Read a direct GitHub submodule at the commit pinned by the reviewed head. ",
 				"submodule is the exact mount listed by list_source_files, such as bin; path is relative to that submodule. ",
 				"Use . to list its files. Directories list paths and byte sizes; files return complete text. ",
 				"Only public same-owner repositories accessible to the App are permitted. No arbitrary URLs or nested submodules.",
 			),
 		},
-		{
-			Name: "read_go_dependency", Parameters: toolSchema("manifest", "module", "path", "start_line", "end_line"), Call: t.dependency,
-			Description: "Read a public Go module using the reviewed go.mod version and go.sum checksum. " +
-				"manifest: repository-relative go.mod; module: required module path; path: exact file or directory (. lists the module root). " +
-				"Directories return sorted paths and byte sizes without source. " +
-				"For an exact file excerpt, set inclusive one-based start_line and end_line; set both null for the complete file. " +
-				"No arbitrary versions or URLs. Inspect local replacements and vendored code with read_sources.",
-		},
 	}
+
+	for _, strategy := range providers {
+		for _, tool := range strategy.Tools(t.session) {
+			call := tool.Call
+			tool.Call = func(ctx context.Context, input string) (string, error) {
+				if err := t.beforeLookup(ctx); err != nil {
+					return strings.Empty, err
+				}
+
+				content, err := call(ctx, input)
+				if errors.Is(err, provider.ErrInvalidLookup) {
+					return strings.Empty, err
+				}
+
+				return t.externalResult(content, err)
+			}
+			tools = append(tools, tool)
+		}
+	}
+
+	return tools
 }
 
 func (t *sourceTools) list(ctx context.Context, input string) (string, error) {
@@ -81,23 +89,6 @@ func (t *sourceTools) read(ctx context.Context, input string) (string, error) {
 	return t.result(t.session.read(ctx, args.Paths))
 }
 
-func (t *sourceTools) dependency(ctx context.Context, input string) (string, error) {
-	if err := t.beforeLookup(ctx); err != nil {
-		return strings.Empty, err
-	}
-
-	var args dependencyRequest
-	if err := json.Unmarshal(strings.Bytes(input), &args); err != nil {
-		return strings.Empty, errors.New("review: invalid dependency lookup")
-	}
-
-	if err := args.validate(); err != nil {
-		return t.externalResult(strings.Empty, err)
-	}
-
-	return t.externalResult(t.session.dependency(ctx, args))
-}
-
 func (t *sourceTools) submodule(ctx context.Context, input string) (string, error) {
 	if err := t.beforeLookup(ctx); err != nil {
 		return strings.Empty, err
@@ -109,19 +100,6 @@ func (t *sourceTools) submodule(ctx context.Context, input string) (string, erro
 	}
 
 	return t.result(t.session.readSubmodule(ctx, args))
-}
-
-func (t *sourceTools) reference(ctx context.Context, input string) (string, error) {
-	if err := t.beforeLookup(ctx); err != nil {
-		return strings.Empty, err
-	}
-
-	var args goReferenceRequest
-	if err := json.Unmarshal(strings.Bytes(input), &args); err != nil {
-		return strings.Empty, errors.New("review: invalid Go reference lookup")
-	}
-
-	return t.externalResult(t.session.goReference(ctx, args.Manifest))
 }
 
 // Repository retrieval failures stop the review; unsupported repository source
@@ -144,21 +122,5 @@ func (t *sourceTools) externalResult(content string, err error) (string, error) 
 		return t.result(content, err)
 	}
 
-	return t.session.externalUnavailable(err.Error()), nil
-}
-
-func toolSchema(names ...string) map[string]any {
-	properties := make(map[string]any, len(names))
-	for _, name := range names {
-		switch name {
-		case "paths":
-			properties[name] = map[string]any{"type": "array", "items": map[string]any{"type": "string"}}
-		case "start_line", "end_line":
-			properties[name] = map[string]any{"type": []string{"integer", "null"}}
-		default:
-			properties[name] = map[string]any{"type": "string"}
-		}
-	}
-
-	return map[string]any{"type": "object", "properties": properties, "required": names, "additionalProperties": false}
+	return t.session.ExternalUnavailable(err.Error()), nil
 }

@@ -1,14 +1,20 @@
-package workflow
+package provider
 
 import (
 	"fmt"
 
 	"github.com/alexfalkowski/go-service/v2/errors"
-	"github.com/alexfalkowski/go-service/v2/slices"
 	"github.com/alexfalkowski/go-service/v2/strings"
 )
 
-func (r sourceRange) validate() error {
+// Range optionally selects inclusive one-based source lines; zero reads the whole file.
+type Range struct {
+	StartLine int `json:"start_line"`
+	EndLine   int `json:"end_line"`
+}
+
+// Validate rejects partial or reversed line bounds before source reads.
+func (r Range) Validate() error {
 	if (r.StartLine == 0 && r.EndLine == 0) || (r.StartLine > 0 && r.EndLine >= r.StartLine) {
 		return nil
 	}
@@ -16,8 +22,9 @@ func (r sourceRange) validate() error {
 	return errors.New("review: invalid source line range")
 }
 
-// sourceText records only delivered text, rather than the whole downloaded file.
-func (s *sourceSession) sourceText(label, content string, lines sourceRange) string {
+// Text renders a complete file or numbered excerpt and records only supplied text.
+// An empty excerpt does not record inspection.
+func Text(repository Repository, label, content string, lines Range) string {
 	if lines.StartLine > 0 {
 		var excerpt strings.Builder
 		last, number := 0, 0
@@ -44,9 +51,7 @@ func (s *sourceSession) sourceText(label, content string, lines sourceRange) str
 		label += fmt.Sprintf(" (lines %d-%d)", lines.StartLine, last)
 	}
 
-	if !slices.Contains(s.inspected, label) {
-		s.inspected = append(s.inspected, label)
-	}
+	repository.Inspected(label)
 
 	return content
 }

@@ -4,6 +4,7 @@ import (
 	"github.com/alexfalkowski/abgleich/internal/ai"
 	"github.com/alexfalkowski/abgleich/internal/commands"
 	"github.com/alexfalkowski/abgleich/internal/github"
+	"github.com/alexfalkowski/abgleich/internal/review/internal/sources"
 	"github.com/alexfalkowski/go-service/v2/context"
 	"github.com/alexfalkowski/go-sync"
 )
@@ -42,7 +43,7 @@ type reviewTask struct {
 type Command struct {
 	github      github.Service
 	provider    ai.Provider
-	sources     *Sources
+	sources     *sources.Registry
 	publication *sync.Worker
 	queue       *commands.Queue
 	authorizer  *commands.Authorizer

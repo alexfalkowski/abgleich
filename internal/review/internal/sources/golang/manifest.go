@@ -1,4 +1,4 @@
-package workflow
+package golang
 
 import (
 	"path"
@@ -18,7 +18,7 @@ type dependencyRef struct {
 	checksum string
 }
 
-func (s *sourceSession) resolveDependency(ctx context.Context, args dependencyRequest) (*dependencyRef, error) {
+func (s *session) resolveDependency(ctx context.Context, args dependencyRequest) (*dependencyRef, error) {
 	manifest, err := s.moduleManifest(ctx, args.Manifest)
 	if err != nil {
 		return nil, err
@@ -45,7 +45,7 @@ func (s *sourceSession) resolveDependency(ctx context.Context, args dependencyRe
 		return nil, errors.New("review: invalid module identity")
 	}
 
-	sums, err := s.repositoryFile(ctx, s.headSHA, path.Join(path.Dir(args.Manifest), "go.sum"))
+	sums, err := s.repository.ReadFile(ctx, path.Join(path.Dir(args.Manifest), "go.sum"))
 	if err != nil {
 		return nil, err
 	}
@@ -58,8 +58,8 @@ func (s *sourceSession) resolveDependency(ctx context.Context, args dependencyRe
 	return &dependencyRef{module: selected, checksum: checksum}, nil
 }
 
-func (s *sourceSession) moduleManifest(ctx context.Context, filename string) (*modfile.File, error) {
-	paths, err := s.treeFiles(ctx, s.headSHA)
+func (s *session) moduleManifest(ctx context.Context, filename string) (*modfile.File, error) {
+	paths, err := s.repository.Files(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -81,7 +81,7 @@ func (s *sourceSession) moduleManifest(ctx context.Context, filename string) (*m
 		directory = path.Dir(directory)
 	}
 
-	content, err := s.repositoryFile(ctx, s.headSHA, filename)
+	content, err := s.repository.ReadFile(ctx, filename)
 	if err != nil {
 		return nil, err
 	}

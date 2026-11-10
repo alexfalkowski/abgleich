@@ -1,12 +1,14 @@
-package workflow
+package provider
 
 import "github.com/alexfalkowski/go-service/v2/strings"
 
-// Config owns shared review source access. ModuleProxy is a trusted public Go
-// module proxy; it receives module names only, without GitHub or AI credentials.
-// Omission uses proxy.golang.org. Dependencies come from the reviewed go.mod,
-// with a checksum from the reviewed go.sum required before source is shared.
+// Config owns trusted, credential-free endpoints for shared review source access.
+// Go and Ruby dependencies are selected from reviewed manifests and verified
+// before any archive source is shared with the provider.
 type Config struct {
+	// GemRegistry selects a trusted RubyGems registry mirror; empty uses https://rubygems.org.
+	GemRegistry string `yaml:"gem_registry,omitempty" json:"gem_registry,omitempty" toml:"gem_registry,omitempty" validate:"omitempty,http_url"`
+
 	// GoDocs selects the trusted Go documentation base URL; empty uses https://go.dev/doc.
 	GoDocs string `yaml:"go_docs,omitempty" json:"go_docs,omitempty" toml:"go_docs,omitempty" validate:"omitempty,http_url"`
 
@@ -35,4 +37,13 @@ func (c *Config) GetModuleProxy() string {
 	}
 
 	return c.ModuleProxy
+}
+
+// GetGemRegistry returns the trusted public gem endpoint, without credentials.
+func (c *Config) GetGemRegistry() string {
+	if !c.IsEnabled() || strings.IsEmpty(c.GemRegistry) {
+		return "https://rubygems.org"
+	}
+
+	return c.GemRegistry
 }

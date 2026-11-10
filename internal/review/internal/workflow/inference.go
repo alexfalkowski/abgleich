@@ -19,6 +19,16 @@ func (c *Command) generateReview(ctx context.Context, task *reviewTask, review *
 		inferenceTimeout = time.Until(deadline) / inferenceTimeoutDivisor
 	}
 
+	paths, err := review.source.Files(ctx)
+	if err != nil {
+		return c.reportFailure(ctx, task, stageSource, err)
+	}
+	for _, file := range review.Files {
+		paths = append(paths, file.GetFilename())
+	}
+
+	providers := c.sources.Select(paths)
+
 	// Keep checks read-only; the failure path owns feedback publication.
 	guard := func(ctx context.Context) error {
 		return c.guard(ctx, task)
@@ -29,9 +39,9 @@ func (c *Command) generateReview(ctx context.Context, task *reviewTask, review *
 		Task:            c.profile.Name,
 		Model:           c.profile.Model,
 		ReasoningEffort: c.profile.ReasoningEffort,
-		Instructions:    c.profile.Instructions,
+		Instructions:    reviewInstructions(c.profile.Instructions, providers),
 		Input:           review.input,
-		Tools:           tools.definitions(),
+		Tools:           tools.definitions(providers),
 		BeforeRequest:   guard,
 		Timeout:         inferenceTimeout,
 	})

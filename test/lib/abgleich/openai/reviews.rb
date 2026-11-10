@@ -33,7 +33,7 @@ module Abgleich
       outputs = source_review_outputs(payload)
       return source_burst_reply(payload) if source_burst?(mode, outputs)
 
-      calls = source_review_calls(mode)
+      calls = ruby_source_calls(mode) || source_review_calls(mode)
       index = outputs.length
       return source_function_reply(payload, calls.fetch(index), index) if index < calls.length
 

@@ -68,6 +68,14 @@ missed high-severity bugs, and false requests for changes on clean controls.
 Include incomplete-context cases and caller/dependency bugs requiring automatic
 source discovery. Re-evaluate after model, prompt, or source-selection changes;
 fake-provider scenarios establish verdict integration only.
+Include Ruby library fixes and mixed Go/Ruby Cucumber changes, with clean controls,
+and verify that the reviewer finds relevant steps, hooks, manifests, and locked gem source.
+Shared prompt rules live in `internal/review/internal/workflow/prompts`; each
+feature retains its review focus. Language/framework providers in
+`internal/review/internal/sources` own their matching rules, guides, and tools.
+Each provider's module contributes a `provider.Result` to the `review_sources` DI
+value group. Add that module to `sources.Module`; registry selection and workflow
+need no changes for another language.
 
 ## 🛡️ Security-review evaluation
 

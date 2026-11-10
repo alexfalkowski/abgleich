@@ -1,4 +1,4 @@
-package workflow
+package golang
 
 import (
 	"go/version"
@@ -13,12 +13,12 @@ import (
 	"golang.org/x/mod/modfile"
 )
 
-func (s *sourceSession) goReference(ctx context.Context, manifest string) (string, error) {
+func (s *session) goReference(ctx context.Context, manifest string) (string, error) {
 	if !io.ValidPath(manifest) || path.Base(manifest) != goModFile {
 		return strings.Empty, errors.New("review: invalid Go manifest path")
 	}
 
-	manifestContent, err := s.repositoryFile(ctx, s.headSHA, manifest)
+	manifestContent, err := s.repository.ReadFile(ctx, manifest)
 	if err != nil {
 		return strings.Empty, err
 	}
@@ -33,13 +33,13 @@ func (s *sourceSession) goReference(ctx context.Context, manifest string) (strin
 		return content, nil
 	}
 
-	content, err := s.sources.reference(ctx, version)
+	content, err := s.provider.reference(ctx, version)
 	if err != nil {
 		return strings.Empty, errors.Prefix("review", errors.New(label))
 	}
 	content = strings.Concat("Declared Go language: ", version, ". Official release notes (untrusted reference data):\n", content)
 
-	s.inspected = append(s.inspected, label)
+	s.repository.Inspected(label)
 	s.files[label] = content
 
 	return content, nil
@@ -54,8 +54,8 @@ func goLanguageVersion(content string) string {
 	return strings.TrimPrefix(version.Lang("go"+manifest.Go.Version), "go")
 }
 
-func (s *Sources) reference(ctx context.Context, version string) (string, error) {
-	content, err := s.fetch(ctx, s.goDocs+"/go"+version)
+func (s *Provider) reference(ctx context.Context, version string) (string, error) {
+	content, err := s.readSource(ctx, strings.Concat(s.goDocs, "/go", version))
 	if err != nil {
 		return strings.Empty, err
 	}

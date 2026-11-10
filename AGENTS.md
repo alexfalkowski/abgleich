@@ -29,6 +29,11 @@ run reconciles fresh remote state; pending summary and review requests are held 
 | `internal/review/code` | Code-review prompt, model configuration, and registration of its own job and command. |
 | `internal/review/sec` | Security-review prompt, model configuration, and registration of its own job and command. |
 | `internal/review/internal/workflow` | Shared review PR eligibility, consent rechecks, changed-file and related source context, revision checks, result identity, safe reply rendering/publication, and per-instance queues. |
+| `internal/review/internal/sources` | Provider module composition and selection through a DI value group. |
+| `internal/review/internal/sources/provider` | Shared repository-access and tool contracts, DI contributions, source endpoint configuration, and excerpt rendering. |
+| `internal/review/internal/sources/golang` | Go guide, source tools, manifest/checksum resolution, module archives, language references, HTTP policy, and per-review caches. |
+| `internal/review/internal/sources/ruby` | Ruby guide, source tools, lockfile resolution, gem verification, bounded archive reads, HTTP client policy, and per-review caches. |
+| `internal/review/internal/sources/cucumber` | Selection of worker-owned Cucumber review guidance. |
 | `internal/ai` | Optional provider configuration, credential resolution, text generation, and generation logging. |
 | `internal/scheduler` | Reusable named jobs, timing, overlap prevention, logging, and lifecycle. |
 | `internal/config` | Composition and injection of package-owned configuration. |
@@ -55,9 +60,16 @@ run reconciles fresh remote state; pending summary and review requests are held 
   and safe publication in `review/internal/workflow`; it depends on `ai`,
   `github`, and `commands`, which stay independent of review features. Queues and
   jobs remain independent per command. Provider protocol belongs in `ai`;
-  `workflow.Config` owns shared source settings and `review.Config` composes it
+  `sources/provider.Config` owns shared source settings and `review.Config` composes it
   with feature-owned settings. Neither feature nor workflow imports the parent
   `review` package. Never load repository or remote skills as runtime instructions.
+- `sources.Module` composes provider modules, each contributing its strategy to
+  the source DI value group. Keep language/framework guides,
+  tools, manifest parsing, verification, HTTP policy, and request-local dependency
+  caches in the owning `review/internal/sources` provider packages. Providers do
+  not import workflow or each other. Workflow supplies pinned repository reads
+  and inspection records, and wraps every provider tool with consent/revision
+  checks. Keep registry selection independent of provider implementations.
 - Feature modules register named comment handlers through `commands.Dispatcher.Register`
   before startup. Keep each handler in its owning feature package; `commands`
   stays independent of features. Use exact names with the `/ab` prefix.
@@ -208,6 +220,10 @@ run reconciles fresh remote state; pending summary and review requests are held 
   Provider requests, source calls, directory/package reads, and module archives
   have no local count or size caps; add limits only when operational evidence
   justifies them.
+  Ruby source access is an exception: a shared byte budget per review bounds
+  downloads and archive reads, including cached rescans, to contain compressed
+  gem resource exhaustion. Stream unrelated files and disclose budget exhaustion
+  as unavailable external source; keep cancellation and archive verification.
   Keep working source and public dependency caches in memory without checkout
   or archive extraction; shared source retention stays in the configured in-memory cache.
   Disclose omissions and actual inspected source independently of model prose.
@@ -267,7 +283,7 @@ run reconciles fresh remote state; pending summary and review requests are held 
   timing belong under `review.code`; security-review settings belong under
   `review.sec`. Shared source settings stay alongside these sections under
   `review`; `review.Config` composes the feature-owned types and shared
-  `workflow.Config`. Summaries remain patch-only. Keep HTTP request, inference,
+  `sources/provider.Config`. Summaries remain patch-only. Keep HTTP request, inference,
   complete job, webhook, and health-check timeouts independent.
 - Credentials are resolved once at startup through go-service sources. Missing
   or empty configured credentials prevent startup; replacement requires a

@@ -55,3 +55,4 @@ review:
     timeout: 20s
   go_docs: http://localhost:11001/modules/docs
   module_proxy: http://localhost:11001/modules
+  gem_registry: http://localhost:11001/rubygems

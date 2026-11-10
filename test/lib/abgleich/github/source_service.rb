@@ -48,7 +48,7 @@ module Abgleich
     get '/repos/:owner/:repository/git/trees/:revision' do
       GitHubService.record_source_tree_read
       halt submodule_tree.to_json if params.fetch('repository') == 'bin' && Abgleich.github.submodule
-      paths = %w[main.go worker.go test.go helpers helpers/guard.go go.mod go.sum]
+      paths = source_project_paths
       paths << 'bin' if Abgleich.github.submodule
       paths << 'image.png' if Abgleich.github.summary_paths.include?('image.png')
       paths << 'helpers/favicon.png' if Abgleich.github.failure == 'source a binary asset'
@@ -167,7 +167,7 @@ module Abgleich
       when 'go.mod', 'tools/app/go.mod' then source_manifest
       when 'go.sum', 'tools/app/go.sum' then source_checksum
       when 'helpers/guard.go' then source_helper
-      else "package worker\n// complete-file-context for #{filename}\nfunc Worker() bool { return false }\n"
+      else source_project_content(filename)
       end
     end
 
