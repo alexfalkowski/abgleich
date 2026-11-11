@@ -4,6 +4,7 @@ import (
 	"github.com/alexfalkowski/abgleich/internal/ai"
 	"github.com/alexfalkowski/abgleich/internal/commands"
 	"github.com/alexfalkowski/abgleich/internal/github"
+	"github.com/alexfalkowski/abgleich/internal/review/internal/sources"
 	"github.com/alexfalkowski/go-service/v2/context"
 	"github.com/alexfalkowski/go-service/v2/di"
 	"github.com/alexfalkowski/go-service/v2/errors"
@@ -22,7 +23,7 @@ type FactoryParams struct {
 	Provider ai.Provider
 
 	// Sources supplies credential-free dependency and language reference access.
-	Sources *Sources
+	Sources *sources.Registry
 
 	// Authorizer rechecks human command identity and current write permission.
 	Authorizer *commands.Authorizer
@@ -47,7 +48,7 @@ func NewFactory(params FactoryParams) *Factory {
 type Factory struct {
 	github      github.Service
 	provider    ai.Provider
-	sources     *Sources
+	sources     *sources.Registry
 	authorizer  *commands.Authorizer
 	publication *sync.Worker
 	commands    []*Command

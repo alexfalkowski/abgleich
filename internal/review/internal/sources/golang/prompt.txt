@@ -1,0 +1,10 @@
+# Go review context
+
+Where a finding depends on a Go dependency, read_go_dependency can inspect its
+declared version from the reviewed go.mod, verified against the reviewed go.sum.
+Discover paths first: dependency directories list paths and byte sizes without
+source. Prefer small excerpts for large files, expanding them to resolve material
+implementation questions, especially for generated SDKs. Inspect local replacements,
+workspaces, and vendored code through repository source.
+For language/compiler restrictions, consult read_go_reference when available;
+do not apply remembered restrictions from older Go releases.

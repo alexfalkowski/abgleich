@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 module Abgleich
-  # Independent public module endpoint on the existing shared listener.
+  # Independent public Go module and reference endpoint on the shared listener.
   class ModuleService < Nonnative::HTTPService
     get '/docs/go:version' do
       Abgleich.github.record_reference_request(params.fetch('version'), request.env['HTTP_AUTHORIZATION'])

@@ -50,7 +50,7 @@ source tools without GitHub credentials. Each review uses one conversation bound
 response storage or automatic retries, and no review-specific output-token cap.
 Large changes can exceed provider context limits or worker deadlines.
 Reviews focus on the PR's changes and related source in the reviewed repository,
-with verified Go dependency and language references available through the
+with verified Go modules, Ruby gems, and Go language references available through the
 [source tools](configuration.md#-review-source-access). Those tools also inspect
 permitted direct submodules at their pinned commits. Reviews do not browse arbitrary
 GitHub repositories; missing implementations outside those tools do not prevent completion.
@@ -60,6 +60,15 @@ generation and validation. Hypothetical inputs outside those preconditions alone
 do not justify findings unless an explicit contract or trust boundary requires
 handling them. The reviewer must challenge candidates against inspected evidence
 that they are not bugs and describe the surviving trigger and prerequisites.
+
+Each review combines shared evidence/result rules with its code or security
+focus. The worker selects separate Go, Ruby, and Cucumber providers from the reviewed
+repository's file tree and changed paths, including deletions. Mixed repositories
+receive every applicable guide and source tool; unrelated language support is
+omitted. These guides ship with the worker;
+repository skills are never loaded as instructions. Ruby guidance follows
+manifests and supported versions; Cucumber guidance traces scenarios through
+steps, support hooks, configuration, and assertions.
 These are static source reviews: running tests, rendering Helm manifests,
 deploying, and inspecting live services are outside their scope. Lack of execution
 alone does not make a review unfinished; material unresolved source gaps still do.

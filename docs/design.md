@@ -16,7 +16,14 @@ The aggregate preserves the original comment for consent rechecks and uses
 each feature's existing queue and result identity. Each feature configures a separate instance of the shared
 [`workflow`](../internal/review/internal/workflow/doc.go), which owns PR eligibility,
 patch and related-source collection, revision checks, deduplication, inference,
-safe publication, and the common reply template. Feature packages retain prompts,
+safe publication, and the common reply template.
+[`sources`](../internal/review/internal/sources/doc.go) selects registered providers
+from reviewed paths. Go and Ruby providers own their guides, source tools,
+manifest parsing, verification, HTTP policy, and per-review caches. Workflow
+provides pinned repository reads and wraps every tool with consent/revision checks.
+`sources.Module` composes provider modules, which contribute strategies through a
+DI value group. The registry collects that group without constructing individual
+providers; workflow uses their shared contract. Feature packages retain prompts,
 model settings, schedules, and registration. Reviews, summaries, status, and automerge use `commands.Authorizer`
 to re-read human commands and current permissions at their own consent boundaries;
 PR eligibility and automation history remain with their owning feature.

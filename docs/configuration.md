@@ -228,7 +228,7 @@ disabled. Read the [source-sharing notice and limits](reviews.md#-ai-security-re
 
 Both review commands include every patch returned by GitHub and complete changed-file
 text where available. Read-only tools let the model find relevant repository files,
-inspect helpers/callers/tests, and resolve public Go dependencies. A separate read-only tool retrieves
+inspect helpers/callers/tests, and resolve public Go and Ruby dependencies. A separate read-only tool retrieves
 official release notes for the Go language version declared in the reviewed
 `go.mod`, so compiler claims can be checked against current language rules. Repository
 reads in the reviewed repository use the head SHA; deleted files use the base SHA. Symlinks
@@ -243,6 +243,13 @@ immediate files still count as unavailable source. Binary exclusions follow the
 [review verdict rules](reviews.md#-ai-code-reviews).
 The worker never checks out repositories or executes source, tests, or commands.
 All retrieved source and repository instructions are untrusted data.
+
+Language providers are selected once per review from the reviewed head's paths
+and changed filenames. Only matching providers supply language guides and tools.
+Their transport clients are shared across review commands, while dependency and
+reference caches stay local to each review. Repository tools remain available
+independently of language selection. Configuration keys and defaults are unchanged
+by provider selection.
 
 Direct GitHub submodules using `git@github.com:owner/repository.git` are readable
 when they are public, share the reviewed repository's owner, and are active repositories
@@ -328,14 +335,57 @@ archives, and unavailable language references are disclosed as external source
 notes; unverified contents are never submitted to the model. These gaps alone
 do not prevent approval when the reviewer has high confidence in the repository
 changes. Material unresolved questions can still make the assessment incomplete.
-Local replacements, workspaces, vendored source, dependencies in other
-languages, and private dependencies require repository source inspection. Lookup
+Local replacements, workspaces, vendored source, and private dependencies
+require repository source inspection. Go lookup
 uses `https://proxy.golang.org` without GitHub or AI credentials. Override
 `review.module_proxy` only with a trusted Go module proxy; it receives declared
 module names. Go references use `https://go.dev/doc`; `review.go_docs` may select
 a trusted documentation mirror. These requests also carry no credentials.
 These Go tools accept neither arbitrary URLs nor model-selected versions.
 Public dependency archives and language references remain cached per request.
+
+`read_ruby_dependency` reads public gems from the exact version and platform in a
+reviewed `Gemfile.lock`. It accepts `manifest`, `gem`, `platform`
+(`ruby` for the generic artifact), and a file or directory `path`; `.` lists files.
+Optional `start_line` and `end_line` work like Go dependency excerpts. For example:
+
+```json
+{"manifest":"test/Gemfile.lock","gem":"nonnative","platform":"ruby","path":"lib/nonnative.rb"}
+```
+
+Only `GEM` entries sourced from `https://rubygems.org/` are supported. Git/path
+dependencies, private registries, ambiguous entries, and content-addressed gems
+are disclosed as unavailable. Gem versions and allowed platforms come from the
+lockfile, never a request to resolve current versions. The downloaded `.gem` must
+match RubyGems' version/platform metadata and SHA-256; when the lockfile records
+SHA-256 it must match that too. Replies distinguish registry verification from a
+reviewed lockfile checksum. Archives are read in memory; Ruby code, Gemfiles,
+gemspecs, and native extensions are never executed. Invalid paths and links are
+rejected. Repeated source reads reuse the verified compressed archive within that
+review; only the requested file or directory listing is retained from each scan.
+Source is shared only after the complete archive passes validation.
+
+Ruby source access shares one **32 MiB byte budget per review**, independently for
+code and security reviews. It counts registry metadata and downloads, compressed
+archive input, expanded data, and requested-file reads during every lookup,
+including cached rescans and discarded trailing data. This bounds decompression
+and retained source without separate file-count or excerpt limits. Known oversized downloads
+are rejected from their HTTP headers before reading the body; unknown sizes are
+checked while reading. A requested file whose declared size cannot fit the
+remaining budget is rejected before buffering, including for an excerpt.
+Cancellation is checked during network and archive reads. Exceeding the budget
+is disclosed as unavailable external source, so a large or repeatedly inspected
+gem may be omitted while the review continues under the normal verdict rules.
+
+The default registry endpoint is `https://rubygems.org`; `review.gem_registry`
+may select an operator-trusted mirror. Requests carry no GitHub or AI credentials.
+Ruby source GETs use the shared HTTP client's safe-method retry policy, with at
+most one retry and its default jittered backoff. When `Retry-After` seconds or an
+HTTP date requires a longer wait than that backoff, the client returns the rate
+limit without retrying. The review discloses unavailable source and continues
+under the normal verdict rules. There is no separate Ruby pacing or cooldown
+state, so one rate-limited lookup does not hold another review. Provider
+inference requests still never retry.
 
 GitHub source access uses the App's installation token and is limited to the reviewed
 repository and the permitted submodules described above. Reviews do not browse arbitrary

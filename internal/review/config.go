@@ -2,7 +2,7 @@ package review
 
 import (
 	"github.com/alexfalkowski/abgleich/internal/review/code"
-	"github.com/alexfalkowski/abgleich/internal/review/internal/workflow"
+	"github.com/alexfalkowski/abgleich/internal/review/internal/sources/provider"
 	"github.com/alexfalkowski/abgleich/internal/review/sec"
 )
 
@@ -16,7 +16,7 @@ type Config struct {
 	Sec *sec.Config `yaml:"sec,omitempty" json:"sec,omitempty" toml:"sec,omitempty" validate:"omitempty"`
 
 	// Config shares trusted source endpoint settings between both review features.
-	workflow.Config `yaml:",inline" json:",inline" toml:",inline"`
+	provider.Config `yaml:",inline" json:",inline" toml:",inline"`
 }
 
 // IsEnabled reports whether review configuration is present. Each feature's
@@ -41,7 +41,7 @@ func secConfig(cfg *Config) *sec.Config {
 	return cfg.Sec
 }
 
-func workflowConfig(cfg *Config) *workflow.Config {
+func sourceConfig(cfg *Config) *provider.Config {
 	if !cfg.IsEnabled() {
 		return nil
 	}

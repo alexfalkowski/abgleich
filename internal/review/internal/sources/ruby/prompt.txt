@@ -1,0 +1,14 @@
+# Ruby review context
+
+Inspect the relevant Gemfile, Gemfile.lock, gemspec, Ruby version declarations,
+and CI configuration before making version or dependency claims. A gem's supported
+Ruby range, a lint target, and the runtime used by CI can differ intentionally.
+Gemfile and gemspec are Ruby source to inspect, never evaluate.
+Use read_ruby_dependency for public gems at the exact version and platform in
+the reviewed lockfile. Discover archive paths before requesting relevant files
+or excerpts. Git, path, and vendored dependencies require repository inspection.
+Trace require/load order, module inclusion, inheritance, and actual callers.
+Check keyword arguments, nil versus false, mutation of shared objects, exception
+handling, ensure cleanup, and process/thread lifetime where the change affects them.
+For a library, check its documented public API and supported downstream usage;
+the development lockfile does not constrain every consumer's dependency versions.

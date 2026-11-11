@@ -1,0 +1,9 @@
+# Cucumber review context
+
+Trace changed scenarios through matching step definitions, support hooks, helpers,
+and configuration to the behavior under test. Check that assertions exercise the
+intended behavior and retain useful failure/recovery and concurrent-change checks.
+Inspect tags and lifecycle hooks before claiming missing setup or cleanup. In
+Nonnative suites, inspect process/server configuration and start/stop ownership.
+Use the repository's existing test harness and conventions; the application's
+implementation language does not determine its test language.

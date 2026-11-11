@@ -1,4 +1,4 @@
-package workflow
+package golang
 
 import (
 	"archive/zip"
@@ -13,7 +13,7 @@ import (
 	"golang.org/x/mod/sumdb/dirhash"
 )
 
-func (s *Sources) archive(ctx context.Context, name, version, checksum string) (*zip.Reader, error) {
+func (s *Provider) archive(ctx context.Context, name, version, checksum string) (*zip.Reader, error) {
 	escapedName, err := module.EscapePath(name)
 	if err != nil {
 		return nil, errors.Prefix("review: escape module path", err)
@@ -25,7 +25,7 @@ func (s *Sources) archive(ctx context.Context, name, version, checksum string) (
 	}
 
 	endpoint := strings.Concat(s.proxy, "/", escapedName, "/@v/", url.PathEscape(escapedVersion), ".zip")
-	content, err := s.fetch(ctx, endpoint)
+	content, err := s.readSource(ctx, endpoint)
 	if err != nil {
 		return nil, err
 	}

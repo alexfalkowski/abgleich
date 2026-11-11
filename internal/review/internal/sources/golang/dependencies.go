@@ -1,4 +1,4 @@
-package workflow
+package golang
 
 import (
 	"archive/zip"
@@ -6,6 +6,7 @@ import (
 	"path"
 	"unicode/utf8"
 
+	"github.com/alexfalkowski/abgleich/internal/review/internal/sources/provider"
 	"github.com/alexfalkowski/go-service/v2/bytes"
 	"github.com/alexfalkowski/go-service/v2/context"
 	"github.com/alexfalkowski/go-service/v2/errors"
@@ -14,7 +15,7 @@ import (
 	"github.com/alexfalkowski/go-service/v2/strings"
 )
 
-func (s *sourceSession) dependency(ctx context.Context, args dependencyRequest) (string, error) {
+func (s *session) dependency(ctx context.Context, args dependencyRequest) (string, error) {
 	validManifest := path.Base(args.Manifest) == goModFile && io.ValidPath(args.Manifest)
 	validPath := io.ValidPath(args.Path) && !strings.Contains(args.Path, "\\")
 	if !validManifest || !validPath {
@@ -29,7 +30,7 @@ func (s *sourceSession) dependency(ctx context.Context, args dependencyRequest) 
 	key := ref.module.String()
 	archive := s.archives[key]
 	if archive == nil {
-		archive, err = s.sources.archive(ctx, ref.module.Path, ref.module.Version, ref.checksum)
+		archive, err = s.provider.archive(ctx, ref.module.Path, ref.module.Version, ref.checksum)
 		if err != nil {
 			return strings.Empty, errors.New("review: public dependency source unavailable or checksum mismatch")
 		}
@@ -37,10 +38,10 @@ func (s *sourceSession) dependency(ctx context.Context, args dependencyRequest) 
 		s.archives[key] = archive
 	}
 
-	return s.dependencySource(archive, key, args.Path, args.sourceRange), nil
+	return s.dependencySource(archive, key, args.Path, args.Range), nil
 }
 
-func (s *sourceSession) dependencySource(archive *zip.Reader, key, requested string, lines sourceRange) string {
+func (s *session) dependencySource(archive *zip.Reader, key, requested string, lines provider.Range) string {
 	prefix := key + "/"
 	var names []string
 
@@ -65,22 +66,22 @@ func (s *sourceSession) dependencySource(archive *zip.Reader, key, requested str
 	return strings.Join("\n", names...)
 }
 
-func (s *sourceSession) dependencyFile(file *zip.File, lines sourceRange) string {
+func (s *session) dependencyFile(file *zip.File, lines provider.Range) string {
 	label := file.Name
 
 	reader, err := file.Open()
 	if err != nil {
-		return s.externalUnavailable(label)
+		return s.repository.ExternalUnavailable(label)
 	}
 	defer reader.Close()
 
 	content, _, err := io.ReadAll(reader)
 	if err != nil || !utf8.Valid(content) || bytes.ContainsRune(content, 0) {
-		return s.externalUnavailable(label)
+		return s.repository.ExternalUnavailable(label)
 	}
 
 	return strings.Concat(
 		"Source: ", label, " (reviewed go.sum verified)\n",
-		s.sourceText(label, bytes.String(content), lines),
+		provider.Text(s.repository, label, bytes.String(content), lines),
 	)
 }

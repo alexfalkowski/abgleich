@@ -1,0 +1,19 @@
+GEM
+  remote: https://rubygems.org/
+  specs:
+    example (1.2.3)
+    example (1.2.3-x86_64-linux)
+
+PLATFORMS
+  ruby
+  x86_64-linux
+
+DEPENDENCIES
+  example
+
+CHECKSUMS
+  example (1.2.3) sha256=8b6b33b0b68a58ff126b4d89aee3db334b72fbe8585df051e7a7f8ac2be279b2
+  example (1.2.3-x86_64-linux) sha256=8b6b33b0b68a58ff126b4d89aee3db334b72fbe8585df051e7a7f8ac2be279b2
+
+BUNDLED WITH
+   4.0.0

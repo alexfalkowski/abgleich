@@ -29,7 +29,7 @@ module Abgleich
         @mutex.synchronize do
           @state[:file_mode] = mode
           count = { 'many files' => 21, 'mixed patches' => 4, 'removed binary file' => 4,
-                    'missing patches with binary file' => 4, 'no changed files' => 0 }[mode]
+                    'missing patches with binary file' => 4, 'no changed files' => 0, 'Ruby' => 1, 'mixed' => 2 }[mode]
           @state[:pulls].each_value { |pull| pull[:changed_files] = count } if count
           @state[:pulls].each_value { |pull| pull.delete(:changed_files) } if mode == 'missing file count'
         end
@@ -42,13 +42,13 @@ module Abgleich
       def summary_files
         summary_paths.map do |path|
           file = { filename: path, status: 'modified', additions: 1, deletions: 1, changes: 2,
-                   sha: Digest::SHA1.hexdigest(path), patch: summary_patch(path) }
+                   sha: Digest::SHA1.hexdigest(path), patch: source_project_patch(path) }
           apply_summary_file_change(file)
         end
       end
 
       def summary_paths
-        paths = %w[main.go worker.go test.go]
+        paths = { 'Ruby' => %w[lib/worker.rb], 'mixed' => %w[main.go lib/worker.rb] }.fetch(file_mode, %w[main.go worker.go test.go])
         paths = %w[.circleci/config.yml Makefile scripts/coverage-workspace] if file_mode == 'ci workflow'
         paths += (4..21).map { |number| "file#{number}.go" } if file_mode == 'many files'
         paths << 'image.png' if ['mixed patches', 'removed binary file', 'missing patches with binary file'].include?(file_mode)
