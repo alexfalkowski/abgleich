@@ -136,6 +136,9 @@ Given('the AI service includes markup and mentions in its answer') do
 end
 
 Given(/^the revision changes through "([^"]*)" while the (?:summary|review) is prepared$/) do |change|
+  pull = Abgleich.github.pull_state('contribution')
+  @requested_head_sha = pull.fetch(:head).fetch(:sha)
+  @requested_base_sha = pull.fetch(:base).fetch(:sha)
   modes = { 'a new pull request commit' => 'head changed', 'a new target branch commit' => 'base changed' }
   Abgleich.openai.on_request = -> { Abgleich.github.change_summary_state(modes.fetch(change)) }
 end

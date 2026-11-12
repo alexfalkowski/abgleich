@@ -8,6 +8,14 @@ import (
 	"github.com/alexfalkowski/go-service/v2/strings"
 )
 
+type staleReview struct {
+	Title     string
+	Command   string
+	HeadSHA   string
+	BaseSHA   string
+	RequestID int64
+}
+
 func (c *Command) publish(ctx context.Context, task *reviewTask, body string) error {
 	current, comments, err := c.authorize(ctx, task)
 	if err != nil {
@@ -18,7 +26,10 @@ func (c *Command) publish(ctx context.Context, task *reviewTask, body string) er
 	}
 
 	if c.revisionChanged(task, current) {
-		body = c.staleMessage()
+		body, err = c.staleMessage(task)
+		if err != nil {
+			return err
+		}
 	}
 
 	exists, err := c.hasReview(ctx, current, comments)
@@ -58,8 +69,12 @@ func (c *Command) publishCancellation(ctx context.Context, task *reviewTask) err
 	return c.github.AddComment(ctx, current.repository, current.request.GetNumber(), body)
 }
 
-func (c *Command) staleMessage() string {
-	return strings.Concat("🔄 The pull request revision changed. Post a new /ab ", c.profile.Name, " request.")
+func (c *Command) staleMessage(task *reviewTask) (string, error) {
+	return render("stale.md.tmpl", staleReview{
+		Title: c.profile.Title, Command: c.profile.Name,
+		HeadSHA: task.request.GetHead().GetSHA(), BaseSHA: task.request.GetBase().GetSHA(),
+		RequestID: task.comment.GetID(),
+	})
 }
 
 func (c *Command) cancellationMessage(task *reviewTask) string {

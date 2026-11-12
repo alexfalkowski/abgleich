@@ -98,7 +98,11 @@ func (c *Command) recheck(ctx context.Context, task *reviewTask) (*reviewTask, e
 	}
 
 	if c.revisionChanged(task, current) {
-		return nil, c.publish(ctx, task, c.staleMessage())
+		body, err := c.staleMessage(task)
+		if err != nil {
+			return nil, err
+		}
+		return nil, c.publish(ctx, task, body)
 	}
 
 	exists, err := c.hasReview(ctx, current, comments)

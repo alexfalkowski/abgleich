@@ -301,8 +301,19 @@ end
 
 Then(/^the maintainer should be asked for a (code|security) review of the new revision$/) do |kind|
   wait_for { Abgleich.github.review_results.any? { |reply| reply[:body].include?('revision changed') } }.to be(true)
+  body = Abgleich.github.replies.last.fetch(:body)
+  visible, details = body.split('<details>', 2)
+  expect(visible).to start_with("### 🔄 Abgleich #{kind} review\n")
+  expect(visible).to include('**Review stopped:**', 'revision changed', 'discarded',
+                             '👉 **Next step:**', "`/ab #{review_command(kind)}`")
+  request = @comment_event.fetch(:comment).fetch('id')
+  expect(details).to include('<summary>🔎 Superseded review details</summary>', "#issuecomment-#{request}", '</details>')
+  expect(details).to include("🔖 **Requested head:** `#{@requested_head_sha}`",
+                             "🔖 **Requested base:** `#{@requested_base_sha}`")
+  expect(body).not_to include('d' * 40, '<!-- abgleich:')
   finding = kind == 'code' ? 'Worker now always returns false' : 'Untrusted query input reaches SQL execution'
-  expect(Abgleich.github.review_results.last.fetch(:body)).not_to include(finding)
+  expect(body).not_to include(finding)
+  expect(Abgleich.github.native_reviews).to be_empty, 'expected stale findings to remain unpublished'
 end
 
 Then(/^the (code|security) review cancellation should explain "([^"]*)"$/) do |kind, reason|
