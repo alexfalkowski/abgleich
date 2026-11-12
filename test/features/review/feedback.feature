@@ -129,16 +129,22 @@ Feature: Explain canceled or stale reviews
       | kind     | command    |
       | security | secreview  |
 
-  @codereview
   Scenario Outline: Discard a result after either branch changes
-    Given AI code reviews are configured for this repository
+    Given AI <kind> reviews are configured for this repository
     And a pull request from "the repository" for branch "contribution" is "waiting for checks"
     And the revision changes through "<change>" while the review is prepared
-    When a maintainer with "write" access comments "/ab codereview"
-    Then the maintainer should be asked for a code review of the new revision
+    When a maintainer with "write" access comments "/ab <command>"
+    Then the maintainer should be asked for a <kind> review of the new revision
     And exactly 1 request should reach the AI service
 
+    @codereview
     Examples:
-      | change                     |
-      | a new pull request commit  |
-      | a new target branch commit |
+      | kind | command    | change                     |
+      | code | codereview | a new pull request commit  |
+      | code | codereview | a new target branch commit |
+
+    @secreview
+    Examples:
+      | kind     | command   | change                     |
+      | security | secreview | a new pull request commit  |
+      | security | secreview | a new target branch commit |
