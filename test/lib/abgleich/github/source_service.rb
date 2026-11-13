@@ -106,15 +106,22 @@ module Abgleich
     def source_files_response(variables)
       GitHubService.record_source_read
       failure = Abgleich.github.failure
-      halt 503 if failure == 'source unavailable'
-      halt 200, '{' if failure == 'source malformed response'
-      halt 200, { data: nil }.to_json if failure == 'source missing response data'
+      fail_source_query(failure)
 
       repository = Abgleich.github.repository("#{variables.fetch('owner')}/#{variables.fetch('repository')}")
       data = source_objects(variables, repository)
+      halt 502 if failure == 'source large requests time out' && data.length > 50
       return { data:, errors: [{ message: 'Source query failed' }] } if failure == 'source query errors'
 
       { data: }
+    end
+
+    def fail_source_query(failure)
+      case failure
+      when 'source unavailable' then halt 503
+      when 'source malformed response' then halt 200, '{'
+      when 'source missing response data' then halt 200, { data: nil }.to_json
+      end
     end
 
     def source_objects(variables, repository)
@@ -131,8 +138,9 @@ module Abgleich
     end
 
     def source_blob(filename, repository)
-      return nil if Abgleich.github.failure == 'source missing related file' && filename == 'helpers/guard.go'
-      return nil if Abgleich.github.failure == 'source missing checksum file' && filename == 'go.sum'
+      missing = { 'source final changed file unavailable' => 'file107.go', 'source missing related file' => 'helpers/guard.go',
+                  'source missing checksum file' => 'go.sum' }[Abgleich.github.failure]
+      return nil if filename == missing
 
       content = repository.fetch(:name) == 'bin' ? "# shared-tooling-pinned-context for #{filename}\n" : source_content(filename)
       binary = content.include?("\x00")

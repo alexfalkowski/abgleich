@@ -11,6 +11,10 @@ Given('dependency lookup is configured but reviews are disabled') do
   Abgleich.use_config('review_sources_only')
 end
 
+Given('the contribution changes more than one hundred source files') do
+  Abgleich.github.file_mode = 'large review'
+end
+
 Given('related source is {string}') do |condition|
   Abgleich.github.fail_with("source #{condition}")
 end
@@ -79,6 +83,14 @@ Then('the reviewer should receive complete files at the reviewed revisions') do
   expected << pull.dig(:base, :sha) if Abgleich.github.file_mode == 'removed file'
   actual = Abgleich.github.source_requests.map { |source| source.fetch(:revision) }.uniq
   expect(actual).to contain_exactly(*expected), 'expected source only at the reviewed head and deleted-file base'
+end
+
+Then(/^the (code|security) reviewer should receive complete text for every changed file$/) do |kind|
+  wait_for_review(kind)
+  input = Abgleich.openai.requests.first.fetch('input').map { |item| item.fetch('content', '') }.join("\n")
+  Abgleich.github.summary_paths.each do |filename|
+    expect(input).to include("complete-file-context for #{filename}\n"), "expected complete source for #{filename} before inference"
+  end
 end
 
 Then('public dependency access should omit credentials') do

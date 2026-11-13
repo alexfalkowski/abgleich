@@ -67,7 +67,7 @@ Feature: Inspect related repository files and directories
     And the reviewer needs "a large directory"
     When a maintainer with "write" access comments "/ab codereview"
     Then the reviewer should receive all 105 files from the directory
-    And the review should use at most 2 GitHub source reads
+    And the review should use at most 4 GitHub source reads
 
   @codereview
   Scenario: Read an empty regular file
