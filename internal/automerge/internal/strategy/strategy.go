@@ -2,7 +2,7 @@ package strategy
 
 import (
 	"github.com/alexfalkowski/abgleich/internal/github"
-	"github.com/alexfalkowski/go-service/v2/context"
+	"github.com/alexfalkowski/go-service/v3/context"
 )
 
 // Strategy checks snapshot eligibility locally, then refreshes state before

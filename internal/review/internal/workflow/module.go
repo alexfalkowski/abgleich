@@ -1,6 +1,6 @@
 package workflow
 
-import "github.com/alexfalkowski/go-service/v2/di"
+import "github.com/alexfalkowski/go-signal/v2"
 
 // Module supplies the factory shared by review features.
-var Module = di.Module(di.Constructor(NewFactory))
+var Module = signal.Module(signal.Constructor(NewFactory))

@@ -2,7 +2,7 @@ package commands
 
 import (
 	"github.com/alexfalkowski/abgleich/internal/github"
-	"github.com/alexfalkowski/go-service/v2/context"
+	"github.com/alexfalkowski/go-service/v3/context"
 )
 
 // NewAuthorizer constructs shared human-command consent checks without remote calls.

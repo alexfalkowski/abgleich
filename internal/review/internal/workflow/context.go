@@ -4,9 +4,9 @@ import (
 	"fmt"
 
 	"github.com/alexfalkowski/abgleich/internal/github"
-	"github.com/alexfalkowski/go-service/v2/context"
-	"github.com/alexfalkowski/go-service/v2/slices"
-	"github.com/alexfalkowski/go-service/v2/strings"
+	"github.com/alexfalkowski/go-service/v3/context"
+	"github.com/alexfalkowski/go-service/v3/slices"
+	"github.com/alexfalkowski/go-service/v3/strings"
 )
 
 // context owns the reviewed files, rendered input, and request-local source session.

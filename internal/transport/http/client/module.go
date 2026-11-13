@@ -1,6 +1,6 @@
 package client
 
-import "github.com/alexfalkowski/go-service/v2/di"
+import "github.com/alexfalkowski/go-signal/v2"
 
 // Module provides a factory without sharing client settings or pools between callers.
-var Module = di.Module(di.Constructor(NewFactory))
+var Module = signal.Module(signal.Constructor(NewFactory))

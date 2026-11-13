@@ -1,6 +1,6 @@
 package github
 
-import "github.com/alexfalkowski/go-service/v2/di"
+import "github.com/alexfalkowski/go-signal/v2"
 
 // Module provides shared API access and owner-wide discovery.
-var Module = di.Module(di.Constructor(NewConnection, NewClient, NewService, NewWebhook))
+var Module = signal.Module(signal.Constructor(NewConnection, NewClient, NewService, NewWebhook))

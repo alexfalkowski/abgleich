@@ -4,8 +4,8 @@ import (
 	"fmt"
 
 	"github.com/alexfalkowski/abgleich/internal/github"
-	"github.com/alexfalkowski/go-service/v2/context"
-	"github.com/alexfalkowski/go-service/v2/strings"
+	"github.com/alexfalkowski/go-service/v3/context"
+	"github.com/alexfalkowski/go-service/v3/strings"
 )
 
 type staleReview struct {

@@ -2,8 +2,8 @@ package strategy
 
 import (
 	"github.com/alexfalkowski/abgleich/internal/github"
-	"github.com/alexfalkowski/go-service/v2/errors"
-	"github.com/alexfalkowski/go-service/v2/strings"
+	"github.com/alexfalkowski/go-service/v3/errors"
+	"github.com/alexfalkowski/go-service/v3/strings"
 )
 
 // Action identifies a requested mutation; its zero value requests no mutation.

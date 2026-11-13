@@ -1,6 +1,6 @@
 package health
 
-import "github.com/alexfalkowski/go-service/v2/time"
+import "github.com/alexfalkowski/go-service/v3/time"
 
 // Config controls how often process health is sampled and how long the shared
 // external connectivity check may take. Both durations must be positive. Job

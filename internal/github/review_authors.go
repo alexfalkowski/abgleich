@@ -3,9 +3,9 @@ package github
 import (
 	_ "embed"
 
-	"github.com/alexfalkowski/go-service/v2/context"
-	"github.com/alexfalkowski/go-service/v2/errors"
-	"github.com/alexfalkowski/go-service/v2/slices"
+	"github.com/alexfalkowski/go-service/v3/context"
+	"github.com/alexfalkowski/go-service/v3/errors"
+	"github.com/alexfalkowski/go-service/v3/slices"
 )
 
 // Native REST reviews omit performed_via_github_app. Authenticated GraphQL

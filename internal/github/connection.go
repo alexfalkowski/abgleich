@@ -2,18 +2,18 @@ package github
 
 import (
 	"github.com/alexfalkowski/abgleich/internal/transport/http/client"
-	"github.com/alexfalkowski/go-service/v2/di"
-	"github.com/alexfalkowski/go-service/v2/env"
-	"github.com/alexfalkowski/go-service/v2/id"
-	"github.com/alexfalkowski/go-service/v2/telemetry/logger"
-	"github.com/alexfalkowski/go-service/v2/transport/http"
-	"github.com/alexfalkowski/go-service/v2/transport/http/retry"
+	"github.com/alexfalkowski/go-service/v3/env"
+	"github.com/alexfalkowski/go-service/v3/id"
+	"github.com/alexfalkowski/go-service/v3/telemetry/logger"
+	"github.com/alexfalkowski/go-service/v3/transport/http"
+	"github.com/alexfalkowski/go-service/v3/transport/http/retry"
+	"github.com/alexfalkowski/go-signal/v2"
 )
 
 // ConnectionParams supplies shared HTTP settings and lifecycle dependencies.
 type ConnectionParams struct {
 	// In marks this struct as an injected dependency group.
-	di.In
+	signal.In
 
 	// Connections creates the GitHub connection pool and registers its shutdown cleanup.
 	Connections *client.Factory

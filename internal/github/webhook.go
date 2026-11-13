@@ -1,12 +1,12 @@
 package github
 
 import (
-	"github.com/alexfalkowski/go-service/v2/errors"
-	"github.com/alexfalkowski/go-service/v2/net/http"
-	"github.com/alexfalkowski/go-service/v2/net/http/status"
-	"github.com/alexfalkowski/go-service/v2/os"
-	"github.com/alexfalkowski/go-service/v2/strings"
-	"github.com/alexfalkowski/go-service/v2/time"
+	"github.com/alexfalkowski/go-service/v3/errors"
+	"github.com/alexfalkowski/go-service/v3/net/http"
+	"github.com/alexfalkowski/go-service/v3/net/http/status"
+	"github.com/alexfalkowski/go-service/v3/os"
+	"github.com/alexfalkowski/go-service/v3/strings"
+	"github.com/alexfalkowski/go-service/v3/time"
 	"github.com/google/go-github/v93/github"
 )
 

@@ -1,9 +1,9 @@
 package github
 
 import (
-	"github.com/alexfalkowski/go-service/v2/cache/config"
-	"github.com/alexfalkowski/go-service/v2/context"
-	"github.com/alexfalkowski/go-service/v2/telemetry/logger"
+	"github.com/alexfalkowski/go-service/v3/cache/config"
+	"github.com/alexfalkowski/go-service/v3/context"
+	"github.com/alexfalkowski/go-service/v3/telemetry/logger"
 )
 
 const pageSize = 100

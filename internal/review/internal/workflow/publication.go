@@ -3,7 +3,7 @@ package workflow
 import (
 	"github.com/alexfalkowski/abgleich/internal/ai"
 	"github.com/alexfalkowski/abgleich/internal/github"
-	"github.com/alexfalkowski/go-service/v2/context"
+	"github.com/alexfalkowski/go-service/v3/context"
 	"github.com/alexfalkowski/go-sync"
 )
 

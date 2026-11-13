@@ -2,7 +2,7 @@ package cleanup
 
 import (
 	"github.com/alexfalkowski/abgleich/internal/scheduler"
-	"github.com/alexfalkowski/go-service/v2/time"
+	"github.com/alexfalkowski/go-service/v3/time"
 )
 
 const (

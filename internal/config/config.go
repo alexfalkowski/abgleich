@@ -9,7 +9,7 @@ import (
 	"github.com/alexfalkowski/abgleich/internal/review"
 	"github.com/alexfalkowski/abgleich/internal/scheduler"
 	"github.com/alexfalkowski/abgleich/internal/summarise"
-	"github.com/alexfalkowski/go-service/v2/config"
+	"github.com/alexfalkowski/go-service/v3/config"
 )
 
 // Config for the service.

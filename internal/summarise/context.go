@@ -2,8 +2,8 @@ package summarise
 
 import (
 	"github.com/alexfalkowski/abgleich/internal/github"
-	"github.com/alexfalkowski/go-service/v2/context"
-	"github.com/alexfalkowski/go-service/v2/strings"
+	"github.com/alexfalkowski/go-service/v3/context"
+	"github.com/alexfalkowski/go-service/v3/strings"
 )
 
 // context uses the pull-request diff directly. Complete files, repository trees,

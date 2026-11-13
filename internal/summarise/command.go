@@ -6,10 +6,10 @@ import (
 	"github.com/alexfalkowski/abgleich/internal/ai"
 	"github.com/alexfalkowski/abgleich/internal/commands"
 	"github.com/alexfalkowski/abgleich/internal/github"
-	"github.com/alexfalkowski/go-service/v2/context"
-	"github.com/alexfalkowski/go-service/v2/di"
-	"github.com/alexfalkowski/go-service/v2/errors"
-	"github.com/alexfalkowski/go-service/v2/strings"
+	"github.com/alexfalkowski/go-service/v3/context"
+	"github.com/alexfalkowski/go-service/v3/errors"
+	"github.com/alexfalkowski/go-service/v3/strings"
+	"github.com/alexfalkowski/go-signal/v2"
 )
 
 const (
@@ -20,7 +20,7 @@ const (
 // CommandParams supplies summary configuration and command-processing dependencies.
 type CommandParams struct {
 	// In marks this struct as an injected dependency group.
-	di.In
+	signal.In
 
 	// Config enables summaries and selects their model and schedule.
 	Config *Config

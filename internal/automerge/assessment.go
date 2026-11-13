@@ -3,7 +3,7 @@ package automerge
 import (
 	"github.com/alexfalkowski/abgleich/internal/automerge/internal/strategy"
 	"github.com/alexfalkowski/abgleich/internal/github"
-	"github.com/alexfalkowski/go-service/v2/context"
+	"github.com/alexfalkowski/go-service/v3/context"
 )
 
 // DecisionUnavailable identifies assessments that lack the evidence needed for a policy decision.

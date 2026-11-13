@@ -2,11 +2,11 @@ package cleanup
 
 import (
 	"github.com/alexfalkowski/abgleich/internal/scheduler"
-	"github.com/alexfalkowski/go-service/v2/di"
+	"github.com/alexfalkowski/go-signal/v2"
 )
 
 // Module registers an independent cleanup job only when configured.
-var Module = di.Module(di.Constructor(NewReconciler), di.Register(registerSchedule))
+var Module = signal.Module(signal.Constructor(NewReconciler), signal.Register(registerSchedule))
 
 func registerSchedule(schedules *scheduler.Scheduler, reconciler *Reconciler) error {
 	if reconciler == nil {

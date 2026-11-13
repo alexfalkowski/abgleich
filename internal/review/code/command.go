@@ -5,8 +5,8 @@ import (
 
 	"github.com/alexfalkowski/abgleich/internal/github"
 	"github.com/alexfalkowski/abgleich/internal/review/internal/workflow"
-	"github.com/alexfalkowski/go-service/v2/context"
-	"github.com/alexfalkowski/go-service/v2/di"
+	"github.com/alexfalkowski/go-service/v3/context"
+	"github.com/alexfalkowski/go-signal/v2"
 )
 
 const codeReviewCommand = "codereview"
@@ -17,7 +17,7 @@ var instructions string
 // CommandParams supplies code review configuration and shared workflow dependencies.
 type CommandParams struct {
 	// In marks this struct as an injected dependency group.
-	di.In
+	signal.In
 
 	// Config enables code reviews and selects their model and schedule.
 	Config *Config

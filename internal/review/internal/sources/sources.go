@@ -4,14 +4,14 @@ import (
 	"cmp"
 
 	"github.com/alexfalkowski/abgleich/internal/review/internal/sources/provider"
-	"github.com/alexfalkowski/go-service/v2/di"
-	"github.com/alexfalkowski/go-service/v2/slices"
+	"github.com/alexfalkowski/go-service/v3/slices"
+	"github.com/alexfalkowski/go-signal/v2"
 )
 
 // RegistryParams collects registered strategies independently of language implementations.
 type RegistryParams struct {
 	// In marks the provider group as injected dependencies.
-	di.In
+	signal.In
 
 	// Providers includes optional contributions from source modules; DI group order is unspecified.
 	Providers []provider.Strategy `group:"review_sources"`

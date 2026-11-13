@@ -1,9 +1,9 @@
 package ai
 
 import (
-	"github.com/alexfalkowski/go-service/v2/config/client"
-	"github.com/alexfalkowski/go-service/v2/strings"
-	"github.com/alexfalkowski/go-service/v2/time"
+	"github.com/alexfalkowski/go-service/v3/config/client"
+	"github.com/alexfalkowski/go-service/v3/strings"
+	"github.com/alexfalkowski/go-service/v3/time"
 )
 
 // Config selects the optional text generation provider. Omission disables AI.

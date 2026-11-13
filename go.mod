@@ -3,9 +3,10 @@ module github.com/alexfalkowski/abgleich
 go 1.27.0
 
 require (
-	github.com/alexfalkowski/go-health/v2 v2.42.0
-	github.com/alexfalkowski/go-service/v2 v2.819.0
-	github.com/alexfalkowski/go-sync v1.37.0
+	github.com/alexfalkowski/go-health/v2 v2.43.0
+	github.com/alexfalkowski/go-service/v3 v3.0.0
+	github.com/alexfalkowski/go-signal/v2 v2.0.0
+	github.com/alexfalkowski/go-sync v1.39.0
 	github.com/bluekeyes/go-gitdiff v0.9.0
 	github.com/bradleyfalzon/ghinstallation/v2 v2.19.0
 	github.com/google/go-github/v93 v93.0.0
@@ -132,7 +133,6 @@ require (
 	go.opentelemetry.io/proto/otlp v1.11.1 // indirect
 	go.uber.org/atomic v1.12.0 // indirect
 	go.uber.org/dig v1.19.0 // indirect
-	go.uber.org/fx v1.24.0 // indirect
 	go.uber.org/mock v0.6.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.28.0 // indirect

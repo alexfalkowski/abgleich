@@ -1,27 +1,27 @@
 package client
 
 import (
-	"github.com/alexfalkowski/go-service/v2/config/client"
-	"github.com/alexfalkowski/go-service/v2/context"
-	"github.com/alexfalkowski/go-service/v2/crypto/tls"
-	"github.com/alexfalkowski/go-service/v2/di"
-	"github.com/alexfalkowski/go-service/v2/net/http"
-	"github.com/alexfalkowski/go-service/v2/os"
-	"github.com/alexfalkowski/go-service/v2/time"
-	transporthttp "github.com/alexfalkowski/go-service/v2/transport/http"
-	"github.com/alexfalkowski/go-service/v2/transport/http/breaker"
+	"github.com/alexfalkowski/go-service/v3/config/client"
+	"github.com/alexfalkowski/go-service/v3/context"
+	"github.com/alexfalkowski/go-service/v3/crypto/tls"
+	"github.com/alexfalkowski/go-service/v3/net/http"
+	"github.com/alexfalkowski/go-service/v3/os"
+	"github.com/alexfalkowski/go-service/v3/time"
+	transporthttp "github.com/alexfalkowski/go-service/v3/transport/http"
+	"github.com/alexfalkowski/go-service/v3/transport/http/breaker"
+	"github.com/alexfalkowski/go-signal/v2"
 )
 
 // NewFactory binds client cleanup to the application lifecycle. Construct clients
 // before registering consumers so shutdown stops those consumers first.
-func NewFactory(lifecycle di.Lifecycle, fs *os.FS) *Factory {
+func NewFactory(lifecycle signal.Lifecycle, fs *os.FS) *Factory {
 	return &Factory{lifecycle: lifecycle, fs: fs}
 }
 
 // Factory creates independent HTTP clients whose pools close during shutdown.
 // Callers select their timeout and any retry or logging middleware.
 type Factory struct {
-	lifecycle di.Lifecycle
+	lifecycle signal.Lifecycle
 	fs        *os.FS
 }
 
@@ -59,7 +59,7 @@ func (f *Factory) NewClient(cfg *client.Config, timeout time.Duration, opts ...t
 	}
 	connection.CheckRedirect = http.SameOriginRedirect
 
-	f.lifecycle.Append(di.Hook{
+	f.lifecycle.Append(signal.Hook{
 		OnStop: func(context.Context) error {
 			pool.CloseIdleConnections()
 			return nil

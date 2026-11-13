@@ -1,6 +1,6 @@
 package provider
 
-import "github.com/alexfalkowski/go-service/v2/strings"
+import "github.com/alexfalkowski/go-service/v3/strings"
 
 // Config owns trusted, credential-free endpoints for shared review source access.
 // Go and Ruby dependencies are selected from reviewed manifests and verified
