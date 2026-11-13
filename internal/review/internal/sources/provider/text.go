@@ -3,8 +3,8 @@ package provider
 import (
 	"fmt"
 
-	"github.com/alexfalkowski/go-service/v2/errors"
-	"github.com/alexfalkowski/go-service/v2/strings"
+	"github.com/alexfalkowski/go-service/v3/errors"
+	"github.com/alexfalkowski/go-service/v3/strings"
 )
 
 // Range optionally selects inclusive one-based source lines; zero reads the whole file.

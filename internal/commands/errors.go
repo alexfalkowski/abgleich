@@ -1,6 +1,6 @@
 package commands
 
-import "github.com/alexfalkowski/go-service/v2/errors"
+import "github.com/alexfalkowski/go-service/v3/errors"
 
 // ErrCommandRegistered rejects duplicate command names during registration.
 var ErrCommandRegistered = errors.New("commands: command already registered")

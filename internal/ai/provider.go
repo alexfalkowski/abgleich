@@ -2,13 +2,13 @@ package ai
 
 import (
 	"github.com/alexfalkowski/abgleich/internal/transport/http/client"
-	"github.com/alexfalkowski/go-service/v2/bytes"
-	"github.com/alexfalkowski/go-service/v2/context"
-	"github.com/alexfalkowski/go-service/v2/di"
-	"github.com/alexfalkowski/go-service/v2/errors"
-	"github.com/alexfalkowski/go-service/v2/os"
-	"github.com/alexfalkowski/go-service/v2/strings"
-	"github.com/alexfalkowski/go-service/v2/telemetry/logger"
+	"github.com/alexfalkowski/go-service/v3/bytes"
+	"github.com/alexfalkowski/go-service/v3/context"
+	"github.com/alexfalkowski/go-service/v3/errors"
+	"github.com/alexfalkowski/go-service/v3/os"
+	"github.com/alexfalkowski/go-service/v3/strings"
+	"github.com/alexfalkowski/go-service/v3/telemetry/logger"
+	"github.com/alexfalkowski/go-signal/v2"
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
 	"github.com/openai/openai-go/v3/responses"
@@ -62,7 +62,7 @@ type Provider interface {
 // ProviderParams supplies provider settings, credential resolution, and transport dependencies.
 type ProviderParams struct {
 	// In marks this struct as an injected dependency group.
-	di.In
+	signal.In
 
 	// Config enables the provider and selects credentials and HTTP settings.
 	Config *Config

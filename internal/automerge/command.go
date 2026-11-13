@@ -4,8 +4,8 @@ import (
 	"github.com/alexfalkowski/abgleich/internal/automerge/internal/strategy"
 	"github.com/alexfalkowski/abgleich/internal/commands"
 	"github.com/alexfalkowski/abgleich/internal/github"
-	"github.com/alexfalkowski/go-service/v2/context"
-	"github.com/alexfalkowski/go-service/v2/time"
+	"github.com/alexfalkowski/go-service/v3/context"
+	"github.com/alexfalkowski/go-service/v3/time"
 )
 
 const autoMergeCommand = "automerge"

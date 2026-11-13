@@ -5,8 +5,8 @@ import (
 	"text/template"
 
 	"github.com/alexfalkowski/abgleich/internal/markdown"
-	"github.com/alexfalkowski/go-service/v2/errors"
-	"github.com/alexfalkowski/go-service/v2/strings"
+	"github.com/alexfalkowski/go-service/v3/errors"
+	"github.com/alexfalkowski/go-service/v3/strings"
 )
 
 //go:embed *.tmpl

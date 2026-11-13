@@ -1,8 +1,8 @@
 package ai
 
 import (
-	"github.com/alexfalkowski/go-service/v2/context"
-	"github.com/alexfalkowski/go-service/v2/time"
+	"github.com/alexfalkowski/go-service/v3/context"
+	"github.com/alexfalkowski/go-service/v3/time"
 )
 
 // Prompt supplies text and generation limits for one task. Instructions and Input

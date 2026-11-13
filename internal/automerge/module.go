@@ -5,16 +5,16 @@ import (
 	"github.com/alexfalkowski/abgleich/internal/commands"
 	"github.com/alexfalkowski/abgleich/internal/github"
 	"github.com/alexfalkowski/abgleich/internal/scheduler"
-	"github.com/alexfalkowski/go-service/v2/di"
+	"github.com/alexfalkowski/go-signal/v2"
 )
 
 // Module provides Dependabot, label, and rebase strategies in precedence order,
 // connects the coordinator, and registers its sweep and command before startup.
-var Module = di.Module(
-	di.Constructor(NewReconciler, NewCommand, NewCoordinator, strategies),
-	di.Register(registerCoordinator),
-	di.Register(registerSchedule),
-	di.Register(registerCommand),
+var Module = signal.Module(
+	signal.Constructor(NewReconciler, NewCommand, NewCoordinator, strategies),
+	signal.Register(registerCoordinator),
+	signal.Register(registerSchedule),
+	signal.Register(registerCommand),
 )
 
 func strategies(service github.Service, cfg *Config) []strategy.Strategy {
@@ -25,8 +25,8 @@ func strategies(service github.Service, cfg *Config) []strategy.Strategy {
 	}
 }
 
-func registerCoordinator(lifecycle di.Lifecycle, coordinator *Coordinator) {
-	lifecycle.Append(di.Hook{
+func registerCoordinator(lifecycle signal.Lifecycle, coordinator *Coordinator) {
+	lifecycle.Append(signal.Hook{
 		OnStart: coordinator.Start,
 		OnStop:  coordinator.Stop,
 	})

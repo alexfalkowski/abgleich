@@ -2,9 +2,9 @@ package provider
 
 import (
 	"github.com/alexfalkowski/abgleich/internal/ai"
-	"github.com/alexfalkowski/go-service/v2/context"
-	"github.com/alexfalkowski/go-service/v2/di"
-	"github.com/alexfalkowski/go-service/v2/errors"
+	"github.com/alexfalkowski/go-service/v3/context"
+	"github.com/alexfalkowski/go-service/v3/errors"
+	"github.com/alexfalkowski/go-signal/v2"
 )
 
 // ErrInvalidLookup identifies malformed tool input, which must stop inference
@@ -15,7 +15,7 @@ var ErrInvalidLookup = errors.New("invalid source lookup")
 // An omitted review configuration contributes a nil strategy without opening transports.
 type Result struct {
 	// Out marks the result as an injected value group contribution.
-	di.Out
+	signal.Out
 
 	// Strategy supplies source support; nil disables this contribution.
 	Strategy Strategy `group:"review_sources"`

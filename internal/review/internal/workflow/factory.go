@@ -5,16 +5,16 @@ import (
 	"github.com/alexfalkowski/abgleich/internal/commands"
 	"github.com/alexfalkowski/abgleich/internal/github"
 	"github.com/alexfalkowski/abgleich/internal/review/internal/sources"
-	"github.com/alexfalkowski/go-service/v2/context"
-	"github.com/alexfalkowski/go-service/v2/di"
-	"github.com/alexfalkowski/go-service/v2/errors"
+	"github.com/alexfalkowski/go-service/v3/context"
+	"github.com/alexfalkowski/go-service/v3/errors"
+	"github.com/alexfalkowski/go-signal/v2"
 	"github.com/alexfalkowski/go-sync"
 )
 
 // FactoryParams supplies the dependencies shared by independent review commands.
 type FactoryParams struct {
 	// In marks this struct as an injected dependency group.
-	di.In
+	signal.In
 
 	// GitHub provides repository access and authenticated review publication.
 	GitHub github.Service

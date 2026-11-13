@@ -4,18 +4,18 @@ import (
 	"github.com/alexfalkowski/abgleich/internal/automerge"
 	"github.com/alexfalkowski/abgleich/internal/commands"
 	"github.com/alexfalkowski/abgleich/internal/github"
-	"github.com/alexfalkowski/go-service/v2/context"
-	"github.com/alexfalkowski/go-service/v2/di"
-	"github.com/alexfalkowski/go-service/v2/errors"
-	"github.com/alexfalkowski/go-service/v2/net/http"
-	"github.com/alexfalkowski/go-service/v2/net/http/status"
-	"github.com/alexfalkowski/go-service/v2/telemetry/logger"
+	"github.com/alexfalkowski/go-service/v3/context"
+	"github.com/alexfalkowski/go-service/v3/errors"
+	"github.com/alexfalkowski/go-service/v3/net/http"
+	"github.com/alexfalkowski/go-service/v3/net/http/status"
+	"github.com/alexfalkowski/go-service/v3/telemetry/logger"
+	"github.com/alexfalkowski/go-signal/v2"
 )
 
 // HandlerParams supplies webhook verification, delivery routing, and logging dependencies.
 type HandlerParams struct {
 	// In marks this struct as an injected dependency group.
-	di.In
+	signal.In
 
 	// Webhook verifies signed deliveries; nil disables handler construction.
 	Webhook *github.Webhook
