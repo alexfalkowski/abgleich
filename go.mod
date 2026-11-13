@@ -10,7 +10,7 @@ require (
 	github.com/bluekeyes/go-gitdiff v0.9.0
 	github.com/bradleyfalzon/ghinstallation/v2 v2.19.0
 	github.com/google/go-github/v93 v93.0.0
-	github.com/openai/openai-go/v3 v3.97.0
+	github.com/openai/openai-go/v3 v3.98.0
 	golang.org/x/mod v0.42.0
 )
 
