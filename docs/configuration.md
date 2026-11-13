@@ -291,10 +291,12 @@ remain whole-file reads. The worker still validates complete dependency archives
 and includes complete changed files before inference. Large complete reads or
 individual lines can still exhaust context.
 
-Changed files and each source lookup download their uncached files together in a
-GraphQL query. A complete REST tree pins each regular path to its expected blob
-identity; returned text must match that identity and its byte size. Source queries
-use POST without automatic retries. A failed or incomplete query stops the review
+Changed files and each source lookup download their uncached files in sequential
+GraphQL batches of at most 50 files to avoid GitHub query timeouts. Every file is
+retained across batches; there is no total file-count limit. A complete REST tree
+pins each regular path to its expected blob identity; returned text must match
+that identity and its byte size. Source queries use POST without automatic
+retries. A failed or incomplete query stops the review
 even if some files were returned successfully. All supplied patches are retained;
 binary exclusions and public dependency/reference limitations remain explicit.
 See [review recovery](operations.md#-code-review-recovery) to reissue a failed request.

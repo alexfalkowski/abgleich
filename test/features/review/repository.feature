@@ -6,6 +6,40 @@ Feature: Require complete and verified repository source
     Given repository source and public Go dependencies are available for review
     And a pull request from "the repository" for branch "contribution" is "waiting for checks"
 
+  Scenario Outline: Review a large contribution when GitHub cannot serve all source at once
+    Given the contribution changes more than one hundred source files
+    And related source is "large requests time out"
+    And the AI <kind> review answer has "no findings"
+    When a maintainer with "write" access comments "/ab <command>"
+    Then the <kind> review decision should be "APPROVED"
+    And the <kind> reviewer should receive complete text for every changed file
+
+    @codereview
+    Examples:
+      | command    | kind |
+      | codereview | code |
+
+    @secreview
+    Examples:
+      | command   | kind     |
+      | secreview | security |
+
+  Scenario Outline: Withhold all source when a later part of a large contribution is unavailable
+    Given the contribution changes more than one hundred source files
+    And related source is "final changed file unavailable"
+    When a maintainer with "write" access comments "/ab <command>"
+    Then <kind> review collection should fail before sharing source
+
+    @codereview
+    Examples:
+      | command    | kind |
+      | codereview | code |
+
+    @secreview
+    Examples:
+      | command   | kind     |
+      | secreview | security |
+
   Scenario Outline: Stop before inference when repository source cannot be retrieved completely
     Given related source is "<problem>"
     When a maintainer with "write" access comments "/ab <command>"

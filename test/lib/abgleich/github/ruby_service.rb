@@ -37,6 +37,7 @@ module Abgleich
 
     def source_project_paths
       go = %w[main.go worker.go test.go helpers helpers/guard.go go.mod go.sum]
+      go |= Abgleich.github.summary_paths if Abgleich.github.file_mode == 'large review'
       ruby = %w[lib/worker.rb Gemfile Gemfile.lock features/worker.feature features/step_definitions/worker_steps.rb]
       return ruby if Abgleich.github.file_mode == 'Ruby'
 

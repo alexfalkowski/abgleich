@@ -4,6 +4,7 @@ import (
 	"crypto/sha1" // #nosec G505 -- Git blob identifiers require SHA-1; HTTPS authenticates the source.
 	_ "embed"
 	"fmt"
+	"maps"
 	"strconv"
 	"unicode/utf8"
 
@@ -12,10 +13,16 @@ import (
 	"github.com/alexfalkowski/go-service/v2/io"
 	"github.com/alexfalkowski/go-service/v2/net/http"
 	"github.com/alexfalkowski/go-service/v2/net/http/media"
+	"github.com/alexfalkowski/go-service/v2/slices"
 	"github.com/alexfalkowski/go-service/v2/strings"
 )
 
-const blobType = "Blob"
+const (
+	blobType = "Blob"
+
+	// Large combined queries timed out on GitHub; this bounds each request, not the review scope.
+	sourceBatchSize = 50
+)
 
 // sourceFilesQuery formats generated variable declarations and file selections.
 //
@@ -27,10 +34,32 @@ var sourceFilesQuery string
 //go:embed graphql/source_file.gql
 var sourceFileQuery string
 
-// ReadSourceFiles retrieves regular-file text at revision in one GraphQL query
-// without automatic retries. Binary blobs are omitted; missing or inconsistent
+// ReadSourceFiles retrieves regular-file text at revision in sequential GraphQL
+// batches without automatic retries. Binary blobs are omitted; missing or inconsistent
 // repository identities, text, byte sizes, or blob hashes reject the whole group.
 func (s *service) ReadSourceFiles(ctx context.Context, repo *Repository, revision string, files []*TreeEntry) (map[string]string, error) {
+	if err := validateSourceRequest(repo, revision, files); err != nil {
+		return nil, err
+	}
+
+	contents := make(map[string]string, len(files))
+	for batch := range slices.Chunk(files, sourceBatchSize) {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+
+		current, err := s.readSourceBatch(ctx, repo, revision, batch)
+		if err != nil {
+			return nil, err
+		}
+
+		maps.Copy(contents, current)
+	}
+
+	return contents, nil
+}
+
+func (s *service) readSourceBatch(ctx context.Context, repo *Repository, revision string, files []*TreeEntry) (map[string]string, error) {
 	payload, err := newSourceFilesRequest(repo, revision, files)
 	if err != nil {
 		return nil, err
