@@ -43,6 +43,7 @@ func (c *Command) process(ctx context.Context, task *summaryTask) error {
 	completion, err := c.provider.Generate(ctx, ai.Prompt{
 		Task:            summaryCommand,
 		Model:           c.config.Model,
+		Effort:          c.config.Effort,
 		Instructions:    instructions,
 		Input:           input,
 		MaxOutputTokens: summaryOutputTokens,

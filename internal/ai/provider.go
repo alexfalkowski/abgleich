@@ -15,106 +15,106 @@ import (
 	"github.com/openai/openai-go/v3/shared"
 )
 
-// ReasoningEffort selects provider reasoning effort; its zero value preserves the model default.
-type ReasoningEffort shared.ReasoningEffort
-
-// EffortNone exposes the SDK reasoning effort setting to AI features.
-const EffortNone = ReasoningEffort(shared.ReasoningEffortNone)
-
-// EffortMinimal exposes the SDK reasoning effort setting to AI features.
-const EffortMinimal = ReasoningEffort(shared.ReasoningEffortMinimal)
-
-// EffortLow exposes the SDK reasoning effort setting to AI features.
-const EffortLow = ReasoningEffort(shared.ReasoningEffortLow)
-
-// EffortMedium exposes the SDK reasoning effort setting to AI features.
-const EffortMedium = ReasoningEffort(shared.ReasoningEffortMedium)
-
-// EffortHigh exposes the SDK reasoning effort setting to AI features.
-const EffortHigh = ReasoningEffort(shared.ReasoningEffortHigh)
-
-// EffortExtraHigh exposes the SDK reasoning effort setting to AI features.
-const EffortExtraHigh = ReasoningEffort(shared.ReasoningEffortXhigh)
-
-// EffortMax exposes the SDK reasoning effort setting to AI features.
-const EffortMax = ReasoningEffort(shared.ReasoningEffortMax)
-
-// String returns the provider's reasoning effort value, or empty for the model default.
-func (e ReasoningEffort) String() string {
-	return string(e)
-}
-
-// IsDefined reports whether a reasoning effort was explicitly selected.
-func (e ReasoningEffort) IsDefined() bool {
-	return !strings.IsEmpty(e.String())
-}
-
-// Provider generates text using configuration resolved once at startup. Features
-// own source authorization, instructions, and generation budgets.
+// Provider runs one conversation without retries or persistent response storage.
+// Features own instructions, source authorization, tools, and generation budgets.
 type Provider interface {
-	// Generate runs one conversation with optional caller-owned tools, without
-	// response storage or automatic retries. It observes cancellation and the prompt's
-	// conversation deadline (one minute when omitted). Refused, failed,
-	// incomplete, and empty responses return a nil completion and an error.
+	// Generate rejects refused, partial, failed, or empty results and observes
+	// cancellation, the conversation deadline, and BeforeRequest on every turn.
 	Generate(ctx context.Context, prompt Prompt) (*Completion, error)
 }
 
-// ProviderParams supplies provider settings, credential resolution, and transport dependencies.
-type ProviderParams struct {
+// RegistryParams supplies startup configuration and shared transport construction.
+type RegistryParams struct {
 	// In marks this struct as an injected dependency group.
 	signal.In
 
-	// Config enables the provider and selects credentials and HTTP settings.
+	// Config defines optional provider connections and credential sources.
 	Config *Config
 
-	// FS resolves the configured credential source once at startup.
+	// FS resolves explicit credential sources once at startup.
 	FS *os.FS
 
-	// Logger records generation outcomes without source, response text, or credentials.
+	// Logger records outcomes without prompts, responses, or credentials.
 	Logger *logger.Logger
 
-	// Connections creates the AI connection pool and registers its shutdown cleanup.
+	// Connections registers connection cleanup after feature jobs stop.
 	Connections *client.Factory
 }
 
-// NewProvider reads the configured key once without making network requests.
-// A nil configuration returns nil, nil. Invalid settings or missing/empty key
-// sources prevent startup; changing credentials requires a process restart.
-// Idle connections close during shutdown after scheduled work stops.
-func NewProvider(params ProviderParams) (Provider, error) {
+// NewRegistry constructs named provider connections without contacting providers.
+// Missing or empty credentials fail startup. A nil configuration disables AI.
+func NewRegistry(params RegistryParams) (*Registry, error) {
 	if !params.Config.IsEnabled() {
 		return nil, nil
 	}
 
-	key, err := params.FS.ReadSource(params.Config.OpenAI.APIKey)
-	apiKey := strings.TrimSpace(bytes.String(key))
-	if err != nil || strings.IsEmpty(apiKey) {
-		return nil, errors.New("ai: api key unavailable")
+	connections := params.Config.Providers
+	registry := &Registry{providers: make(map[string]Provider)}
+	if len(connections) == 0 {
+		return nil, errors.New("ai: requires provider connections")
 	}
 
-	// Inference POSTs never use transport retries, including when shared client
-	// retry settings are present. The SDK's retries are also disabled below.
-	connection, err := params.Connections.NewClient(params.Config.Client, params.Config.GetTimeout())
-	if err != nil {
-		return nil, errors.Prefix("ai: client", err)
+	for name, config := range connections {
+		if strings.IsEmpty(strings.TrimSpace(name)) {
+			return nil, errors.New("ai: invalid provider connection")
+		}
+
+		key, err := params.FS.ReadSource(config.APIKey)
+		apiKey := strings.TrimSpace(bytes.String(key))
+		if err != nil || strings.IsEmpty(apiKey) {
+			return nil, errors.Prefix("ai: "+name, errors.New("api key unavailable"))
+		}
+
+		connection, err := params.Connections.NewClient(config.Client, config.GetTimeout())
+		if err != nil {
+			return nil, errors.Prefix("ai: "+name+" client", err)
+		}
+
+		var backend Provider
+		switch config.Kind {
+		case ProviderOpenAI:
+			// Construct the service directly so only explicit worker configuration
+			// supplies credentials, endpoints, and headers. Inference never retries.
+			service := responses.NewResponseService(
+				option.WithAPIKey(apiKey),
+				option.WithBaseURL(config.GetURL()),
+				option.WithHTTPClient(connection),
+				option.WithMaxRetries(0),
+			)
+			backend = &provider{service: &service, name: name}
+		default:
+			return nil, errors.New("ai: unsupported provider kind")
+		}
+
+		registry.providers[name] = &loggingProvider{
+			Provider: backend,
+			logger:   params.Logger, name: name, kind: config.Kind,
+		}
 	}
 
-	// Construct the Responses service directly: NewClient inherits OPENAI_* values,
-	// including custom headers, while this constructor only uses explicit options.
-	service := responses.NewResponseService(
-		option.WithAPIKey(apiKey),
-		option.WithBaseURL(params.Config.OpenAI.GetURL()),
-		option.WithHTTPClient(connection),
-		option.WithMaxRetries(0),
-	)
-	return &loggingProvider{
-		Provider: &provider{service: &service},
-		logger:   params.Logger,
-	}, nil
+	return registry, nil
+}
+
+// Registry resolves feature selections to startup-owned provider connections.
+type Registry struct {
+	providers map[string]Provider
+}
+
+// Select resolves an enabled feature's named provider connection.
+func (r *Registry) Select(name string) (Provider, error) {
+	if r == nil {
+		return nil, errors.New("requires AI configuration")
+	}
+	selected, ok := r.providers[name]
+	if !ok {
+		return nil, errors.New("ai: unknown or missing provider connection")
+	}
+	return selected, nil
 }
 
 type provider struct {
 	service *responses.ResponseService
+	name    string
 }
 
 // Generate performs one cancellable conversation and rejects partial,
@@ -138,8 +138,8 @@ func (p *provider) Generate(ctx context.Context, prompt Prompt) (*Completion, er
 		params.MaxOutputTokens = openai.Int(prompt.MaxOutputTokens)
 	}
 
-	if prompt.ReasoningEffort.IsDefined() {
-		params.Reasoning.Effort = shared.ReasoningEffort(prompt.ReasoningEffort)
+	if prompt.Effort.IsDefined() {
+		params.Reasoning.Effort = shared.ReasoningEffort(prompt.Effort)
 	}
 
 	completion, err := p.generate(ctx, prompt, params)
@@ -150,6 +150,7 @@ func (p *provider) Generate(ctx context.Context, prompt Prompt) (*Completion, er
 	if strings.IsEmpty(completion.Model) {
 		completion.Model = prompt.Model
 	}
+	completion.Provider = p.name
 	return completion, nil
 }
 

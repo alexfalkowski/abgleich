@@ -21,8 +21,8 @@ type Prompt struct {
 	// Task identifies the owning feature in generation outcome logs.
 	Task string
 
-	// ReasoningEffort optionally selects the provider's reasoning effort; empty leaves its default.
-	ReasoningEffort ReasoningEffort
+	// Effort optionally selects the provider's reasoning effort; empty leaves its default.
+	Effort Effort
 
 	// BeforeRequest rechecks consent before each source submission, including continuations.
 	BeforeRequest func(context.Context) error
@@ -65,6 +65,9 @@ type Tool struct {
 // Completion contains generated text and optional provider-reported usage.
 // Missing or inconsistent usage is nil rather than an invented zero count.
 type Completion struct {
+	// Provider identifies the configured connection that generated this result.
+	Provider string
+
 	// Usage contains actual aggregate token counts, or nil when any usage is unavailable or inconsistent.
 	Usage *Usage
 

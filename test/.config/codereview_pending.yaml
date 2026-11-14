@@ -37,12 +37,14 @@ transport:
     timeout: 5s
     max_receive_size: 1048576B
 ai:
-  provider: openai
-  openai:
-    api_key: file:secrets/openai-api-key
-    url: http://localhost:11001/openai/v1/
+  providers:
+    openai:
+      kind: openai
+      api_key: file:secrets/openai-api-key
+      url: http://localhost:11001/openai/v1/
 review:
   code:
+    provider: openai
     model: test-review
     interval: 10s
     timeout: 20s

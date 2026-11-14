@@ -19,6 +19,8 @@ Post a new `/ab {{.Command}}` request after recovery.
 
 **🧠 Model:** {{.Model | markdown}}
 
+**🔌 Provider:** {{.Connection | markdown}}
+
 **📊 Tokens:** Unavailable for this failed attempt.
 
 {{with .Provider}}**🌐 HTTP status:** {{if .StatusCode}}{{.StatusCode}}{{else}}Unavailable.{{end}}

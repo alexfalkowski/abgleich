@@ -105,7 +105,7 @@ module Abgleich
     private
 
     def prepare_response(payload)
-      Abgleich.openai.record_request(payload)
+      Abgleich.openai.record_request(payload, endpoint: request.script_name)
       mode = Abgleich.openai.mode
       reject_review_request(mode.delete_prefix('diagnostic ')) if mode&.start_with?('diagnostic ')
       mode

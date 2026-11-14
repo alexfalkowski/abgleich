@@ -9,13 +9,13 @@ Feature: Choose whether maintainers can request code reviews
     Then the worker should refuse to start
 
     Examples:
-      | problem                     |
-      | no AI provider              |
-      | no model                    |
-      | an empty model              |
-      | an invalid interval         |
-      | an invalid timeout          |
-      | an invalid reasoning effort |
+      | problem             |
+      | no AI provider      |
+      | no model            |
+      | an empty model      |
+      | an invalid interval |
+      | an invalid timeout  |
+      | an invalid effort   |
 
   Scenario: Leave disabled review commands unused
     Given AI code reviews are configured for this repository

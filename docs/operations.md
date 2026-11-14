@@ -53,7 +53,9 @@ comment contents.
 `published pull request review` includes repository, PR, reviewed head SHA, and
 the submitted `event` (`COMMENT`, `APPROVE`, or `REQUEST_CHANGES`).
 
-Monitor `ai generation` for task (including `codereview` and `secreview`), model, duration, and successful token usage.
+Monitor `ai generation` for task (including `codereview` and `secreview`),
+`provider` (connection name), `provider_kind` (adapter kind), model, duration,
+and successful token usage.
 `largest_tool` and `largest_tool_output_bytes` identify the largest successful tool
 response's name and returned text size in bytes, including when later inference fails.
 With no nonempty successful tool response, these are an empty name and zero bytes.

@@ -34,11 +34,10 @@ func NewCommand(params CommandParams) (*Command, error) {
 	}
 
 	command, err := params.Workflow.NewCommand(workflow.ReviewProfile{
-		Name:            codeReviewCommand,
-		Title:           "Code review",
-		Model:           params.Config.Model,
-		ReasoningEffort: params.Config.ReasoningEffort,
-		Instructions:    instructions,
+		Name:         codeReviewCommand,
+		Title:        "Code review",
+		ModelConfig:  params.Config.ModelConfig,
+		Instructions: instructions,
 	})
 	if err != nil {
 		return nil, err

@@ -38,6 +38,7 @@ transport:
     max_receive_size: 1048576B
 review:
   sec:
+    provider: openai
     model: test-security
     interval: 100ms
     timeout: 3s

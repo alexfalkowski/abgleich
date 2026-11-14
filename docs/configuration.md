@@ -155,24 +155,52 @@ cleanup:
 protected, default, and open-PR branches. `inactive_after` is the latest-commit age
 required for inactive cleanup.
 
-## 📝 Summary settings
+## 🧠 AI connections
 
-Add `ai` and `summarise` and configure [webhooks](#-comment-webhooks) for `/ab summarise`.
-Set the key and model explicitly; read the [source-sharing notice](summaries.md#-ai-pull-request-summaries).
+Define named provider connections under `ai.providers`. Each enabled AI feature
+selects a connection through `provider`, a required `model`, and optional `effort`.
+Connections own credentials, endpoints, and HTTP settings; feature blocks own model
+selection and independent schedules. The supported connection `kind` is `openai`.
 
 ```yaml
 ai:
-  provider: openai
-  openai:
-    api_key: file:/etc/secrets/abgleich/openai-api-key
+  providers:
+    openai:
+      kind: openai
+      api_key: file:/etc/secrets/abgleich/openai-api-key
+```
+
+Several connections can use the same provider kind with different credentials or
+trusted endpoints. Define only the connections you intend to use. Unknown connection
+names, unsupported kinds, and missing or empty credentials prevent startup.
+Only override `ai.providers.<name>.url` with a trusted endpoint: it receives the
+configured key and authorized source. Requests stay on the selected connection;
+there is no automatic fallback to another provider.
+
+**Migration:** Replace `ai.provider`, `ai.openai`, and `ai.client` with named
+connections as above. Put existing client settings under the connection's `client`
+block. Add `provider` to every enabled `summarise`, `review.code`, and `review.sec`
+block, and rename `reasoning_effort` to `effort`. The old keys are unsupported;
+update the configuration and restart the worker.
+
+## 📝 Summary settings
+
+Configure an [AI connection](#-ai-connections) and
+[webhooks](#-comment-webhooks) for `/ab summarise`. Add:
+
+```yaml
 summarise:
+  provider: openai
   model: gpt-6.1-sol
   interval: 30s
   timeout: 2m
 ```
 
-Omitting `summarise` disables summary work and its job even if `ai` remains. Only override `ai.openai.url` with a trusted endpoint:
-it receives the key and source. Existing App permissions cover summaries.
+Optional `effort` selects model-supported reasoning effort, following the
+[code-review setting](#-code-review-settings). Omission preserves the model default.
+Omitting `summarise` disables summary work and its job even if `ai` remains.
+Existing App permissions cover summaries. Read the
+[source-sharing notice](summaries.md#-ai-pull-request-summaries) before enabling them.
 
 ## 🔬 Code-review settings
 
@@ -181,19 +209,20 @@ Merge the `code`, `sec`, and source settings below into that mapping as needed.
 [`/ab review`](reviews.md#-request-all-configured-reviews) requests every enabled
 review without an additional configuration block.
 
-Configure `ai` using the [provider settings](#-summary-settings), configure
+Configure an [AI connection](#-ai-connections), configure
 [webhooks](#-comment-webhooks), and add this independent block for `/ab codereview`:
 
 ```yaml
 review:
   code:
+    provider: openai
     model: gpt-6-astra
-    reasoning_effort: xhigh
+    effort: xhigh
     interval: 30s
     timeout: 10m
 ```
 
-`model` is required and operator-selected. Optional `reasoning_effort` selects a
+`provider` and `model` are required and operator-selected. Optional `effort` selects a
 provider-supported effort; omission preserves the model default. Higher effort and a longer job timeout
 can increase latency and token usage and must be evaluated with the selected model.
 Omitting `review.code` disables
@@ -205,19 +234,20 @@ and [evaluation requirements](development.md#-code-review-evaluation) before ena
 
 ## 🛡️ Security-review settings
 
-Configure `ai` using the [provider settings](#-summary-settings), configure
+Configure an [AI connection](#-ai-connections), configure
 [webhooks](#-comment-webhooks), and add this independent block for `/ab secreview`:
 
 ```yaml
 review:
   sec:
+    provider: openai
     model: gpt-6-astra
-    reasoning_effort: xhigh
+    effort: xhigh
     interval: 30s
     timeout: 10m
 ```
 
-`model` is required and operator-selected. `reasoning_effort` follows the
+`provider` and `model` are required and operator-selected. `effort` follows the
 [code-review setting](#-code-review-settings). Omit `review.sec` to disable its command
 and job. Configured security reviews require a usable AI provider or startup fails;
 no new provider or credential is needed. Code reviews and summaries can remain
@@ -409,7 +439,7 @@ Summaries remain focused on patches and do not use source tools.
 
 ## 🔌 HTTP transport
 
-`github.client` and `ai.client` have separate connection pools, request timeouts,
+`github.client` and each `ai.providers.<name>.client` have separate connection pools, request timeouts,
 TLS, and circuit-breaking settings. Circuit breaking and GitHub retries are
 disabled unless configured. To enable safe-method retries, merge into `github`:
 
@@ -422,7 +452,7 @@ github:
 ```
 
 Mutations are never retried by the transport; later runs read fresh state.
-AI requests never retry, even with `ai.client.retry` configured. Their HTTP timeout
+AI requests never retry, even with `ai.providers.<name>.client.retry` configured. Their HTTP timeout
 cannot extend the independent inference or job budget.
 
 For deeper reviews, allow longer individual model requests alongside the feature
@@ -430,11 +460,15 @@ job timeout. The default one-minute HTTP timeout can interrupt high-effort reaso
 
 ```yaml
 ai:
-  client:
-    timeout: 3m
+  providers:
+    openai:
+      kind: openai
+      api_key: file:/etc/secrets/abgleich/openai-api-key
+      client:
+        timeout: 3m
 ```
 
-This setting is shared by AI features; summaries retain their separate inference limit.
+This setting applies to features selecting that connection; summaries retain their separate inference limit.
 
 ## 🗓️ Auto-merge schedule
 
@@ -461,15 +495,19 @@ scheduler:
 | `cleanup.interval` | `24h` | Time between cleanup runs. |
 | `cleanup.timeout` | `5m` | Deadline for a complete cleanup run. |
 | `cleanup.exclude` | `[]` | Exact, case-sensitive branch names to preserve. |
+| `summarise.provider` | None | Required named AI connection when summaries are configured. |
+| `summarise.effort` | Provider default | Optional model-supported reasoning effort. |
 | `summarise.model` | None | Required model when `summarise` is configured. |
 | `summarise.interval` | `30s` | Time between summary queue processing runs. |
 | `summarise.timeout` | `2m` | Deadline for a complete summary job run. |
+| `review.code.provider` | None | Required named AI connection when code reviews are configured. |
 | `review.code.model` | None | Required model when code reviews are configured. |
-| `review.code.reasoning_effort` | Provider default | Optional model-supported reasoning effort. |
+| `review.code.effort` | Provider default | Optional model-supported reasoning effort. |
 | `review.code.interval` | `30s` | Time between scheduled thread maintenance and recovery runs; manual requests wake the job immediately. |
 | `review.code.timeout` | `2m` | Deadline for a complete code-review job run. |
+| `review.sec.provider` | None | Required named AI connection when security reviews are configured. |
 | `review.sec.model` | None | Required model when security reviews are configured. |
-| `review.sec.reasoning_effort` | Provider default | Optional model-supported reasoning effort. |
+| `review.sec.effort` | Provider default | Optional model-supported reasoning effort. |
 | `review.sec.interval` | `30s` | Time between scheduled thread maintenance and recovery runs; manual requests wake the job immediately. |
 | `review.sec.timeout` | `2m` | Deadline for a complete security-review job run. |
 | `review.module_proxy` | `https://proxy.golang.org` | Trusted credential-free Go module source endpoint. |
@@ -479,14 +517,16 @@ scheduler:
 | `github.client.timeout` | `1m` | Deadline for an individual GitHub HTTP request. |
 | `github.url` | `https://api.github.com/` | REST API base URL, shared with GraphQL. |
 | `github.webhook.timeout` | `5s` | Complete synchronous delivery budget; must be positive and below `10s`. |
-| `ai.client.timeout` | `1m` | Deadline for an AI HTTP request, bounded by the inference and job budgets. |
-| `ai.openai.url` | `https://api.openai.com/v1/` | Trusted provider API base URL. |
+| `ai.providers.<name>.client.timeout` | `1m` | Deadline for an AI HTTP request, bounded by the inference and job budgets. |
+| `ai.providers.<name>.kind` | None | Required provider adapter; currently `openai`. |
+| `ai.providers.<name>.api_key` | None | Required credential source resolved once at startup. |
+| `ai.providers.<name>.url` | `https://api.openai.com/v1/` | Trusted provider API base URL. |
 | `transport.http.max_receive_size` | `4MB` | Incoming request body limit for all HTTP routes. |
 
 Omitted or zero auto-merge, cleanup, summary, code-review, and security-review job durations, inactivity
 thresholds, webhook budgets, and GitHub and AI client timeouts use the defaults
 above. Negative schedule durations, inactivity thresholds, and HTTP client
-timeouts are invalid. Review reasoning effort must be omitted or one of `none`,
+timeouts are invalid. AI effort must be omitted or one of `none`,
 `minimal`, `low`, `medium`, `high`, `xhigh`, or `max`; the chosen model must support it. Excluded branch and repository names must be nonempty.
 
 ## 🔐 Credentials
