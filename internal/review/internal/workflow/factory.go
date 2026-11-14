@@ -19,8 +19,8 @@ type FactoryParams struct {
 	// GitHub provides repository access and authenticated review publication.
 	GitHub github.Service
 
-	// Provider generates reviews using each command's prompt and model.
-	Provider ai.Provider
+	// Providers resolves the connection selected by each review feature.
+	Providers *ai.Registry
 
 	// Sources supplies credential-free dependency and language reference access.
 	Sources *sources.Registry
@@ -35,7 +35,7 @@ type FactoryParams struct {
 func NewFactory(params FactoryParams) *Factory {
 	return &Factory{
 		github:      params.GitHub,
-		provider:    params.Provider,
+		providers:   params.Providers,
 		sources:     params.Sources,
 		authorizer:  params.Authorizer,
 		publication: sync.NewWorker(1),
@@ -47,30 +47,25 @@ func NewFactory(params FactoryParams) *Factory {
 // within the worker process. Construct all commands before serving requests.
 type Factory struct {
 	github      github.Service
-	provider    ai.Provider
+	providers   *ai.Registry
 	sources     *sources.Registry
 	authorizer  *commands.Authorizer
 	publication *sync.Worker
 	commands    []*Command
 }
 
-// NewCommand constructs an enabled review with its own bounded queue. Invalid
-// reasoning effort or a missing provider returns an error without remote calls.
+// NewCommand constructs an enabled review with its own bounded queue.
+// A missing or unknown provider returns an error without remote calls.
 // Successful construction includes the command in aggregate review requests.
 func (f *Factory) NewCommand(profile ReviewProfile) (*Command, error) {
-	switch profile.ReasoningEffort {
-	case "", ai.EffortNone, ai.EffortMinimal, ai.EffortLow, ai.EffortMedium, ai.EffortHigh, ai.EffortExtraHigh, ai.EffortMax:
-	default:
-		return nil, errors.New("review: invalid reasoning effort")
-	}
-
-	if f.provider == nil {
-		return nil, errors.Prefix(profile.Name, errors.New("requires AI configuration"))
+	provider, err := f.providers.Select(profile.Provider)
+	if err != nil {
+		return nil, errors.Prefix(profile.Name, err)
 	}
 
 	command := &Command{
 		github:      f.github,
-		provider:    f.provider,
+		provider:    provider,
 		sources:     f.sources,
 		publication: f.publication,
 		queue:       commands.NewQueue(),

@@ -11,7 +11,7 @@ module Abgleich
     def reset
       @mutex.synchronize do
         @state&.fetch(:response_gate, nil)&.close
-        @state = { mode: nil, requests: [], on_request: nil }
+        @state = { mode: nil, requests: [], endpoints: [], on_request: nil }
       end
     end
 
@@ -38,9 +38,10 @@ module Abgleich
     end
 
     # Scenario hooks coordinate external changes after source reaches the API.
-    def record_request(payload)
+    def record_request(payload, endpoint:)
       handler = @mutex.synchronize do
         @state[:requests] << payload
+        @state[:endpoints] << endpoint
         @state[:on_request]
       end
       handler&.call
@@ -50,6 +51,10 @@ module Abgleich
 
     def requests
       @mutex.synchronize { @state[:requests].dup }
+    end
+
+    def endpoints
+      @mutex.synchronize { @state[:endpoints].dup }
     end
   end
 end

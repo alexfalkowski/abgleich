@@ -14,11 +14,8 @@ const (
 // Config selects the code review model and independent job schedule.
 // Omit the block to disable code reviews. Zero durations use 30s and 2m.
 type Config struct {
-	// ReasoningEffort optionally selects provider reasoning effort; empty leaves its default.
-	ReasoningEffort ai.ReasoningEffort `yaml:"reasoning_effort,omitempty" json:"reasoning_effort,omitempty" toml:"reasoning_effort,omitempty"`
-
-	// Model selects the required provider model for code reviews.
-	Model string `yaml:"model,omitempty" json:"model,omitempty" toml:"model,omitempty" validate:"required"`
+	// ModelConfig selects the code review provider, model, and optional effort.
+	ai.ModelConfig `yaml:",inline" json:",inline" toml:",inline"`
 
 	// Config provides independent job timing; zero values use a thirty-second interval and two-minute timeout.
 	scheduler.Config `yaml:",inline" json:",inline" toml:",inline"`

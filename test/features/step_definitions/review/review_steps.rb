@@ -18,7 +18,7 @@ Given(/^the (code|security) review configuration has "([^"]*)"$/) do |kind, prob
     'an empty model' => "#{review_command(kind)}_empty_model",
     'an invalid interval' => "#{review_command(kind)}_invalid_interval",
     'an invalid timeout' => "#{review_command(kind)}_invalid_timeout",
-    'an invalid reasoning effort' => "#{review_command(kind)}_invalid_reasoning",
+    'an invalid effort' => "#{review_command(kind)}_invalid_effort",
     'disabled reviews' => 'ai',
     'the default schedule' => "#{review_command(kind)}_default_schedule"
   }

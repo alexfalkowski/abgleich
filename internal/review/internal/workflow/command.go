@@ -22,14 +22,11 @@ type ReviewProfile struct {
 	// Title labels the review in published replies and failure feedback.
 	Title string
 
-	// Model selects the provider model for this feature's review conversations.
-	Model string
+	// ModelConfig selects this feature's provider, model, and optional effort.
+	ai.ModelConfig
 
 	// Instructions supplies the feature-owned review prompt.
 	Instructions string
-
-	// ReasoningEffort optionally selects provider reasoning effort; empty leaves its default.
-	ReasoningEffort ai.ReasoningEffort
 }
 
 type reviewTask struct {

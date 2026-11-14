@@ -38,6 +38,8 @@
 
 🧠 **Model:** {{.Completion.Model | markdown}}
 
+🔌 **Provider:** {{.Completion.Provider | markdown}}
+
 {{with .Completion.Usage}}📊 **Tokens:** {{.InputTokens}} input ({{.CachedInputTokens}} cached, {{.CacheWriteTokens}} cache writes), {{.OutputTokens}} output including reasoning.
 {{else}}📊 **Tokens:** Unavailable.
 {{end}}

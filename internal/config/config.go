@@ -17,7 +17,7 @@ type Config struct {
 	// GitHub supplies required owner, App credentials, and optional webhook and HTTP settings.
 	GitHub *github.Config `yaml:"github,omitempty" json:"github,omitempty" toml:"github,omitempty" validate:"required"`
 
-	// AI optionally enables the text generation provider used by summaries and reviews.
+	// AI optionally defines provider connections selected by summaries and reviews.
 	AI *ai.Config `yaml:"ai,omitempty" json:"ai,omitempty" toml:"ai,omitempty" validate:"omitempty"`
 
 	// Automerge optionally customizes Dependabot enrollment and event-driven rebase checks.

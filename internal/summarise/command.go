@@ -28,8 +28,8 @@ type CommandParams struct {
 	// GitHub provides repository access and authenticated summary publication.
 	GitHub github.Service
 
-	// Provider generates summaries using the feature-owned prompt and model.
-	Provider ai.Provider
+	// Providers resolves the connection selected by summary configuration.
+	Providers *ai.Registry
 
 	// Authorizer rechecks human command identity and current write permission.
 	Authorizer *commands.Authorizer
@@ -41,14 +41,15 @@ func NewCommand(params CommandParams) (*Command, error) {
 	if !params.Config.IsEnabled() {
 		return nil, nil
 	}
-	if params.Provider == nil {
-		return nil, errors.New("summarise: requires AI configuration")
+	provider, err := params.Providers.Select(params.Config.Provider)
+	if err != nil {
+		return nil, errors.Prefix("summarise", err)
 	}
 
 	return &Command{
 		config:     params.Config,
 		github:     params.GitHub,
-		provider:   params.Provider,
+		provider:   provider,
 		queue:      commands.NewQueue(),
 		authorizer: params.Authorizer,
 	}, nil

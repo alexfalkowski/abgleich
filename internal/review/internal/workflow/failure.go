@@ -33,6 +33,9 @@ type reviewFailure struct {
 	// Model identifies the configured model for the failed review attempt.
 	Model string
 
+	// Connection names the configured provider selected for this review attempt.
+	Connection string
+
 	// HeadSHA identifies the pull request head revision associated with the failure.
 	HeadSHA string
 
@@ -54,7 +57,7 @@ type reviewFailure struct {
 
 func (c *Command) failureReply(task *reviewTask, stage failureStage, err error) (string, error) {
 	failure := reviewFailure{
-		Title: c.profile.Title, Command: c.profile.Name, Model: c.profile.Model,
+		Title: c.profile.Title, Command: c.profile.Name, Model: c.profile.Model, Connection: c.profile.Provider,
 		RequestID: task.comment.GetID(), HeadSHA: task.request.GetHead().GetSHA(), BaseSHA: task.request.GetBase().GetSHA(),
 		Stage: stage, Reason: "The review conversation could not finish.",
 		Recovery: "Check the worker logs for source lookup or authorization failures.",

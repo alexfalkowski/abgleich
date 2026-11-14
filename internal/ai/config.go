@@ -6,16 +6,16 @@ import (
 	"github.com/alexfalkowski/go-service/v3/time"
 )
 
-// Config selects the optional text generation provider. Omission disables AI.
+// ProviderKind identifies the adapter used by a connection.
+type ProviderKind string
+
+// ProviderOpenAI selects the OpenAI Responses adapter.
+const ProviderOpenAI ProviderKind = "openai"
+
+// Config defines optional named AI connections. Omission disables AI.
 type Config struct {
-	// Client configures the AI HTTP connection independently of GitHub; inference retries remain disabled.
-	Client *client.Config `yaml:"client,omitempty" json:"client,omitempty" toml:"client,omitempty"`
-
-	// OpenAI supplies required credentials and optional endpoint settings for the OpenAI provider.
-	OpenAI *OpenAIConfig `yaml:"openai,omitempty" json:"openai,omitempty" toml:"openai,omitempty" validate:"required"`
-
-	// Provider selects the configured backend; the supported value is openai.
-	Provider string `yaml:"provider,omitempty" json:"provider,omitempty" toml:"provider,omitempty" validate:"required,oneof=openai"`
+	// Providers defines connections selected by each feature's provider setting.
+	Providers map[string]*ProviderConfig `yaml:"providers,omitempty" json:"providers,omitempty" toml:"providers,omitempty" validate:"required,dive,required"`
 }
 
 // IsEnabled reports whether AI configuration is present.
@@ -23,32 +23,38 @@ func (c *Config) IsEnabled() bool {
 	return c != nil
 }
 
-// GetTimeout returns the HTTP request timeout, defaulting to one minute when
-// client settings are absent or their timeout is zero. The task's inference
-// deadline remains an independent upper bound.
-func (c *Config) GetTimeout() time.Duration {
-	if c.Client.IsEnabled() && c.Client.Timeout != 0 {
-		return c.Client.Timeout
-	}
+// ProviderConfig defines a provider connection shared by any number of models.
+type ProviderConfig struct {
+	// Client sets connection settings and HTTP deadlines; retries stay disabled.
+	Client *client.Config `yaml:"client,omitempty" json:"client,omitempty" toml:"client,omitempty"`
 
-	return time.Minute
-}
+	// Kind selects the adapter: openai.
+	Kind ProviderKind `yaml:"kind,omitempty" json:"kind,omitempty" toml:"kind,omitempty" validate:"required,oneof=openai"`
 
-// OpenAIConfig supplies a go-service API key source read once at startup. URL
-// optionally overrides https://api.openai.com/v1/ for compatible endpoints.
-type OpenAIConfig struct {
-	// APIKey is a required go-service credential source resolved once at startup.
+	// APIKey is a required credential source resolved once at startup.
 	APIKey string `yaml:"api_key,omitempty" json:"api_key,omitempty" toml:"api_key,omitempty" validate:"required"`
 
-	// URL overrides the API base URL; empty uses https://api.openai.com/v1/.
+	// URL optionally overrides the adapter's trusted API endpoint.
 	URL string `yaml:"url,omitempty" json:"url,omitempty" toml:"url,omitempty" validate:"omitempty,http_url"`
 }
 
-// GetURL returns the API base URL, defaulting to the OpenAI Responses endpoint.
-func (c *OpenAIConfig) GetURL() string {
-	if strings.IsEmpty(c.URL) {
-		return "https://api.openai.com/v1/"
+// GetTimeout returns the per-request deadline, defaulting to one minute.
+func (c *ProviderConfig) GetTimeout() time.Duration {
+	if c.Client.IsEnabled() && c.Client.Timeout != 0 {
+		return c.Client.Timeout
 	}
+	return time.Minute
+}
 
-	return c.URL
+// GetURL returns the explicit endpoint or the selected provider's default.
+func (c *ProviderConfig) GetURL() string {
+	if !strings.IsEmpty(c.URL) {
+		return c.URL
+	}
+	switch c.Kind {
+	case ProviderOpenAI:
+		return "https://api.openai.com/v1/"
+	default:
+		return ""
+	}
 }

@@ -276,7 +276,7 @@ run reconciles fresh remote state; pending summary and review requests are held 
 
 - GitHub owner, credentials, and transport settings belong under `github`;
   provider settings belong under `ai`. HTTP client settings belong under
-  `github.client` and `ai.client`. Keep their connection pools separate;
+  `github.client` and `ai.providers.<name>.client`. Keep their connection pools separate;
   AI requests never retry.
   Auto-merge job timing belongs under `scheduler`; the summary model and its job
   timing belong under `summarise`; the code-review model and its independent job

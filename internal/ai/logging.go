@@ -12,6 +12,8 @@ import (
 type loggingProvider struct {
 	Provider
 	logger *logger.Logger
+	name   string
+	kind   ProviderKind
 }
 
 // Generate delegates to Provider and logs duration, outcome, and available token
@@ -39,6 +41,8 @@ func (p *loggingProvider) Generate(ctx context.Context, prompt Prompt) (*Complet
 	completion, err := p.Provider.Generate(ctx, prompt)
 	fields := []any{
 		"task", prompt.Task,
+		"provider", p.name,
+		"provider_kind", p.kind,
 		"model", prompt.Model,
 		"duration", time.Since(started),
 		"largest_tool", largestTool,

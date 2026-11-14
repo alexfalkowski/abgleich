@@ -36,14 +36,14 @@ func (c *Command) generateReview(ctx context.Context, task *reviewTask, review *
 
 	tools := sourceTools{session: review.source, beforeLookup: guard}
 	completion, err := c.provider.Generate(ctx, ai.Prompt{
-		Task:            c.profile.Name,
-		Model:           c.profile.Model,
-		ReasoningEffort: c.profile.ReasoningEffort,
-		Instructions:    reviewInstructions(c.profile.Instructions, providers),
-		Input:           review.input,
-		Tools:           tools.definitions(providers),
-		BeforeRequest:   guard,
-		Timeout:         inferenceTimeout,
+		Task:          c.profile.Name,
+		Model:         c.profile.Model,
+		Effort:        c.profile.Effort,
+		Instructions:  reviewInstructions(c.profile.Instructions, providers),
+		Input:         review.input,
+		Tools:         tools.definitions(providers),
+		BeforeRequest: guard,
+		Timeout:       inferenceTimeout,
 	})
 	if errors.Is(err, errReviewStopped) {
 		return nil

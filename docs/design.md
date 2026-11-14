@@ -28,6 +28,13 @@ model settings, schedules, and registration. Reviews, summaries, status, and aut
 to re-read human commands and current permissions at their own consent boundaries;
 PR eligibility and automation history remain with their owning feature.
 
+AI features embed `ai.ModelConfig` for provider, model, and effort selection.
+`ai.Registry` constructs named connections and resolves each feature's selection
+at startup. Provider adapters implement `ai.Provider` inside `ai`; adding an
+adapter does not change review or summary processing. OpenAI uses its native SDK.
+Each connection owns its credentials and HTTP client; features retain their
+instructions, source authorization, and generation deadlines.
+
 ## 🔄 Auto-merge sweep
 
 The diagram shows an eligible action; policies can also return no-op or error.
