@@ -60,10 +60,10 @@ func (c *Command) Handle(ctx context.Context, event *github.IssueCommentEvent) (
 		return false, nil
 	}
 
-	return c.addLabel(ctx, repo, pull)
+	return c.addLabel(ctx, repo, pull, comment)
 }
 
-func (c *Command) addLabel(ctx context.Context, repo *github.Repository, pull *github.PullRequest) (bool, error) {
+func (c *Command) addLabel(ctx context.Context, repo *github.Repository, pull *github.PullRequest, comment *github.IssueComment) (bool, error) {
 	currentRepo, err := c.github.GetRepository(ctx, repo)
 	if err != nil {
 		return false, err
@@ -84,6 +84,10 @@ func (c *Command) addLabel(ctx context.Context, repo *github.Repository, pull *g
 
 	if automationAlreadyRequested(current) {
 		return true, nil
+	}
+
+	if current, err := c.authorizer.Authorize(ctx, autoMergeCommand, currentRepo, current.GetNumber(), comment); err != nil || current == nil {
+		return false, err
 	}
 
 	if err := ctx.Err(); err != nil {

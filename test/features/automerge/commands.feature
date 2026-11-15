@@ -223,6 +223,23 @@ Feature: Comment requests for auto-merge
       | draft           | 204    |
       | head repository | 204    |
 
+  Scenario Outline: Recheck command consent before requesting a label
+    Given scheduled pull request listing is unavailable
+    And a pull request from "the repository" for branch "contribution" is "waiting for checks"
+    And its command authorization changes before labeling through "<change>"
+    When a maintainer with "write" access comments "/ab automerge"
+    Then exactly 0 label requests should reach GitHub
+    And the comment delivery should return HTTP <status>
+    And the command comment should show "receipt and rejection" feedback
+    And branch "contribution" should have no automerge label
+
+    Examples:
+      | change                              | status |
+      | revoked write access                | 403    |
+      | an edited comment                   | 204    |
+      | an unavailable command comment      | 503    |
+      | unavailable contributor permissions | 503    |
+
   Scenario: Recover a lost label response by reading the label on redelivery
     Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
     And GitHub reports "lost label response"
