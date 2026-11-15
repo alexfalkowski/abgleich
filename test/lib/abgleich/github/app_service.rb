@@ -48,7 +48,7 @@ module Abgleich
     get '/repos/:owner/:repository/issues/comments/:id' do
       GitHubService.record_comment_read
       halt 404 if Abgleich.github.failure == 'review deleted comment'
-      halt 503 if Abgleich.github.failure == 'an unavailable command comment'
+      halt 503 if Abgleich.github.failure&.delete_prefix('final authorization:') == 'an unavailable command comment'
       sleep 3 if Abgleich.github.failure == 'comment timeout'
       comment = Abgleich.github.comment(params.fetch('id').to_i)
       comment['updated_at'] = '2026-01-01T00:00:06Z' if Abgleich.github.failure == 'final authorization:an edited comment'
@@ -56,7 +56,7 @@ module Abgleich
     end
 
     get '/repos/:owner/:repository/collaborators/:user/permission' do
-      halt 503 if Abgleich.github.failure == 'unavailable contributor permissions'
+      halt 503 if Abgleich.github.failure&.delete_prefix('final authorization:') == 'unavailable contributor permissions'
       permission = Abgleich.github.comment_permission
       permission[:permission] = 'read' if Abgleich.github.failure == 'final authorization:revoked write access'
       permission.to_json

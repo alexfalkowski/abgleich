@@ -69,6 +69,10 @@ Given('its original command comment now has {string}') do |change|
   Abgleich.github.change_comment(@comment_event.fetch(:comment).fetch('id'), field, value)
 end
 
+Given('its command authorization changes before labeling through {string}') do |change|
+  Abgleich.github.fail_with("status authorization:#{change}")
+end
+
 Given('the comment for branch {string} was created {string} {string}') do |branch, timing, event|
   @comment_event = Abgleich.github.add_comment(branch, body: '/ab automerge')
   Abgleich.github.label_pull(branch, 'bug')
