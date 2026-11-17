@@ -129,6 +129,10 @@ broad use, evaluate approved PRs with known ineffective assertions, missing
 behavior coverage, isolation/lifecycle failures, and clean controls. Include
 Go and Ruby/Cucumber harnesses, production-only changes already covered by
 existing scenarios, and behavior-preserving changes that need no additional tests.
+Include `.gocov` exclusions already present or added by the PR, regex patterns,
+and changes mixing excluded code with genuine test gaps in other paths. Expect no
+missing-test demands for excluded code, while retaining findings for ineffective
+changed tests and gaps outside the exclusions.
 Record expected outcomes before live calls and inspect every finding against the
 source. Follow the [code-review evaluation process](#-code-review-evaluation) for
 source discovery, misses, false positives, incomplete assessments, latency, and

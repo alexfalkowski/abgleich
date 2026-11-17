@@ -211,6 +211,19 @@ Then('the finding {string} should escape model markup and preserve examples') do
   expect(body).to include('🐛 **P2 · ', "\n\n🔎 **Trigger:** ", "\n\n💥 **Impact:** ", "\n\n🛠️ **Suggested fix:** ")
 end
 
+Then('dollar signs should remain literal in every review body') do
+  review = Abgleich.github.native_reviews.last
+  [review.fetch(:body), *review.fetch(:comments).map { |comment| comment.fetch(:body) }].each do |body|
+    expect(body).to include('<span>$</span>\\(shell printf unexpected &gt;&amp;2\\)', '<span>$</span>\\(value args\\)',
+                            '<span>$</span>HOME', '<span>$</span><span>$</span>x<span>$</span><span>$</span>',
+                            '\\\\<span>$</span>5', "\n\n&#32;   echo <span>$</span>HOME", "\n\n&#9;echo <span>$</span>HOME")
+    expect(body).to include("\n\n&#32;   echo <span>$</span>CRLF", "\n\n&#9;echo <span>$</span>CR")
+    expect(body).to include("https:\u200b//example.invalid/<span>$</span>metadata", "www\u200b.example.invalid/<span>$</span>metadata")
+    expect(body).not_to match(/^[ \t]/), 'expected escaped prose to avoid accidental indented code blocks'
+    expect(body.gsub('<span>$</span>', '')).not_to include('$'), 'expected literal dollars to stay outside GitHub math rendering'
+  end
+end
+
 Then('a fresh App review should identify the current request') do
   wait_for { Abgleich.github.native_reviews.count { |review| review[:viewer_did_author] } }.to eq(1)
   review = Abgleich.github.native_reviews.find { |item| item[:viewer_did_author] }

@@ -239,6 +239,7 @@ Feature: Maintainer-requested summaries
     And the AI service includes markup and mentions in its answer
     When a maintainer with "write" access comments "/ab summarise"
     Then the summary should show the answer without active markup or mentions
+    And the summary should preserve complete dollar-bearing links
 
   Scenario Outline: Respect changes before sharing any source
     Given a pull request from "the repository" for branch "contribution" is "waiting for checks"

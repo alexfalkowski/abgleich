@@ -13,6 +13,15 @@ module Abgleich
       test.go: check how requests are processed.
     TEXT
 
+    SUMMARY_WITH_HOSTILE_PROSE = "The worker now processes requests predictably.\n\nChanges:\n" \
+                                 '<script>alert(1)</script> @everyone [click](https://untrusted.invalid) ' \
+                                 '![track](https://untrusted.invalid/image) Keep $HOME and $(value args) literal.' \
+                                 "\n\n    echo $HOME\n\n\techo $HOME\n\r\n\r\n    echo $CRLF\r\r\techo $CR" \
+                                 "\n\nLiteral prose resumes with $HOME. " \
+                                 'https://example.invalid/$metadata https://example.invalid/$value$ ' \
+                                 'http://example.invalid/items?$filter=active&$top=5#details ' \
+                                 'www.example.invalid/$metadata (https://example.invalid/items($value)).'
+
     SUMMARY_OF_CI_WORKFLOW = <<~TEXT
       CI now runs feature groups separately and combines their coverage before release.
 
@@ -87,9 +96,7 @@ module Abgleich
       output = payload.fetch('model') == 'test-review' ? review_output(payload, mode) : SUMMARY
       output = review_output(payload, mode) if %w[test-security test-quality].include?(payload.fetch('model'))
       case mode
-      when 'hostile prose'
-        output = "The worker now processes requests predictably.\n\nChanges:\n" \
-                 '<script>alert(1)</script> @everyone [click](https://untrusted.invalid) ![track](https://untrusted.invalid/image)'
+      when 'hostile prose' then output = SUMMARY_WITH_HOSTILE_PROSE
       when 'ci workflow' then output = SUMMARY_OF_CI_WORKFLOW
       when 'extra changes' then output = SUMMARY_WITH_EXTRA_CHANGES
       when 'empty changes' then output = "Requests stay queued.\n\nChanges:\n"
