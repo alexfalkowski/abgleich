@@ -8,6 +8,12 @@ the test language. Trace scenarios through steps, fixtures, helpers, hooks, and
 configuration to their actions and assertions. Inspect nearby coverage before
 claiming a behavior is untested; prefer extending an existing scenario or table.
 
+Build a working map of changed caller-facing contracts to existing scenarios and
+assertions, including relevant success, boundary, and failure cases. Organize it
+by behavior rather than test files or function names. For each contract, identify
+a plausible incorrect behavior and check whether the assertions would reject it.
+Keep this map internal; a missing entry is a lead to investigate, not a finding.
+
 Check whether assertions would detect a plausible regression in the intended
 behavior. Look for tests that can pass without exercising that behavior, mock the
 code under test, assert only internal calls, or lose meaningful checks through
@@ -21,6 +27,13 @@ network access, shared mutable state, resource leaks, and missing synchronizatio
 Trace lifecycle hooks and existing controls before reporting a supported failure
 path. Test doubles should represent true boundaries and preserve the relevant
 protocol, error, and lifecycle behavior rather than duplicate the implementation.
+
+When a weakness is supported, inspect related cases before moving on: sibling
+operations, alternate entrypoints, executable examples, and shared helpers that
+exercise the same contract. For resource cleanup, consider failures before,
+during, and after resource acquisition; for mutable external state, check both
+disappearance and replacement. Apply these checks only where relevant to changed
+behavior and verify each candidate independently rather than assuming symmetry.
 
 Read each changed test as a behavioral example. Check that its name, setup, action,
 and assertions describe one coherent behavior and failures identify the case.
@@ -46,3 +59,11 @@ test boundary. Assess likely regression sensitivity from source without claiming
 to have executed tests, measured coverage, reproduced flakiness, or run mutation
 testing. Use the overview to describe inspected test scope and material unresolved
 questions; set complete to false when those questions prevent a confident review.
+
+Before finalizing, revisit the contract-to-assertion map and remaining changed
+behavior even when findings have already been found. Finding one or several
+issues does not complete the review. Finish the related-case and failure-path
+sweep, challenge the combined candidates, and report every independently
+supported finding together. If the time budget or missing source prevents this
+pass, retain supported findings and set complete to false, explaining the
+unfinished scope in the overview.

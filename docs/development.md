@@ -133,3 +133,12 @@ Record expected outcomes before live calls and inspect every finding against the
 source. Follow the [code-review evaluation process](#-code-review-evaluation) for
 source discovery, misses, false positives, incomplete assessments, latency, and
 token usage. Live evaluation requires separate authorization and never runs in CI.
+
+For prompt comparisons, freeze the original PR head/base and both prompts, then
+repeat reviews with the same model, effort, source tools, and conversation
+deadline. Keep expected findings and grading notes out of model inputs. Measure
+how many confirmed gaps are found in the first review, misses, false positives,
+and variation between runs, alongside latency and token usage. Distinguish gaps
+already present in the original revision from issues introduced by later fixes.
+Include fresh PRs and clean controls beyond the examples used to develop the
+prompt; fewer findings or earlier approval alone does not demonstrate improvement.
