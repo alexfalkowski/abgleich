@@ -16,6 +16,16 @@ Feature: Request every configured review
     And the security review should identify the request and revisions
     And exactly 2 requests should reach the AI service
 
+  Scenario: Accept every review within the delivery deadline when GitHub authorization is slow
+    Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
+    And all three review commands are enabled
+    When a maintainer requests all reviews while GitHub authorization is slow
+    Then the command comment should show "receipt and acceptance" feedback
+    And the code review should identify the request and revisions
+    And the security review should identify the request and revisions
+    And the test review should identify the request and revisions
+    And exactly 3 requests should reach the AI service
+
   Scenario: Reuse an individual review while requesting the remaining reviews
     Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
     And the pull request has already received a code review

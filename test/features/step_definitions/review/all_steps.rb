@@ -32,6 +32,16 @@ When('GitHub delivers the same aggregate review request twice while reviews are 
   Abgleich.openai.resume_responses
 end
 
+When('a maintainer requests all reviews while GitHub authorization is slow') do
+  Nonnative.start
+  Abgleich.github.fail_with('slow review authorization')
+  @comment_event = Abgleich.github.add_comment('contribution', body: '/ab review')
+  response = Abgleich.deliver_comment(@comment_event)
+  expect(response.code).to eq(204), 'expected all reviews to be accepted within the webhook deadline'
+ensure
+  Abgleich.github.fail_with(nil)
+end
+
 Then('each configured review should have exactly one result') do
   %w[code security].each do |kind|
     expect_review_check(kind)
