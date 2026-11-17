@@ -79,6 +79,13 @@ need no changes for another language.
 
 ## 🛡️ Security-review evaluation
 
+The [security prompt](../internal/review/sec/prompt.txt) adapts review methods from
+[Cloudflare's attack classes](https://github.com/cloudflare/security-audit-skill/blob/c1c8a8c1471069fb0e188eeaff69b8e8db6564a8/skills/security-audit/ATTACK-CLASSES.md),
+[UnitOneAI's threat modeling](https://github.com/UnitOneAI/SecuritySkills/blob/70bc259bb01abb3015ad2ad859ad5253cbf0bcab/skills/appsec/threat-modeling/SKILL.md),
+and [Red Hat's finding verification](https://github.com/RedHatProductSecurity/prodsec-skills/blob/b55c6b9c3392645f62da59a447c29473c413e371/module/skills/fp-check/SKILL.md)
+to the worker's static source review. These are pinned maintenance references;
+runtime review instructions ship with the worker.
+
 Fake-provider scenarios verify integration only. Before broad use, evaluate the
 unchanged security prompt on approved real vulnerable changes and safe controls.
 Record expected outcomes before calls, keep grading notes out of model input, and
@@ -87,6 +94,20 @@ actual token usage. Use fresh cases beyond prompt/source development examples,
 including vulnerabilities requiring helpers or dependencies. A small evaluation
 cannot establish comprehensive security accuracy.
 Live calls need separate authorization and never run in CI.
+
+For prompt changes, freeze the current and proposed prompts and expected outcomes
+before making calls. Compare them with the same model, reasoning effort, source
+tools, and conversation deadline. Include vulnerable changes, fixed or otherwise
+safe controls, and material unresolved questions; keep advisory text, expected
+findings, and grading notes out of model input. Record false approvals, missed
+vulnerabilities, false findings, incomplete assessments, source lookups, latency,
+and actual token usage separately for each prompt. Inspect every reported finding
+against the source rather than counting any nonempty answer as a detection.
+Retain the complete inputs, prompt and source revisions, lookup transcripts,
+raw responses, and grading notes outside version control. Public historical cases
+may be familiar to the model; authored examples and a small comparison establish
+limited regression evidence, not general security accuracy. Add source tools only
+when inspected misses demonstrate a retrieval gap.
 
 ## 📝 Changes
 

@@ -174,8 +174,23 @@ and non-draft; topics, labels, `hold`, and auto-merge settings do not gate revie
 
 The security prompt asks for bugs introduced or materially worsened by the change,
 with attacker-controlled input, prerequisites, impact, and practical mitigation
-supported by the diff and inspected source. It excludes speculation and unrelated
-existing issues. Both review commands use the [shared source lookup](configuration.md#-review-source-access).
+supported by the diff and inspected source. It maps the attacker, execution
+identity and authority, protected resource, and unauthorized result for changed
+trust boundaries. Relevant checks follow callers, removed guards, failure paths,
+queued work, caches, and authorization changes. CI and release changes receive
+checks for privileged execution and artifact handoffs; AI integrations receive
+checks for tool authority, context isolation, and output handling; availability
+checks require an input-to-cost path and shared impact after accounting for
+existing bounds. These checks are selected from the changed behavior and its callers.
+
+The reviewer challenges both suspected findings and assumed protections. Missing
+tests, a risky-looking API, malicious prompt text, or an absent secondary defense
+alone does not establish a vulnerability or increase severity. The overview
+describes the inspected security scope and identifies exact unresolved facts and
+the evidence needed to resolve them. Material unresolved questions make the
+assessment incomplete; supported findings still request changes. It excludes
+speculation and unrelated existing issues.
+Both review commands use the [shared source lookup](configuration.md#-review-source-access).
 Missing patches and unavailable source are disclosed; citations are not verified
 and code/tests are not executed. A reply
 with no supported findings does not certify security or constitute a complete audit.
