@@ -50,6 +50,7 @@ module Abgleich
       end
 
       def comment_permission
+        sleep 0.8 if failure == 'slow review authorization'
         @mutex.synchronize do
           entry = @state[:comments].values.rfind { |comment| comment[:permission] }
           { permission: entry.fetch(:permission), user: { id: 77, login: 'maintainer' } }

@@ -77,6 +77,8 @@ func (f *Factory) NewCommand(profile ReviewProfile) (*Command, error) {
 }
 
 // Handle queues every configured review using the original comment as consent.
+// Initial consent and PR eligibility are shared within this delivery; each job
+// independently rechecks them before source access and publication.
 // It attempts every command and preserves their errors. Acceptance requires at
 // least one configured command and acceptance by all of them; accepted work is
 // retained when another command declines or fails.
@@ -85,11 +87,22 @@ func (f *Factory) Handle(ctx context.Context, event *github.IssueCommentEvent) (
 		return false, nil
 	}
 
+	// Every command uses the same GitHub service, authorizer, and aggregate consent.
+	// Repeating these remote reads per feature can exhaust the webhook deadline.
+	task, comments, err := f.commands[0].authorize(ctx, &reviewTask{
+		repository: event.GetRepo(),
+		request:    &github.PullRequest{Number: event.GetIssue().Number},
+		comment:    event.GetComment(),
+	})
+	if err != nil || task == nil {
+		return false, err
+	}
+
 	allAccepted := true
 
 	var failures error
 	for _, command := range f.commands {
-		accepted, err := command.Handle(ctx, event)
+		accepted, err := command.enqueue(ctx, task, comments)
 		if !accepted || err != nil {
 			allAccepted = false
 		}

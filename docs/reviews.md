@@ -10,9 +10,10 @@ and needs no additional setting or job. Omitted review features are skipped;
 with no reviews configured, the command receives rejection feedback.
 
 The original unedited human comment authorizes source sharing for every enabled
-review. Each workflow independently rechecks current write/admin permission,
-PR eligibility, consent, and head/base revisions before source access and publication,
-using the safeguards below. Review requests remain available with `hold` and
+review. The command checks current consent and PR eligibility once for all features
+within the webhook deadline. Each workflow independently rechecks current
+write/admin permission, PR eligibility, consent, and head/base revisions before
+source access and publication, using the safeguards below. Review requests remain available with `hold` and
 without auto-merge opt-in; forks are rejected.
 
 Each feature retains its own model, queue, schedule, verdict, and native review.

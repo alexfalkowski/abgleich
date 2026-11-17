@@ -64,6 +64,10 @@ func (c *Command) Handle(ctx context.Context, event *github.IssueCommentEvent) (
 		return false, err
 	}
 
+	return c.enqueue(ctx, task, comments)
+}
+
+func (c *Command) enqueue(ctx context.Context, task *reviewTask, comments []*github.IssueComment) (bool, error) {
 	if exists, err := c.hasReview(ctx, task, comments); err != nil || exists {
 		return exists, err
 	}
@@ -72,7 +76,7 @@ func (c *Command) Handle(ctx context.Context, event *github.IssueCommentEvent) (
 		return false, err
 	}
 
-	err = c.queue.Enqueue(c.resultMarker(task), func(ctx context.Context) error {
+	err := c.queue.Enqueue(c.resultMarker(task), func(ctx context.Context) error {
 		return c.process(ctx, task)
 	})
 
