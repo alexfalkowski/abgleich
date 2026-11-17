@@ -227,6 +227,10 @@ repository's existing harness, fixtures, helpers, hooks, and assertions. It chec
 regression-sensitive assertions, relevant failure and boundary coverage,
 determinism, isolation, realistic test doubles, and whether scenarios clearly
 explain one coherent behavior. It searches nearby coverage before claiming a gap.
+The prompt asks it to map changed contracts to assertions, inspect related
+operations and failure paths, and finish a completeness pass even after finding
+issues. This aims to surface supported findings together; it does not guarantee
+that one review finds every weakness.
 Readability and duplication justify findings only when they create a concrete
 risk of misleading, brittle, or ineffective tests. Private-function coverage,
 arbitrary coverage percentages, implementation-only sequencing, and demands for
