@@ -6,17 +6,19 @@ import (
 	"github.com/alexfalkowski/abgleich/internal/review/internal/sources"
 	"github.com/alexfalkowski/abgleich/internal/review/internal/workflow"
 	"github.com/alexfalkowski/abgleich/internal/review/sec"
+	"github.com/alexfalkowski/abgleich/internal/review/test"
 	"github.com/alexfalkowski/go-signal/v2"
 )
 
 // Module composes optional review commands, their aggregate, and shared source access.
 // Each feature registers its own handler and independently scheduled queue.
 var Module = signal.Module(
-	signal.Constructor(codeConfig, secConfig, sourceConfig),
+	signal.Constructor(codeConfig, secConfig, testConfig, sourceConfig),
 	sources.Module,
 	workflow.Module,
 	code.Module,
 	sec.Module,
+	test.Module,
 	signal.Register(registerCommand),
 )
 

@@ -10,7 +10,7 @@ Abgleich is a background worker that enables auto-merge or merges ready Dependab
 and labeled pull requests and keeps eligible auto-merge branches current.
 Repositories opt in to that automation through their auto-merge setting.
 Comment commands also provide automation status, optional AI PR summaries, and
-AI code and security reviews enabled through worker configuration. GitHub
+AI code, security, and test reviews enabled through worker configuration. GitHub
 performs all repository mutations; the worker does not clone repositories or execute Git. Each auto-merge
 run reconciles fresh remote state; pending summary and review requests are held in memory.
 
@@ -25,9 +25,10 @@ run reconciles fresh remote state; pending summary and review requests are held 
 | `internal/cleanup` | Optional merged and inactive branch cleanup policy, pre-deletion rechecks, exclusions, and registration of its own job. |
 | `internal/status` | Status comment authorization, snapshot rechecks, reply rendering and publication, and registration of its own command. |
 | `internal/summarise` | Summary authorization, all changed-file patches returned by GitHub, queued processing, reply publication, and registration of its own job and command. |
-| `internal/review` | Composition of review configuration, shared source access, code/security feature modules, and aggregate review command registration. |
+| `internal/review` | Composition of review configuration, shared source access, feature modules, and aggregate review command registration. |
 | `internal/review/code` | Code-review prompt, model configuration, and registration of its own job and command. |
 | `internal/review/sec` | Security-review prompt, model configuration, and registration of its own job and command. |
+| `internal/review/test` | Test-quality review prompt, model configuration, and registration of its own job and command. |
 | `internal/review/internal/workflow` | Shared review PR eligibility, consent rechecks, changed-file and related source context, revision checks, result identity, safe reply rendering/publication, and per-instance queues. |
 | `internal/review/internal/sources` | Provider module composition and selection through a DI value group. |
 | `internal/review/internal/sources/provider` | Shared repository-access and tool contracts, DI contributions, source endpoint configuration, and excerpt rendering. |
@@ -53,7 +54,7 @@ run reconciles fresh remote state; pending summary and review requests are held 
   dependencies stay independent of `summarise`. Keep source selection and
   authorization in `summarise`, provider access and OpenAI SDK imports in `ai`,
   and shared outbound client construction in `transport/http/client`.
-- `review.Module` composes `review/code`, `review/sec`, and shared source access.
+- `review.Module` composes `review/code`, `review/sec`, `review/test`, and shared source access.
   Each feature configures a separate `workflow.Command` instance and owns its
   prompt, model/schedule configuration, and registration. Keep shared consent,
   source context, revision checks, reply templates, result markers, inference,
@@ -61,7 +62,7 @@ run reconciles fresh remote state; pending summary and review requests are held 
   `github`, and `commands`, which stay independent of review features. Queues and
   jobs remain independent per command. Provider protocol belongs in `ai`;
   `sources/provider.Config` owns shared source settings and `review.Config` composes it
-  with feature-owned settings. Neither feature nor workflow imports the parent
+  with feature-owned settings. Neither features nor workflow import the parent
   `review` package. Never load repository or remote skills as runtime instructions.
 - `sources.Module` composes provider modules, each contributing its strategy to
   the source DI value group. Keep language/framework guides,
@@ -163,8 +164,8 @@ run reconciles fresh remote state; pending summary and review requests are held 
 
 ## AI reviews
 
-- Keep `/ab codereview` and `/ab secreview` optional under
-  `review.code` and `review.sec`, respectively. Follow the shared
+- Keep `/ab codereview`, `/ab secreview`, and `/ab testreview` optional under
+  `review.code`, `review.sec`, and `review.test`, respectively. Follow the shared
   review workflow with separate queues and independent jobs. Require a fresh
   unedited human comment, current write/admin permission, and an open non-draft PR
   with both branches in the repository. Ignore forks. Topic, `hold`, and auto-merge settings do not gate reviews.
@@ -181,7 +182,7 @@ run reconciles fresh remote state; pending summary and review requests are held 
   regular-file tree and reject symlinks, binary data, or inconsistent
   blob responses. Preserve all patches even when additional source is unavailable.
 - Share read-only repository file listing/reading and public Go module
-  lookup between both reviews. GitHub source access uses the App token within the
+  lookup between review features. GitHub source access uses the App token within the
   reviewed repository and its direct, public, same-owner GitHub submodules accessible
   to the installation. Recheck public visibility before every submodule lookup;
   reject private targets and missing visibility metadata before source reads.
@@ -241,9 +242,11 @@ run reconciles fresh remote state; pending summary and review requests are held 
   links/mentions in every body.
   Keep verdict policy in workflow and API event validation in github. Serialize
   final checks and publication across review commands within one process; a clean
-  review must not clear the other feature's authenticated request for changes,
-  including across revisions or restart, until a later complete clean assessment
-  or human dismissal. Incomplete reviews do not clear findings. Both features
+  review must not clear any other feature's authenticated request for changes,
+  including across revisions, restart, or feature disablement, until a later
+  complete clean assessment or human dismissal clears that feature. Discover
+  feature identities from authenticated result markers without a verdict allowlist.
+  Incomplete reviews do not clear findings. All features
   share one GitHub reviewer identity; repository rules own merge enforcement and
   publication still has a final-read race. Never request merge automation.
 - After draining its manual queue, each enabled review job uses its remaining
@@ -281,8 +284,8 @@ run reconciles fresh remote state; pending summary and review requests are held 
   Auto-merge job timing belongs under `scheduler`; the summary model and its job
   timing belong under `summarise`; the code-review model and its independent job
   timing belong under `review.code`; security-review settings belong under
-  `review.sec`. Shared source settings stay alongside these sections under
-  `review`; `review.Config` composes the feature-owned types and shared
+  `review.sec`; test-review settings belong under `review.test`. Shared source
+  settings stay alongside these sections under `review`; `review.Config` composes the feature-owned types and shared
   `sources/provider.Config`. Summaries remain patch-only. Keep HTTP request, inference,
   complete job, webhook, and health-check timeouts independent.
 - Credentials are resolved once at startup through go-service sources. Missing

@@ -4,6 +4,28 @@ Given('both review commands are enabled') do
   Abgleich.use_config('secreview_all')
 end
 
+Given('all three review commands are enabled') do
+  Abgleich.use_config('testreview_all')
+end
+
+Given('the pull request has these earlier review assessments:') do |table|
+  table.hashes.each do |row|
+    Abgleich.openai.mode = "review #{row.fetch('answer')}"
+    complete_review_request(row.fetch('kind'))
+  end
+end
+
+Given('the worker restarts with only code reviews enabled') do
+  Abgleich.restart { Abgleich.use_config('codereview') }
+end
+
+Given('a retired review feature has outstanding findings') do
+  pull = Abgleich.github.pull_state('contribution')
+  body = "Historical review\n<!-- abgleich:retiredreview:v2:#{'a' * 64} -->"
+  Abgleich.github.publish_review(Abgleich::GitHubRepository::DEFAULT_REPOSITORY, pull.fetch(:number),
+                                 { 'body' => body, 'commit_id' => pull.dig(:head, :sha), 'event' => 'REQUEST_CHANGES' })
+end
+
 Given('the review cannot inspect {string}') do |context|
   case context
   when 'changed-file patch'
@@ -54,7 +76,7 @@ When('maintainers request both reviews together') do
   Abgleich.openai.resume_responses
 end
 
-Then(/^the (code|security) review decision should be "([^"]*)"$/) do |kind, decision|
+Then(/^the (code|security|test) review decision should be "([^"]*)"$/) do |kind, decision|
   pull = Abgleich.github.pull_state('contribution')
   expected = { state: decision, commit_id: pull.dig(:head, :sha) }
   wait_for { reviews_for(kind).last&.slice(:state, :commit_id) }.to eq(expected), 'expected the requested verdict for the current head'

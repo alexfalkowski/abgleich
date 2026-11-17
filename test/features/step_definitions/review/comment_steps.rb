@@ -31,8 +31,8 @@ Given('a legacy App code review exists for the current revision') do
   Abgleich.github.publish_reply(Abgleich::GitHubRepository::DEFAULT_REPOSITORY, 1, @existing_review_body)
 end
 
-Given('a native code review lookalike was posted by {string}') do |author|
-  complete_review_request('code')
+Given(/^a native (code|security|test) review lookalike was posted by "([^"]*)"$/) do |kind, author|
+  complete_review_request(kind)
   Abgleich.github.change_native_review_author(author)
 end
 
@@ -243,7 +243,7 @@ Then('review conversations should be:') do |table|
 end
 
 Then('conversation {string} should receive exactly {int} resolution request across later checks') do |name, count|
-  kind = Abgleich.server_config_path.include?('secreview') ? 'security' : 'code'
+  kind = %w[code security test].find { |name| Abgleich.server_config_path.include?(review_command(name)) }
   2.times { expect_review_check(kind) }
   expect(Abgleich.github.thread_resolution_requests.count(name)).to eq(count), "expected #{count} resolution request for #{name}"
 end
@@ -254,13 +254,13 @@ Then('only conversation {string} should receive a resolution request') do |name|
 end
 
 Then('conversation {string} should receive no resolution requests') do |name|
-  kind = Abgleich.server_config_path.include?('secreview') ? 'security' : 'code'
+  kind = %w[code security test].find { |name| Abgleich.server_config_path.include?(review_command(name)) }
   expect_review_check(kind)
   expect(Abgleich.github.thread_resolution_requests).not_to include(name), "expected no resolution writes for conversation #{name}"
 end
 
 Then('no AI inference should be requested for conversation maintenance') do
-  kind = Abgleich.server_config_path.include?('secreview') ? 'security' : 'code'
+  kind = %w[code security test].find { |name| Abgleich.server_config_path.include?(review_command(name)) }
   expect_review_check(kind)
   expect(Abgleich.openai.requests).to be_empty, 'expected existing conversations to be maintained without AI inference'
 end

@@ -8,11 +8,6 @@ import (
 )
 
 const (
-	codeNamespace     = "codereview"
-	securityNamespace = "secreview"
-)
-
-const (
 	noFindings = "No findings."
 
 	// Keep authenticated history checks aligned with the rendered clean assessment.
@@ -57,19 +52,23 @@ func (c *Command) otherReviewRequestsChanges(ctx context.Context, task *reviewTa
 		return false, err
 	}
 
-	// History is chronological. Incomplete comments do not clear prior findings,
-	// including across revisions. A completed clean peer assessment can clear them
-	// even when its own approval was withheld to preserve this feature's findings.
+	// Resolve each feature independently, including features no longer enabled.
+	// Incomplete comments do not clear prior findings, including across revisions.
+	// A complete clean assessment clears its feature even if approval was withheld.
+	assessed := make(map[string]bool)
 	for _, review := range slices.Backward(reviews) {
+		name := reviewThreadMarker.FindStringSubmatch(review.GetBody())[1]
+		if assessed[name] {
+			continue
+		}
+
 		switch github.ReviewState(review.GetState()) {
 		case github.ReviewChangesRequested:
 			return true, nil
 		case github.ReviewApproved, github.ReviewDismissed:
-			return false, nil
+			assessed[name] = true
 		case github.ReviewCommented:
-			if strings.Contains(review.GetBody(), cleanAssessment) {
-				return false, nil
-			}
+			assessed[name] = strings.Contains(review.GetBody(), cleanAssessment)
 		}
 	}
 	return false, nil
@@ -77,5 +76,5 @@ func (c *Command) otherReviewRequestsChanges(ctx context.Context, task *reviewTa
 
 func (c *Command) hasOtherReviewMarker(review *github.PullRequestReview) bool {
 	marker := reviewThreadMarker.FindStringSubmatch(review.GetBody())
-	return len(marker) == 2 && marker[1] != c.profile.Name && (marker[1] == codeNamespace || marker[1] == securityNamespace)
+	return len(marker) == 2 && marker[1] != c.profile.Name
 }

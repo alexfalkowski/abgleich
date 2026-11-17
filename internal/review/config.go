@@ -4,10 +4,11 @@ import (
 	"github.com/alexfalkowski/abgleich/internal/review/code"
 	"github.com/alexfalkowski/abgleich/internal/review/internal/sources/provider"
 	"github.com/alexfalkowski/abgleich/internal/review/sec"
+	"github.com/alexfalkowski/abgleich/internal/review/test"
 )
 
-// Config composes independent code and security review settings with shared
-// source access. Omitted Code or Sec disables only that review command and job.
+// Config composes independent review settings with shared source access.
+// An omitted feature disables only that review command and job.
 type Config struct {
 	// Code enables code reviews and their independent model and schedule when present.
 	Code *code.Config `yaml:"code,omitempty" json:"code,omitempty" toml:"code,omitempty" validate:"omitempty"`
@@ -15,7 +16,10 @@ type Config struct {
 	// Sec enables security reviews and their independent model and schedule when present.
 	Sec *sec.Config `yaml:"sec,omitempty" json:"sec,omitempty" toml:"sec,omitempty" validate:"omitempty"`
 
-	// Config shares trusted source endpoint settings between both review features.
+	// Test enables test reviews and their independent model and schedule when present.
+	Test *test.Config `yaml:"test,omitempty" json:"test,omitempty" toml:"test,omitempty" validate:"omitempty"`
+
+	// Config shares trusted source endpoint settings between review features.
 	provider.Config `yaml:",inline" json:",inline" toml:",inline"`
 }
 
@@ -39,6 +43,14 @@ func secConfig(cfg *Config) *sec.Config {
 	}
 
 	return cfg.Sec
+}
+
+func testConfig(cfg *Config) *test.Config {
+	if !cfg.IsEnabled() {
+		return nil
+	}
+
+	return cfg.Test
 }
 
 func sourceConfig(cfg *Config) *provider.Config {

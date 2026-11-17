@@ -21,7 +21,7 @@ module Abgleich
 
     # Review kinds keep their distinct command and result identities in shared steps.
     def review_command(kind)
-      { 'code' => 'codereview', 'security' => 'secreview' }.fetch(kind)
+      { 'code' => 'codereview', 'security' => 'secreview', 'test' => 'testreview' }.fetch(kind)
     end
 
     def review_heading(kind)
@@ -61,7 +61,7 @@ module Abgleich
     end
 
     def expect_review_usage(body, kind)
-      model = { 'code' => 'test\\-review', 'security' => 'test\\-security' }.fetch(kind)
+      model = { 'code' => 'test\\-review', 'security' => 'test\\-security', 'test' => 'test\\-quality' }.fetch(kind)
       expect(body).to include(model, '100', '40'), 'expected provider model and actual token usage'
       expect(body).not_to include('$', 'Estimated token cost')
     end

@@ -9,7 +9,7 @@
 Abgleich enables auto-merge or merges ready Dependabot and labeled pull requests,
 and rebases stale auto-merge branches across a GitHub account's opted-in repositories.
 Optional features provide branch cleanup, automation status, AI PR summaries,
-and AI code and security reviews with GitHub verdicts.
+and AI code, security, and test reviews with GitHub verdicts.
 GitHub performs all repository mutations; the worker never clones repositories or
 executes Git.
 
@@ -76,6 +76,7 @@ unedited PR comment as a maintainer with current write or admin access:
 | `/ab review` | Queue every configured AI review. |
 | `/ab codereview` | Queue only the configured code review. |
 | `/ab secreview` | Queue only the configured security review. |
+| `/ab testreview` | Queue only the configured test-quality review. |
 
 See [comment delivery and reactions](docs/commands.md),
 [summary behavior](docs/summaries.md), and [review behavior](docs/reviews.md).

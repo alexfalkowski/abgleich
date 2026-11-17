@@ -20,9 +20,10 @@ make features feature=features/automerge
 
 Use `make help` for commands and CI feature groups, such as
 `make features-dependabot` and `make features-summaries`.
-`make features-codereview` and `make features-secreview` select separate scenarios
+`make features-codereview`, `make features-secreview`, and
+`make features-testreview` select separate scenarios
 and example groups, including their cases in the shared `features/review` files.
-Cases exercising both commands belong to one group so they run once across CI.
+Cases exercising multiple review commands belong to one group so they run once across CI.
 CI splits code review between `make features-codereview-results` for source access,
 finding placement, and verdicts, and `make features-codereview-workflow` for the
 remaining command and lifecycle cases. The `@review-results` tag selects the first
@@ -112,3 +113,23 @@ when inspected misses demonstrate a retrieval gap.
 ## 📝 Changes
 
 Release history is available in [GitHub releases](https://github.com/alexfalkowski/abgleich/releases).
+
+## 🧪 Test-review evaluation
+
+The [test-review prompt](../internal/review/test/prompt.txt) adapts the shared
+[testing principles](../bin/skills/testing-standards/references/principles.md),
+[test-gap criteria](../bin/skills/test-gaps-find/references/find-rules.md), and
+[go-linux test guidance](https://github.com/alexfalkowski/go-linux/blob/master/AGENTS.md)
+into worker-owned static review instructions. Repository-specific assertion
+libraries and Linux fixture conventions are not universal requirements.
+Runtime reviews never load those skills as instructions.
+
+Fake-provider scenarios establish integration, not detection quality. Before
+broad use, evaluate approved PRs with known ineffective assertions, missing
+behavior coverage, isolation/lifecycle failures, and clean controls. Include
+Go and Ruby/Cucumber harnesses, production-only changes already covered by
+existing scenarios, and behavior-preserving changes that need no additional tests.
+Record expected outcomes before live calls and inspect every finding against the
+source. Follow the [code-review evaluation process](#-code-review-evaluation) for
+source discovery, misses, false positives, incomplete assessments, latency, and
+token usage. Live evaluation requires separate authorization and never runs in CI.

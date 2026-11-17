@@ -6,10 +6,11 @@ Feature packages own policy; [`github`](../internal/github/doc.go) owns discover
 remote access, and response validation. [`cmd`](../internal/cmd/module.go) composes
 modules. Package docs describe [cleanup](../internal/cleanup/doc.go),
 [status](../internal/status/doc.go), [summaries](../internal/summarise/doc.go),
-[code reviews](../internal/review/code/doc.go), and
-[security reviews](../internal/review/sec/doc.go).
+[code reviews](../internal/review/code/doc.go),
+[security reviews](../internal/review/sec/doc.go), and
+[test reviews](../internal/review/test/doc.go).
 
-[`review`](../internal/review/doc.go) composes the code and security feature modules
+[`review`](../internal/review/doc.go) composes the code, security, and test feature modules
 and their configuration, and registers `/ab review`. Every enabled command
 constructed through `workflow.Factory` joins aggregate requests automatically.
 The aggregate preserves the original comment for consent rechecks and uses
@@ -97,9 +98,9 @@ sequenceDiagram
     F->>G: Re-read comment and PR<br/>Check permissions
     alt /ab automerge or /ab status
         F->>G: Add automerge label or publish status reply
-    else /ab summarise, /ab review, /ab codereview, or /ab secreview
+    else /ab summarise, /ab review, /ab codereview, /ab secreview, or /ab testreview
         F->>F: Queue request in memory
-        opt /ab review, /ab codereview, or /ab secreview
+        opt /ab review, /ab codereview, /ab secreview, or /ab testreview
             F->>S: Wake the existing review job
         end
     end

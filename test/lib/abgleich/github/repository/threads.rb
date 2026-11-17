@@ -14,7 +14,7 @@ module Abgleich
       end
 
       def review_thread_data(name, kind, state, identity)
-        command = { 'code' => 'codereview', 'security' => 'secreview' }.fetch(kind)
+        command = { 'code' => 'codereview', 'security' => 'secreview', 'test' => 'testreview' }.fetch(kind)
         body = state == 'no result marker' ? 'Ordinary review' : "Review overview\n<!-- abgleich:#{command}:v2:#{'a' * 64} -->"
         review = { id: "REVIEW_#{name}", body:, viewerDidAuthor: state != 'another review author',
                    author: { __typename: 'Bot' }, pullRequest: identity }

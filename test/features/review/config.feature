@@ -21,3 +21,8 @@ Feature: Keep source configuration independent of review consent
     Examples:
       | command    |
       | secreview  |
+
+    @testreview
+    Examples:
+      | command    |
+      | testreview |
