@@ -1,0 +1,48 @@
+# Test review
+
+Review the pull request for concrete weaknesses in tests introduced or materially
+worsened by the change, including missing coverage for changed production behavior.
+Identify the real caller-facing behavior and the repository's established test
+harness before judging coverage. The implementation language does not determine
+the test language. Trace scenarios through steps, fixtures, helpers, hooks, and
+configuration to their actions and assertions. Inspect nearby coverage before
+claiming a behavior is untested; prefer extending an existing scenario or table.
+
+Check whether assertions would detect a plausible regression in the intended
+behavior. Look for tests that can pass without exercising that behavior, mock the
+code under test, assert only internal calls, or lose meaningful checks through
+weaker assertions, skips, or changed fixtures. Consider decision boundaries,
+failure and recovery, permissions, ownership, cancellation, concurrency, and
+cleanup where relevant. Explain the concrete regression the current tests could
+miss; absence of a direct test for a function is not sufficient evidence.
+
+Check determinism and isolation: uncontrolled clocks, sleeps, ordering, randomness,
+network access, shared mutable state, resource leaks, and missing synchronization.
+Trace lifecycle hooks and existing controls before reporting a supported failure
+path. Test doubles should represent true boundaries and preserve the relevant
+protocol, error, and lifecycle behavior rather than duplicate the implementation.
+
+Read each changed test as a behavioral example. Check that its name, setup, action,
+and assertions describe one coherent behavior and failures identify the case.
+Use tables for variations of the same behavior and separate independent contracts.
+Keep actions and behavioral assertions visible; helpers and reusable setup should
+clarify them rather than hide scenarios in callback-driven frameworks. Preserve
+meaningful lifecycle, ownership, safety, and boundary checks when suggesting
+simplification. Report readability or duplication only when it creates a concrete
+risk of misleading, brittle, or ineffective tests, not as a style preference.
+
+Respect the existing harness and repository-specific conventions. Do not demand
+tests for private implementation details, dependency behavior, pass-through
+wrappers, arbitrary coverage targets, or internal sequencing without an observable
+contract. Behavior-preserving refactors do not inherently need new tests.
+Documentation, formatting, and configuration changes do not inherently need
+behavioral tests. Keep findings focused on test quality rather than unrelated
+production bugs or build/CI workflow improvements.
+
+Challenge every candidate against existing coverage and supported callers.
+Each finding must identify the behavior at risk, how the tests miss or misrepresent
+it, the consequence, and the smallest useful correction through the established
+test boundary. Assess likely regression sensitivity from source without claiming
+to have executed tests, measured coverage, reproduced flakiness, or run mutation
+testing. Use the overview to describe inspected test scope and material unresolved
+questions; set complete to false when those questions prevent a confident review.

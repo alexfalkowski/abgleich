@@ -15,6 +15,8 @@ module Abgleich
     end
 
     def source_project_patch(path)
+      return File.read('fixtures/testreview.patch') if file_mode == 'test review' && path == 'worker_test.go'
+
       return summary_patch(path) unless path == 'lib/worker.rb'
 
       "@@ -1,2 +1,2 @@\n # ruby-repository-context\n-def worker = true\n+def worker = false\n"
@@ -37,7 +39,7 @@ module Abgleich
 
     def source_project_paths
       go = %w[main.go worker.go test.go helpers helpers/guard.go go.mod go.sum]
-      go |= Abgleich.github.summary_paths if Abgleich.github.file_mode == 'large review'
+      go |= Abgleich.github.summary_paths if ['large review', 'test review'].include?(Abgleich.github.file_mode)
       ruby = %w[lib/worker.rb Gemfile Gemfile.lock features/worker.feature features/step_definitions/worker_steps.rb]
       return ruby if Abgleich.github.file_mode == 'Ruby'
 
@@ -45,6 +47,10 @@ module Abgleich
     end
 
     def source_project_content(filename)
+      if Abgleich.github.file_mode == 'test review' && filename == 'worker_test.go'
+        return "package worker\nimport \"testing\"\nfunc TestWorker(t *testing.T) { Worker() }\n"
+      end
+
       case filename
       when 'lib/worker.rb', 'features/step_definitions/worker_steps.rb' then "# ruby-repository-context\ndef worker = false\n"
       when 'features/worker.feature' then "Feature: Worker behavior\n  Scenario: Successful work\n    Then work succeeds\n"

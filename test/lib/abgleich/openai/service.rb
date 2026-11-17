@@ -85,7 +85,7 @@ module Abgleich
       halt 200, source_review_response(payload, mode).to_json if mode&.start_with?('review source')
 
       output = payload.fetch('model') == 'test-review' ? review_output(payload, mode) : SUMMARY
-      output = review_output(payload, mode) if payload.fetch('model') == 'test-security'
+      output = review_output(payload, mode) if %w[test-security test-quality].include?(payload.fetch('model'))
       case mode
       when 'hostile prose'
         output = "The worker now processes requests predictably.\n\nChanges:\n" \

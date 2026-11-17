@@ -17,7 +17,7 @@ or Ingress.
 
 ## 📊 Telemetry
 
-Each completed job logs `job` (`automerge`, `cleanup`, `summarise`, `codereview`, or `secreview`), `duration`,
+Each completed job logs `job` (`automerge`, `cleanup`, `summarise`, `codereview`, `secreview`, or `testreview`), `duration`,
 `interval`, `overrun`, and `trigger` (`schedule` or `queue`):
 
 | Outcome | Log level | Details |
@@ -53,7 +53,7 @@ comment contents.
 `published pull request review` includes repository, PR, reviewed head SHA, and
 the submitted `event` (`COMMENT`, `APPROVE`, or `REQUEST_CHANGES`).
 
-Monitor `ai generation` for task (including `codereview` and `secreview`),
+Monitor `ai generation` for task (including `codereview`, `secreview`, and `testreview`),
 `provider` (connection name), `provider_kind` (adapter kind), model, duration,
 and successful token usage.
 `largest_tool` and `largest_tool_output_bytes` identify the largest successful tool
@@ -143,6 +143,15 @@ fails. The [code-review recovery rules](#-code-review-recovery) also apply here:
 complete discussion lookup, authenticated App results, revision-specific reuse,
 and no automatic retry of ambiguous publication. Security results use their own
 `secreview` marker, so other tasks do not suppress a security review.
+
+### 🧪 Test-review recovery
+
+Post a new `/ab testreview` after pending work is lost on restart or an attempt
+fails, or use `/ab review` to request remaining configured reviews. The
+[code-review recovery rules](#-code-review-recovery) apply, with independent
+`testreview` result markers. Disabling a feature does not clear its outstanding
+findings when another feature considers approval; a later complete clean
+assessment or human dismissal clears that feature's findings.
 
 ### 🧹 Cleanup recovery
 

@@ -27,6 +27,11 @@ Feature: Retire outdated review conversations
       | kind     |
       | security |
 
+    @testreview
+    Examples:
+      | kind |
+      | test |
+
   @codereview
   Scenario: Respect conversation ownership and enabled review namespaces
     Given AI code reviews are configured for this repository

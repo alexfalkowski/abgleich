@@ -1,17 +1,17 @@
 # frozen_string_literal: true
 
-Given(/^AI (code|security) reviews are configured for this repository$/) do |kind|
+Given(/^AI (code|security|test) reviews are configured for this repository$/) do |kind|
   Abgleich.prepare_github_webhook
   Abgleich.github.add_repository(Abgleich::GitHubRepository::DEFAULT_REPOSITORY)
   Abgleich.github.file_mode = "#{kind} review"
   Abgleich.use_config(review_command(kind))
 end
 
-Given(/^the AI (code|security) review answer has "([^"]*)"$/) do |_kind, mode|
+Given(/^the AI (code|security|test) review answer has "([^"]*)"$/) do |_kind, mode|
   Abgleich.openai.mode = "review #{mode}"
 end
 
-Given(/^the (code|security) review configuration has "([^"]*)"$/) do |kind, problem|
+Given(/^the (code|security|test) review configuration has "([^"]*)"$/) do |kind, problem|
   fixtures = {
     'no AI provider' => "#{review_command(kind)}_missing_ai",
     'no model' => "#{review_command(kind)}_missing_model",
@@ -26,7 +26,7 @@ Given(/^the (code|security) review configuration has "([^"]*)"$/) do |kind, prob
   Abgleich.use_config(fixtures.fetch(problem))
 end
 
-Given(/^the pull request has already received a (code|security) review$/) do |kind|
+Given(/^the pull request has already received a (code|security|test) review$/) do |kind|
   complete_review_request(kind)
 end
 
@@ -43,7 +43,7 @@ Given(/^a (code|security) review lookalike was posted by "([^"]*)"$/) do |kind, 
   end
 end
 
-Given(/^the (code|security) review request loses eligibility through "([^"]*)" (\w+) review preparation$/) do |_kind, change, stage|
+Given(/^the (code|security|test) review request loses eligibility through "([^"]*)" (\w+) review preparation$/) do |_kind, change, stage|
   if stage == 'before'
     Abgleich.github.collection_change = "review:#{change}"
   else
@@ -209,12 +209,13 @@ Then(/^the (code|security) review should show "([^"]*)" in its usage details$/) 
   expect(body).not_to include('$', 'Estimated token cost')
 end
 
-Then(/^the (code|security) review should identify the request and revisions$/) do |kind|
+Then(/^the (code|security|test) review should identify the request and revisions$/) do |kind|
   body = wait_for_review(kind).fetch(:body)
   pull = Abgleich.github.pull_state('contribution')
   findings = {
     'code' => ['Worker now always returns false', 'preserve its successful result'],
-    'security' => ['Untrusted query input reaches SQL execution', 'Use parameterized queries']
+    'security' => ['Untrusted query input reaches SQL execution', 'Use parameterized queries'],
+    'test' => ['The test calls Worker without asserting its result', 'Restore the behavioral assertion']
   }.fetch(kind)
   request = "#issuecomment-#{@comment_event.fetch(:comment).fetch('id')}"
   expect(body).to include(*findings)
@@ -226,7 +227,9 @@ end
 
 Then('source and findings should remain absent from worker logs') do
   sensitive = ['func Lookup(query string)', 'Untrusted query input reaches SQL execution', 'Use parameterized queries',
-               'func Worker() bool', 'Worker now always returns false', 'preserve its successful result', 'nonnative-summary-key']
+               'func TestWorker', 'The test calls Worker without asserting its result',
+               'Restore the behavioral assertion', 'func Worker() bool', 'Worker now always returns false',
+               'preserve its successful result', 'nonnative-summary-key']
   exposed = Abgleich.logs.any? { |record| sensitive.any? { |text| record.to_json.include?(text) } }
   expect(exposed).to be(false), 'expected worker logs to omit source, model output, and provider credentials'
 end
@@ -275,12 +278,12 @@ Then(/^(code|security) review collection should fail before sharing source$/) do
   expect(Abgleich.openai.requests).to be_empty, 'expected incomplete or misidentified source to remain unshared'
 end
 
-Then(/^no (code|security) review source should be shared$/) do |kind|
+Then(/^no (code|security|test) review source should be shared$/) do |kind|
   expect_review_check(kind)
   expect(Abgleich.openai.requests).to be_empty, 'expected review authorization to prevent inference'
 end
 
-Then(/^the original (code|security) review should remain without another model call$/) do |kind|
+Then(/^the original (code|security|test) review should remain without another model call$/) do |kind|
   expect_review_check(kind)
   expect(Abgleich.openai.requests.length).to eq(1), 'expected the authenticated revision-specific result to prevent another model call'
   expect(Abgleich.github.review_results.map { |reply| reply[:body] }).to eq([@existing_review_body])
@@ -294,7 +297,7 @@ Then(/^the (code|security) review should escape model markup and preserve exampl
   expect(body).not_to include('www.example.com', 'https://raw.example.com', 'reviewer@example.com')
 end
 
-Then(/^no completed (code|security) review should be posted$/) do |kind|
+Then(/^no completed (code|security|test) review should be posted$/) do |kind|
   expect_review_check(kind)
   expect(Abgleich.github.review_results.none? { |reply| reply[:body].start_with?(review_heading(kind)) }).to be(true)
 end

@@ -4,7 +4,7 @@
 
 ## 🔍 Request all configured reviews
 
-Post `/ab review` to request every enabled review, currently code and security
+Post `/ab review` to request every enabled review, currently code, security, and test
 reviews. It uses the existing [review configuration](configuration.md#-code-review-settings)
 and needs no additional setting or job. Omitted review features are skipped;
 with no reviews configured, the command receives rejection feedback.
@@ -21,7 +21,7 @@ Acceptance feedback requires every review to be queued or already complete.
 Partial acceptance retains queued work; a full queue returns HTTP 503. Reissue
 `/ab review` after recovery to request the remaining reviews. Pending and
 successful results are reused independently, including results requested through
-`/ab codereview` or `/ab secreview`. Individual commands also reuse results
+`/ab codereview`, `/ab secreview`, or `/ab testreview`. Individual commands also reuse results
 from `/ab review`. [Restart and failure recovery](operations.md#-code-review-recovery)
 still applies per feature. Summaries are requested separately with `/ab summarise`.
 
@@ -61,7 +61,7 @@ do not justify findings unless an explicit contract or trust boundary requires
 handling them. The reviewer must challenge candidates against inspected evidence
 that they are not bugs and describe the surviving trigger and prerequisites.
 
-Each review combines shared evidence/result rules with its code or security
+Each review combines shared evidence/result rules with its feature-specific
 focus. The worker selects separate Go, Ruby, and Cucumber providers from the reviewed
 repository's file tree and changed paths, including deletions. Mixed repositories
 receive every applicable guide and source tool; unrelated language support is
@@ -118,13 +118,15 @@ resolution. A review targets the analyzed head; a push after the final check can
 still make it outdated. Evaluate approved data before
 [broad use](development.md#-code-review-evaluation).
 
-Code and security reviews share one GitHub reviewer identity. Final verdict checks
+All review features share one GitHub reviewer identity. Final verdict checks
 and publication are serialized within the worker process. A clean review comments
-instead of approving while the other feature's latest decisive App assessment
-still requests changes, including across new revisions and restarts. A later
-complete clean assessment or explicit human dismissal clears that feature's
-findings; incomplete comments do not. Both commands keep independent inference
-and queues. This does not require both reviews to run before the first approval.
+instead of approving while any other feature's latest decisive App assessment
+still requests changes, including across new revisions and restarts or after that
+feature is disabled. Each feature's history is evaluated independently: a clean
+assessment or explicit human dismissal clears only that feature's findings;
+incomplete comments do not. Feature identities come from authenticated App result
+markers, so adding a review requires no verdict allowlist. Commands keep independent
+inference and queues. This does not require every review to run before the first approval.
 
 GitHub's [review and branch rules](https://docs.github.com/en/pull-requests/how-tos/review-pull-requests/reviewing-proposed-changes-in-a-pull-request)
 determine whether a request for changes blocks merging and whether an App approval
@@ -190,7 +192,7 @@ describes the inspected security scope and identifies exact unresolved facts and
 the evidence needed to resolve them. Material unresolved questions make the
 assessment incomplete; supported findings still request changes. It excludes
 speculation and unrelated existing issues.
-Both review commands use the [shared source lookup](configuration.md#-review-source-access).
+All review commands use the [shared source lookup](configuration.md#-review-source-access).
 Missing patches and unavailable source are disclosed; citations are not verified
 and code/tests are not executed. A reply
 with no supported findings does not certify security or constitute a complete audit.
@@ -204,5 +206,40 @@ and consent/branch rechecks. It uses the same source-lookup conversation bounded
 without response storage, inference retries, fallback, or a review-specific output-token cap. It uses the same
 [verdict rules](#-ai-code-reviews) and never labels,
 merges, rebases, or executes code. Successful results are identified separately
-from summaries and code reviews for each PR head/base pair; all three can run for
-the same revision. See [security-review recovery](operations.md#-security-review-recovery).
+from summaries and other reviews for each PR head/base pair; these tasks can run
+for the same revision. See [security-review recovery](operations.md#-security-review-recovery).
+
+## 🧪 AI test reviews
+
+With [test reviews configured](configuration.md#-test-review-settings), post
+`/ab testreview` to assess whether a PR's tests protect changed behavior.
+`/ab review` includes it when enabled. A new, unedited human comment from a current
+writer or administrator consents to sharing PR metadata, patches, complete changed
+files, and relevant repository source, including private source, with the selected
+AI provider. The PR must be open and non-draft with both branches in the target
+repository; forks are rejected. Topics, labels, `hold`, and auto-merge settings do
+not gate review.
+
+The reviewer inspects changed tests and concrete coverage gaps for changed
+production behavior. It traces the real caller-facing behavior through the
+repository's existing harness, fixtures, helpers, hooks, and assertions. It checks
+regression-sensitive assertions, relevant failure and boundary coverage,
+determinism, isolation, realistic test doubles, and whether scenarios clearly
+explain one coherent behavior. It searches nearby coverage before claiming a gap.
+Readability and duplication justify findings only when they create a concrete
+risk of misleading, brittle, or ineffective tests. Private-function coverage,
+arbitrary coverage percentages, implementation-only sequencing, and demands for
+new tests on behavior-preserving or documentation changes are outside its remit.
+
+These are static source assessments. Tests and mutation tests are not run,
+coverage is not measured, and suspected flakiness is not reproduced. Findings
+explain the behavior at risk, how existing tests could miss it, and the smallest
+useful correction through the established test boundary. Pure style preferences
+and unrelated production bugs or build/CI workflow improvements are excluded.
+
+The independent `testreview` job uses the same [shared review safeguards and verdict
+rules](#-ai-code-reviews), including source tools, consent/revision rechecks,
+inference budgets, safe native reviews, actual token usage, and outdated-thread
+maintenance. Its queue and revision-specific `testreview` result markers remain
+independent of other reviews. See [recovery](operations.md#-test-review-recovery)
+and [evaluation guidance](development.md#-test-review-evaluation).

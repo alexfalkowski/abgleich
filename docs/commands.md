@@ -6,7 +6,7 @@
 
 With [webhooks configured](configuration.md#-comment-webhooks), post a new PR comment containing
 exactly `/ab automerge`, `/ab status`, `/ab summarise`, `/ab review`,
-`/ab codereview`, or `/ab secreview`. Commands are case-sensitive and allow surrounding whitespace. Extra text and unknown commands
+`/ab codereview`, `/ab secreview`, or `/ab testreview`. Commands are case-sensitive and allow surrounding whitespace. Extra text and unknown commands
 are ignored without reactions. Edited comments and bot authors do not authorize
 requests. Mention-based commands are unsupported. The worker re-reads the comment
 and PR and checks the author's current write or admin permission. The App reacts
@@ -62,8 +62,7 @@ Repository notifications queue without waiting for GitHub; 204 confirms queue
 acceptance, not a completed check. Monitor event-check logs for the later outcome.
 
 Each process handles one command at a time; concurrent commands receive 503.
-Automerge and status finish within the request; summaries, code reviews, and
-security reviews queue in memory and release the command slot before inference.
+Automerge and status finish within the request; summaries and reviews queue in memory and release the command slot before inference.
 Authenticated API requests run independently, so a slow background request does
 not block command processing. Token acquisition is serialized, and the delivery
 deadline also bounds waiting for token renewal. Polling continues without webhooks;

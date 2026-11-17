@@ -181,6 +181,22 @@ jobs:
           paths:
             - secreview
     resource_class: arm.large
+  features-testreview:
+    executor: go
+    working_directory: ~/abgleich
+    steps:
+      - prepare-service
+      - run: make features-testreview
+      - store_test_results:
+          path: test/reports
+      - store_artifacts:
+          path: test/reports
+      - run: make coverage-workspace-stage partition=testreview
+      - persist_to_workspace:
+          root: /tmp/abgleich-reports
+          paths:
+            - testreview
+    resource_class: arm.large
   features-summaries:
     executor: go
     working_directory: ~/abgleich
@@ -381,6 +397,9 @@ workflows:
       - features-secreview:
           requires:
             - build-features
+      - features-testreview:
+          requires:
+            - build-features
       - features-summaries:
           requires:
             - build-features
@@ -399,6 +418,7 @@ workflows:
             - features-codereview-results
             - features-codereview-workflow
             - features-secreview
+            - features-testreview
             - features-summaries
             - features-reconciliation
             - features-worker
@@ -473,6 +493,7 @@ workflows:
             - features-codereview-results
             - features-codereview-workflow
             - features-secreview
+            - features-testreview
             - features-summaries
             - features-reconciliation
             - features-worker

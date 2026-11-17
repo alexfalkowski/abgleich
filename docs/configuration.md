@@ -46,7 +46,7 @@ follow below.
 
 Register one App with **Contents**, **Pull requests**, and **Issues** permissions
 set to **read and write**; metadata read is automatic. These cover commands,
-scheduled automation, cleanup, summaries, and both review commands, including reactions,
+scheduled automation, cleanup, summaries, and all review commands, including reactions,
 which require Issues write. For event-driven rebasing, also grant **Commit statuses: read** and
 **Checks: read** to inspect completion evidence.
 
@@ -205,7 +205,7 @@ Existing App permissions cover summaries. Read the
 ## 🔬 Code-review settings
 
 Review commands and shared source options live under one `review` mapping.
-Merge the `code`, `sec`, and source settings below into that mapping as needed.
+Merge the `code`, `sec`, `test`, and source settings below into that mapping as needed.
 [`/ab review`](reviews.md#-request-all-configured-reviews) requests every enabled
 review without an additional configuration block.
 
@@ -228,7 +228,7 @@ can increase latency and token usage and must be evaluated with the selected mod
 Omitting `review.code` disables
 the command and its job; `ai` alone enables no AI feature.
 Configured reviews require a usable AI provider or startup fails. Omit `ai`,
-`summarise`, `review.code`, and `review.sec` to run without AI. Existing App permissions cover source
+`summarise`, and `review` to run without AI. Existing App permissions cover source
 reads; no new credential is required. Read the [source-sharing notice](reviews.md#-ai-code-reviews)
 and [evaluation requirements](development.md#-code-review-evaluation) before enabling.
 
@@ -254,9 +254,31 @@ no new provider or credential is needed. Code reviews and summaries can remain
 disabled. Read the [source-sharing notice and limits](reviews.md#-ai-security-reviews) and
 [evaluation requirements](development.md#-security-review-evaluation) before enabling.
 
+## 🧪 Test-review settings
+
+Configure an [AI connection](#-ai-connections), configure
+[webhooks](#-comment-webhooks), and add this independent block for `/ab testreview`:
+
+```yaml
+review:
+  test:
+    provider: openai
+    model: gpt-6-astra
+    effort: xhigh
+    interval: 30s
+    timeout: 10m
+```
+
+`provider` and `model` are required and operator-selected. `effort` follows the
+[code-review setting](#-code-review-settings). Omit `review.test` to disable its
+command and job. Test reviews can run independently of code reviews, security
+reviews, and summaries. Configured test reviews require a usable AI provider or
+startup fails. Read the [scope and source-sharing safeguards](reviews.md#-ai-test-reviews)
+and [evaluation guidance](development.md#-test-review-evaluation) before enabling.
+
 ## 📚 Review source access
 
-Both review commands include every patch returned by GitHub and complete changed-file
+All review commands include every patch returned by GitHub and complete changed-file
 text where available. Read-only tools let the model find relevant repository files,
 inspect helpers/callers/tests, and resolve public Go and Ruby dependencies. A separate read-only tool retrieves
 official release notes for the Go language version declared in the reviewed
@@ -331,7 +353,7 @@ even if some files were returned successfully. All supplied patches are retained
 binary exclusions and public dependency/reference limitations remain explicit.
 See [review recovery](operations.md#-code-review-recovery) to reissue a failed request.
 
-To reuse validated GitHub source between code and security reviews, enable the
+To reuse validated GitHub source between review features, enable the
 existing go-service in-memory cache. Shared review-source retention supports
 `ttlcache` only:
 
@@ -398,7 +420,7 @@ review; only the requested file or directory listing is retained from each scan.
 Source is shared only after the complete archive passes validation.
 
 Ruby source access shares one **32 MiB byte budget per review**, independently for
-code and security reviews. It counts registry metadata and downloads, compressed
+each review. It counts registry metadata and downloads, compressed
 archive input, expanded data, and requested-file reads during every lookup,
 including cached rescans and discarded trailing data. This bounds decompression
 and retained source without separate file-count or excerpt limits. Known oversized downloads
@@ -475,7 +497,7 @@ This setting applies to features selecting that connection; summaries retain the
 `scheduler.interval` controls owner-wide sweeps. `scheduler.timeout` bounds a
 complete sweep, including waiting for the automerge coordinator, and each event
 check once it begins. Event checks start as the coordinator becomes available.
-Cleanup, summaries, code reviews, and security reviews use their own blocks.
+Cleanup, summaries, and each review feature use their own blocks.
 
 ```yaml
 scheduler:
@@ -510,6 +532,11 @@ scheduler:
 | `review.sec.effort` | Provider default | Optional model-supported reasoning effort. |
 | `review.sec.interval` | `30s` | Time between scheduled thread maintenance and recovery runs; manual requests wake the job immediately. |
 | `review.sec.timeout` | `2m` | Deadline for a complete security-review job run. |
+| `review.test.provider` | None | Required named AI connection when test reviews are configured. |
+| `review.test.model` | None | Required model when test reviews are configured. |
+| `review.test.effort` | Provider default | Optional model-supported reasoning effort. |
+| `review.test.interval` | `30s` | Time between scheduled thread maintenance and recovery runs; manual requests wake the job immediately. |
+| `review.test.timeout` | `2m` | Deadline for a complete test-review job run. |
 | `review.module_proxy` | `https://proxy.golang.org` | Trusted credential-free Go module source endpoint. |
 | `review.go_docs` | `https://go.dev/doc` | Trusted versioned Go release-note source or mirror. |
 | `cache.max_entries` | `1024` | Maximum entries in the configured in-memory cache. |
@@ -523,7 +550,7 @@ scheduler:
 | `ai.providers.<name>.url` | `https://api.openai.com/v1/` | Trusted provider API base URL. |
 | `transport.http.max_receive_size` | `4MB` | Incoming request body limit for all HTTP routes. |
 
-Omitted or zero auto-merge, cleanup, summary, code-review, and security-review job durations, inactivity
+Omitted or zero auto-merge, cleanup, summary, code-review, security-review, and test-review job durations, inactivity
 thresholds, webhook budgets, and GitHub and AI client timeouts use the defaults
 above. Negative schedule durations, inactivity thresholds, and HTTP client
 timeouts are invalid. AI effort must be omitted or one of `none`,
