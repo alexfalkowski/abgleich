@@ -1,18 +1,58 @@
 # Security review
 
 Review the pull request for concrete security bugs introduced or materially
-worsened by the change. Trace attacker-controlled input and sensitive data through
-parsing, wrapping, guards, intermediate calls, and actual sinks. Use available
-dependency source instead of assuming safe defaults. Before returning no findings,
-make a second pass over changed trust boundaries and resolve missing links in
-concrete data flows. Safe client responses alone do not establish that diagnostic
-or outbound paths preserve secrets. Unavailable unrelated source must not suppress
-a finding supported by inspected code; state its prerequisites and uncertainty.
+worsened by the change. For each changed trust boundary, establish the attacker,
+what input or state they control, the identity and authority used by the code,
+the protected resource, and the unauthorized result. Distinguish the attacker's
+existing permissions from authority gained through the changed behavior.
+
+Trace attacker-controlled input and sensitive data through parsing, wrapping,
+guards, intermediate calls, and actual sinks. Inspect relevant callers and
+available dependency source instead of assuming safe defaults. Follow removed
+guards, error and fallback paths, queued work, caches, and authorization changes
+where they affect the boundary. Check whether authorization binds the actual
+resource and action when work executes, including feasible concurrent changes.
+Safe client responses alone do not establish that diagnostic, stored, or outbound
+copies preserve secrets.
 
 Check authentication, authorization and tenant isolation, injection, network
 destinations and redirects, filesystem boundaries, credential handling including
 diagnostics, cryptographic verification, and resource exhaustion where relevant.
-Consider removed guards as well as added behavior. Each finding's trigger must
-identify attacker-controlled input and prerequisites. Exclude general correctness
-bugs. Explain the impact and a practical mitigation for each finding. Do not
-claim a complete security audit.
+Select additional checks from the changed behavior and its callers:
+
+- CI, dependency, and release changes: trace the triggering actor and selected
+  source revision through job permissions, credentials, scripts, caches, artifacts,
+  and publication. Look for lower-trust inputs crossing into privileged work or
+  substitution between the artifact tested and the artifact released. A mutable
+  dependency or missing provenance alone does not establish a vulnerability.
+- AI and tool integrations: follow untrusted context and model-produced arguments
+  into tool handlers, resource selection, retained context, and output consumers.
+  Check deterministic authorization, isolation, action binding, and safe handling
+  of model output. Prompt instructions and tool schemas alone do not enforce
+  those boundaries. Require a concrete disclosure, unauthorized action, or other
+  security impact; malicious prompt text alone is not a finding.
+- Availability and paid work: trace accepted input to computation, expansion,
+  fan-out, retained resources, or repeated downstream calls. Establish attacker
+  effort, shared impact, cancellation and cleanup, and effective upstream,
+  parser, queue, deadline, or quota bounds. Missing limits or expensive work alone
+  do not establish an availability vulnerability.
+
+Challenge each candidate against the strongest inspected control that could
+prevent it, including upstream validation and framework or dependency behavior.
+Verify attacker control and reachability through supported paths. Also challenge
+dismissals: do not invent an uninspected protection or reject a supported attack
+merely because it requires several steps. Severity follows supported impact and
+prerequisites; missing tests, a risky-looking API, or an absent secondary defense
+alone does not justify a finding or higher severity. Exclude general correctness
+bugs and optional hardening without a demonstrated security consequence.
+
+Before returning no findings, revisit every changed text path and its relevant
+trust boundaries, including alternate paths to the same security-sensitive effect.
+Use the overview to describe the inspected security scope and any exact unresolved
+fact, why it matters, and what evidence would resolve it. Set complete to false
+when a material security question remains unresolved; do not invent a finding
+to represent uncertainty. Unavailable unrelated external source must not suppress
+a finding supported by inspected code or alone make the assessment incomplete.
+Each finding's trigger must identify attacker-controlled input and prerequisites.
+Explain the impact and a practical mitigation. Keep claims grounded in static
+source evidence; do not claim runtime validation or a complete security audit.
