@@ -413,6 +413,28 @@ Then('the summary should show the answer without active markup or mentions') do
   body = Abgleich.github.replies.last.fetch(:body)
   expect(body).to include('&lt;script&gt;', "@\u200beveryone", '\\[click\\]\\(', '\\!\\[track\\]\\(')
   expect(body).not_to include('<script>', '@everyone', '[click](', '![track](')
+  expect(body).to include('<span>$</span>HOME', '<span>$</span>\\(value args\\)')
+  expect(body).to include("\n\n&#32;   echo <span>$</span>HOME", "\n\n&#9;echo <span>$</span>HOME")
+  expect(body).to include("\n\n&#32;   echo <span>$</span>CRLF", "\n\n&#9;echo <span>$</span>CR")
+  expect(body).not_to match(/^[ \t]/), 'expected escaped prose to avoid accidental indented code blocks'
+  prose = body.gsub(/\]\(<[^>\n]*>\)/, '').gsub('<span>$</span>', '')
+  expect(prose).not_to include('$'), 'expected literal dollars to stay outside GitHub math rendering'
+end
+
+Then('the summary should preserve complete dollar-bearing links') do
+  body = Abgleich.github.replies.last.fetch(:body)
+  links = [
+    ['https://example.invalid/$metadata', 'https://example.invalid/<span>$</span>metadata'],
+    ['https://example.invalid/$value$', 'https://example.invalid/<span>$</span>value<span>$</span>'],
+    ['http://example.invalid/items?$filter=active&$top=5#details',
+     'http://example.invalid/items?<span>$</span>filter\\=active&amp;<span>$</span>top\\=5\\#details'],
+    ['http://www.example.invalid/$metadata', 'www.example.invalid/<span>$</span>metadata'],
+    ['https://example.invalid/items($value)', 'https://example.invalid/items\\(<span>$</span>value\\)']
+  ]
+  links.each do |destination, label|
+    expect(body).to include("[#{label}](<#{CGI.escapeHTML(destination)}>)"), "expected a complete link to #{destination}"
+  end
+  expect(body).to include('](<https://example.invalid/items($value)>)\\).'), 'expected sentence punctuation outside the destination'
 end
 
 Then('the existing summary should satisfy the waiting request') do

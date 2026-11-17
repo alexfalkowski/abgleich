@@ -107,6 +107,8 @@ require an incomplete assessment.
 Confirmed binary files are outside the text review scope. **Excluded binary files**
 lists them separately; their omitted contents and patches do not prevent approval.
 Every body contains escaped model text, with links and mentions inactive.
+Dollar signs remain literal text rather than starting mathematical expressions.
+Indented model examples remain plain text instead of forming Markdown code blocks.
 Review text is published without credential redaction.
 Details identify the request, head/base SHAs, model, and actual token
 usage, or unavailable usage; no dollar costs are estimated. Missing patches are
@@ -235,6 +237,16 @@ Readability and duplication justify findings only when they create a concrete
 risk of misleading, brittle, or ineffective tests. Private-function coverage,
 arbitrary coverage percentages, implementation-only sequencing, and demands for
 new tests on behavior-preserving or documentation changes are outside its remit.
+
+The prompt asks the reviewer to inspect the repository root `.gocov` at the
+reviewed head and treat matching code as deliberately excluded from required test
+coverage, including exclusions added by the PR. It must not request additional
+tests for that code or suggest removing or narrowing exclusions to require tests.
+Patterns follow the repository's coverage tooling semantics. Excluded source stays
+available as context, and weaknesses in changed existing tests remain in scope.
+The overview describes applicable exclusions; they do not by themselves make the
+assessment incomplete. This policy applies to test reviews; code and security
+reviews retain their scope.
 
 These are static source assessments. Tests and mutation tests are not run,
 coverage is not measured, and suspected flakiness is not reproduced. Findings

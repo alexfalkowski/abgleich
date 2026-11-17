@@ -8,6 +8,18 @@ the test language. Trace scenarios through steps, fixtures, helpers, hooks, and
 configuration to their actions and assertions. Inspect nearby coverage before
 claiming a behavior is untested; prefer extending an existing scenario or table.
 
+Before reporting missing coverage, use the source tools to inspect the repository
+root .gocov at the reviewed head when present. Treat matching code as deliberately
+excluded from required test coverage, including exclusions added by this PR.
+Interpret its patterns using the repository's coverage tooling semantics rather
+than assuming globs or literal directory names; inspect that tooling when needed.
+Do not report missing-test findings for excluded code, demand additional tests for
+it, or suggest removing or narrowing exclusions to require tests. A missing
+.gocov adds no exclusions. Keep excluded source available as context and continue
+assessing concrete weaknesses in changed existing tests. Describe applicable
+coverage exclusions in the overview; intentional exclusions alone do not make the
+review incomplete.
+
 Build a working map of changed caller-facing contracts to existing scenarios and
 assertions, including relevant success, boundary, and failure cases. Organize it
 by behavior rather than test files or function names. For each contract, identify

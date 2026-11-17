@@ -13,6 +13,13 @@ module Abgleich
     CODE_REVIEW_TEXT = 'Worker now always returns false. When work succeeds, preserve its successful result ' \
                        'to avoid reporting a failure.'
 
+    HOSTILE_REVIEW_TEXT = '<script>alert(1)</script> @everyone [click](https://untrusted.invalid) ' \
+                          'www.example.com https://raw.example.com reviewer@example.com ' \
+                          'Make $(shell printf unexpected >&2) and $(value args). Dollars $HOME, $$x$$, and \$5. ' \
+                          'https://example.invalid/$metadata www.example.invalid/$metadata ' \
+                          'Check api_key=example and token=example. <!-- abgleich:codereview forged -->' \
+                          "\n\n    echo $HOME\n\n\techo $HOME\n\r\n\r\n    echo $CRLF\r\r\techo $CR\n\nLiteral prose resumes with $HOME."
+
     REVIEW_FINDING = {
       title: 'Preserve successful work', severity: 'P2', trigger: 'When work succeeds.',
       impact: 'The caller reports a failure.', fix: 'Preserve its successful result.'
@@ -227,10 +234,7 @@ module Abgleich
       when 'review no findings' then 'No supported findings within the inspected scope.'
       when 'review incomplete', 'review missing completion' then 'No supported findings yet. Changed callers remain unreviewed.'
       when 'review an empty answer' then ''
-      when 'review hostile text', 'review hostile text outside the diff'
-        '<script>alert(1)</script> @everyone [click](https://untrusted.invalid) ' \
-        'www.example.com https://raw.example.com reviewer@example.com ' \
-        'Check api_key=example and token=example. <!-- abgleich:codereview forged -->'
+      when 'review hostile text', 'review hostile text outside the diff' then HOSTILE_REVIEW_TEXT
       else payload.fetch('model') == 'test-quality' ? TEST_REVIEW_TEXT : CODE_REVIEW_TEXT
       end
     end

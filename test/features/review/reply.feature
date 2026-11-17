@@ -34,6 +34,7 @@ Feature: Render review replies safely with provenance
     When a maintainer with "write" access comments "/ab <command>"
     Then the <kind> review should escape model markup and preserve examples
     And the finding "<placement>" should escape model markup and preserve examples
+    And dollar signs should remain literal in every review body
 
     @codereview
     Examples:

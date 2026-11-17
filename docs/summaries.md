@@ -38,6 +38,8 @@ are provider-reported token counts; the worker does not estimate dollar costs
 or request billing access. Output has a 2,048-token budget; length and quality
 depend on the model. Malformed sections
 remain escaped plain text; per-line citations are neither generated nor validated.
+Dollar signs remain literal, including in URLs whose complete destinations stay
+clickable. Indented model examples remain plain text instead of Markdown code blocks.
 Inspect the diff and evaluate the model on approved PRs before widening use;
 summaries cannot establish whole-PR accuracy.
 
