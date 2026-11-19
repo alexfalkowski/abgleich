@@ -38,6 +38,11 @@ module Abgleich
     private
 
     def source_project_paths
+      if Abgleich.github.failure == 'source spread across nested directories'
+        return %w[main.go worker.go test.go helpers helpers/nested helpers/nested/guard.go helpers/nested/deeper
+                  helpers/nested/deeper/guard.go helpers-other helpers-other/guard.go go.mod go.sum]
+      end
+
       go = %w[main.go worker.go test.go helpers helpers/guard.go go.mod go.sum]
       go |= Abgleich.github.summary_paths if ['large review', 'test review'].include?(Abgleich.github.file_mode)
       ruby = %w[lib/worker.rb Gemfile Gemfile.lock features/worker.feature features/step_definitions/worker_steps.rb]

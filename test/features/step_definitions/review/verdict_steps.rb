@@ -88,6 +88,13 @@ Then(/^the (code|security|test) review decision should be "([^"]*)"$/) do |kind,
   expect_review_check(kind)
 end
 
+Then(/^the (code|security) review should fail because authorship cannot be verified$/) do |kind|
+  wait_for { Abgleich.job_logs(review_command(kind)) }.to include(
+    a_hash_including('level' => 'error', 'error' => a_string_including('review authorship returned an incomplete batch'))
+  ), "expected the #{kind} review to finish with an authorship verification failure"
+  expect(reviews_for(kind)).to be_empty, "expected no completed #{kind} review after unverified authorship"
+end
+
 Then('its decision should explain that the other review still requests changes') do
   expect(Abgleich.github.native_reviews.last.fetch(:body)).to include('Approval withheld because the other review still requests changes')
 end

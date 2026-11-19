@@ -208,6 +208,7 @@ end
 
 Then('the excluded repository path {string} should not be fetched') do |path|
   expect(Abgleich.github.source_requests).not_to include(a_hash_including(path:))
+  expect(review_source_results.join("\n")).not_to include("Source: #{path} at ")
 end
 
 Then('deleted source should be read from the reviewed base revision') do
@@ -271,6 +272,19 @@ Then('the reviewer should receive all {int} files from the directory') do |count
     expect(source).to include("directory-context for helpers/part#{index}.go"), "expected directory file #{index} without a local file cap"
   end
   expect(source).to include('directory-tail-context'), 'expected the final directory file to remain complete'
+  expect_no_automation_mutations
+end
+
+Then(/^the (code|security) reviewer should receive these complete repository files:$/) do |kind, table|
+  body = review_text(kind)
+  source = review_source_results.join("\n")
+  revision = Abgleich.github.pull_state('contribution').dig(:head, :sha)
+  table.raw.flatten.each do |path|
+    expected = "Source: #{path} at #{revision}\npackage worker\n// complete-file-context for #{path}\n" \
+               "func Worker() bool { return false }\n"
+    expect(source).to include(expected), "expected complete repository file #{path} at the reviewed head"
+    expect(body).to include("#{revision}:#{path}"), "expected #{path} in the inspected-source record"
+  end
   expect_no_automation_mutations
 end
 

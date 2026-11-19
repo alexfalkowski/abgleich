@@ -226,7 +226,7 @@ Feature: Ground review decisions in the inspected changes
     And native review authorship returns "missing results"
     And the AI code review answer has "no findings"
     When a maintainer with "write" access comments "/ab codereview"
-    Then no completed code review should be posted
+    Then the code review should fail because authorship cannot be verified
     And native review history should remain unchanged
     And exactly 2 requests should reach the AI service
 

@@ -66,7 +66,7 @@ module Abgleich
         tree: paths.map do |path|
           mode = Abgleich.github.failure == 'source behind a symbolic link' && path == 'helpers/guard.go' ? '120000' : '100644'
           mode = '160000' if path == 'bin' || (Abgleich.github.failure == 'source a submodule' && path == 'helpers/guard.go')
-          mode = '040000' if %w[helpers helpers/empty].include?(path)
+          mode = '040000' if %w[helpers helpers/empty helpers/nested helpers/nested/deeper helpers-other].include?(path)
           type = { '160000' => 'commit', '040000' => 'tree' }.fetch(mode, 'blob')
           content = source_content(path)
           { path:, mode:, type:, sha: path == 'bin' ? 'b' * 40 : source_digest(content), size: content.bytesize }
