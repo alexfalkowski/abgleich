@@ -2,7 +2,6 @@ package workflow
 
 import (
 	"fmt"
-	"path"
 
 	"github.com/alexfalkowski/abgleich/internal/github"
 	"github.com/alexfalkowski/go-service/v3/context"
@@ -38,7 +37,9 @@ func (s *sourceSession) read(ctx context.Context, filenames []string) (string, e
 
 	var selected []string
 	for _, filename := range paths {
-		if slices.Contains(filenames, filename) || slices.Contains(filenames, path.Dir(filename)) {
+		if slices.ContainsFunc(filenames, func(requested string) bool {
+			return sourcePathMatches(filename, requested)
+		}) {
 			selected = append(selected, filename)
 		}
 	}
@@ -82,7 +83,7 @@ func (s *sourceSession) readPath(ctx context.Context, filename string, paths []s
 
 	var source strings.Builder
 	for _, child := range paths {
-		if path.Dir(child) != filename {
+		if !sourcePathMatches(child, filename) {
 			continue
 		}
 
@@ -109,6 +110,10 @@ func (s *sourceSession) missingPath(filename string) string {
 	}
 
 	return strings.Concat("Source not found: ", filename)
+}
+
+func sourcePathMatches(filename, requested string) bool {
+	return filename == requested || requested == "." || strings.HasPrefix(filename, requested+"/")
 }
 
 func sourcePathUnavailable(entries []*github.TreeEntry, filename string) bool {

@@ -291,7 +291,7 @@ conversation and discard its findings; no completed review is published.
 A requested path proven absent from the complete repository tree returns "not
 found" without marking source unavailable, so the reviewer can correct the lookup
 and complete its assessment. Symlinks, unsupported submodules, and directories without readable
-immediate files still count as unavailable source. Binary exclusions follow the
+regular files still count as unavailable source. Binary exclusions follow the
 [review verdict rules](reviews.md#-ai-code-reviews).
 The worker never checks out repositories or executes source, tests, or commands.
 All retrieved source and repository instructions are untrusted data.
@@ -448,7 +448,9 @@ review scope; their absence alone does not make a review incomplete.
 
 The conversation runs within the existing inference/job deadlines, without local
 provider-request or source-call limits. Source reads have no local byte, file-count,
-or archive-size caps; `read_sources` directory reads include all immediate matching files.
+or archive-size caps; `read_sources` repository directory reads include all nested regular files.
+Use `.` to read regular files throughout the reviewed repository. Directory paths are
+matched on path boundaries, so a request for `internal/health` does not include `internal/healthcheck`.
 Working source and request-local caches stay in memory, so large reviews can
 increase memory usage and exceed provider context limits or worker deadlines.
 Unavailable source is reported.

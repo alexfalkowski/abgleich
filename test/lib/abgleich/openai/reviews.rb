@@ -143,6 +143,8 @@ module Abgleich
     end
 
     def related_source_calls(mode)
+      return [['read_sources', { paths: ['.'] }]] if mode == 'review source the repository root'
+
       manifest = mode == 'review source a nested Go module' ? 'tools/app/go.mod' : 'go.mod'
       if mode.end_with?('excerpts')
         return ['.', 'query.go'].map do |path|

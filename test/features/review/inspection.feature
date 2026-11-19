@@ -91,6 +91,40 @@ Feature: Inspect related repository files and directories
     And the reviewer should receive complete files at the reviewed revisions
     And the reviewer should receive all 3 files from the directory
 
+  Scenario Outline: Approve after inspecting files nested beneath a source directory
+    Given related source is "spread across nested directories"
+    And the reviewer needs "a large directory"
+    When a maintainer with "write" access comments "/ab <command>"
+    Then the <kind> reviewer should receive these complete repository files:
+      | helpers/nested/guard.go        |
+      | helpers/nested/deeper/guard.go |
+    And the <kind> review decision should be "APPROVED"
+    And the <kind> review should have no context limitations
+    And the excluded repository path "helpers-other/guard.go" should not be fetched
+
+    @codereview
+    Examples:
+      | command    | kind |
+      | codereview | code |
+
+    @secreview
+    Examples:
+      | command   | kind     |
+      | secreview | security |
+
+  @codereview
+  Scenario: Inspect nested files from the repository root
+    Given related source is "spread across nested directories"
+    And the reviewer needs "the repository root"
+    When a maintainer with "write" access comments "/ab codereview"
+    Then the code reviewer should receive these complete repository files:
+      | worker.go                     |
+      | helpers/nested/guard.go        |
+      | helpers/nested/deeper/guard.go |
+      | helpers-other/guard.go         |
+    And the code review decision should be "APPROVED"
+    And the code review should have no context limitations
+
   Scenario Outline: Complete a review after correcting a nonexistent repository path
     Given the reviewer needs "<lookup>"
     When a maintainer with "write" access comments "/ab <command>"
