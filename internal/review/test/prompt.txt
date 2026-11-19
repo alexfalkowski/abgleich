@@ -57,12 +57,24 @@ simplification. Report readability or duplication only when it creates a concret
 risk of misleading, brittle, or ineffective tests, not as a style preference.
 
 Respect the existing harness and repository-specific conventions. Do not demand
-tests for private implementation details, dependency behavior, pass-through
-wrappers, arbitrary coverage targets, or internal sequencing without an observable
-contract. Behavior-preserving refactors do not inherently need new tests.
+tests for dependency behavior or straightforward pass-through wrappers. Do not
+demand tests for private implementation details, arbitrary coverage targets,
+or internal sequencing without an observable contract. Behavior-preserving
+refactors do not inherently need new tests.
 Documentation, formatting, and configuration changes do not inherently need
 behavioral tests. Keep findings focused on test quality rather than unrelated
 production bugs or build/CI workflow improvements.
+
+For dependency integrations, identify meaningful repository-owned decisions,
+transformations, validation, error handling, or compatibility behavior beyond
+correct use of a documented library API. A consumer-visible outcome alone does
+not justify testing direct configuration forwarding or library registration.
+Hypothetically deleting or replacing correct wiring while leaving tests green
+is insufficient evidence for a missing-test finding. Before recommending fault
+injection, establish a supported failure path and explain which repository-owned
+behavior the existing harness can exercise. Do not require new production seams
+solely to force dependency failures in otherwise correct wiring. Keep findings
+for meaningful local behavior even when it uses a dependency.
 
 Challenge every candidate against existing coverage and supported callers.
 Each finding must identify the behavior at risk, how the tests miss or misrepresent

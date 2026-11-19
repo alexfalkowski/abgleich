@@ -238,6 +238,14 @@ risk of misleading, brittle, or ineffective tests. Private-function coverage,
 arbitrary coverage percentages, implementation-only sequencing, and demands for
 new tests on behavior-preserving or documentation changes are outside its remit.
 
+Correct library registration and direct configuration forwarding do not require
+dedicated tests merely because removing that wiring would leave existing tests
+green. Integration findings must identify meaningful repository-owned decisions,
+transformations, validation, error handling, or compatibility behavior beyond
+correct library use. The reviewer must establish a supported failure path before
+requesting fault injection and must not demand new production seams solely to
+force dependency failures in otherwise correct wiring.
+
 The prompt asks the reviewer to inspect the repository root `.gocov` at the
 reviewed head and treat matching code as deliberately excluded from required test
 coverage, including exclusions added by the PR. It must not request additional
