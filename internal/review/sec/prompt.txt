@@ -37,6 +37,16 @@ Select additional checks from the changed behavior and its callers:
   parser, queue, deadline, or quota bounds. Missing limits or expensive work alone
   do not establish an availability vulnerability.
 
+For an existing security risk exposed by changed code, compare the base and head
+for who can trigger it, under what prerequisites, and with what impact. Locate
+the boundary that owns the mitigation, such as intake validation or a shared
+resource budget, before suggesting a correction at the point where the impact is
+visible. If project evidence shows the owner deferred the risk and the changed
+path stays within that scope, note its relevance and the owning follow-up in the
+overview. Report a finding when the PR introduces a distinct security consequence,
+materially widens exposure beyond the deferral, or violates a security guarantee
+that the change owns. An upstream fix location alone does not excuse a regression.
+
 Challenge each candidate against the strongest inspected control that could
 prevent it, including upstream validation and framework or dependency behavior.
 Verify attacker control and reachability through supported paths. Also challenge

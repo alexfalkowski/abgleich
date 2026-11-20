@@ -82,8 +82,10 @@ location, when supplied. Each finding has a short 🐛 title with explicit sever
 🔎 **Trigger**, 💥 **Impact**, and 🛠️ **Suggested fix** paragraphs. The worker
 renders these labels and escapes each model-provided field. Security-review
 triggers include attacker-controlled input and prerequisites. A review with no
-supported findings still publishes its overview. The worker selects the verdict
-from the structured result:
+supported findings still publishes its overview. Review prompts reserve findings
+for issues the PR should address. Relevant concerns that belong to separate work
+can appear as advisory follow-ups in the overview and do not affect the verdict.
+The worker selects the verdict from the structured result:
 
 | Assessment | GitHub verdict |
 | --- | --- |
@@ -188,6 +190,12 @@ checks for tool authority, context isolation, and output handling; availability
 checks require an input-to-cost path and shared impact after accounting for
 existing bounds. These checks are selected from the changed behavior and its callers.
 
+For a known risk, the reviewer checks what changed in reachability and impact,
+which boundary owns mitigation, and whether a documented deferral covers the new
+path. Risks within that scope can appear as advisory follow-ups. A new security
+consequence, exposure beyond that scope, or a security guarantee broken by the PR
+can still warrant a finding.
+
 The reviewer challenges both suspected findings and assumed protections. Missing
 tests, a risky-looking API, malicious prompt text, or an absent secondary defense
 alone does not establish a vulnerability or increase severity. The overview
@@ -237,6 +245,12 @@ Readability and duplication justify findings only when they create a concrete
 risk of misleading, brittle, or ineffective tests. Private-function coverage,
 arbitrary coverage percentages, implementation-only sequencing, and demands for
 new tests on behavior-preserving or documentation changes are outside its remit.
+
+Missing-test findings identify an established test layer that can exercise the
+regression or cite a PR requirement for automated coverage at a new layer.
+Other gaps that require new test infrastructure, such as a browser runner for
+an HTTP-only suite, are advisory follow-ups. Reported manual checks can provide
+validation evidence while leaving a gap in automated regression coverage.
 
 Correct library registration and direct configuration forwarding do not require
 dedicated tests merely because removing that wiring would leave existing tests
