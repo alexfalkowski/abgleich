@@ -66,6 +66,8 @@ and never run in CI. Retain the complete inputs, lookup transcripts, raw answers
 and grading notes so the results can be inspected and reproduced.
 Before relying on approvals, measure false approvals on known faulty changes,
 missed high-severity bugs, and false requests for changes on clean controls.
+When evaluating approval for P3-only reviews, include P3-only controls and
+count material findings undergraded as P3 against independently assigned grades.
 Include incomplete-context cases and caller/dependency bugs requiring automatic
 source discovery. Re-evaluate after model, prompt, or source-selection changes;
 fake-provider scenarios establish verdict integration only.

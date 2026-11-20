@@ -80,7 +80,7 @@ module Abgleich
         'the end of the large change' => 'main.go-patch-end',
         'the change to main.go' => 'File: main.go', 'the change to test.go' => 'File: test.go',
         'the updated Worker implementation' => 'func Worker() bool { return false }',
-        'the updated Lookup implementation' => 'func Lookup(query string)'
+        'the updated Lookup implementation' => 'func Lookup(query string)', 'the shared tooling patch' => "+Subproject commit #{'b' * 40}"
       }.fetch(description)
     end
 

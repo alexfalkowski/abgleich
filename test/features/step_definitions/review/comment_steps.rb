@@ -166,10 +166,10 @@ Then('each inline finding should separate its title, trigger, impact, and sugges
   BODY
 end
 
-Then('its overview should retain the finding at the unavailable location') do
+Then('the review overview should retain the finding outside the diff at {string}') do |location|
   body = Abgleich.github.native_reviews.last.fetch(:body).delete('\\')
   expect(body).to include(<<~BODY)
-    📍 **Location unavailable on the diff:** renamed.go:3 (RIGHT).
+    📍 **Location unavailable on the diff:** #{location}.
 
     🐛 **P2 · Preserve successful work**
 
@@ -190,7 +190,7 @@ Then('no native review should be submitted') do
 end
 
 Then('native review history should remain unchanged') do
-  expect(Abgleich.github.native_reviews).to eq(@native_review_history), 'expected no new review after incomplete history'
+  expect(Abgleich.github.native_reviews).to eq(@native_review_history), 'expected no changes to native review history'
 end
 
 Then('author checks should stay within the history request budget') do

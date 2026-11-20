@@ -138,6 +138,19 @@ Feature: Inspect shared tooling pinned by a submodule
       | a submodule directory |
 
   @codereview
+  Scenario: Withhold approval for low-severity findings while changed shared tooling is unread
+    Given shared tooling is available from the submodule URL "git@github.com:alexfalkowski/bin.git"
+    And the contribution updates the shared tooling submodule
+    And the AI code review answer has "low-severity findings"
+    When a maintainer with "write" access comments "/ab codereview"
+    Then the code reviewer should receive "the shared tooling patch"
+    And the code review decision should be "COMMENTED"
+    And the code review assessment should be "Review completed with limitations"
+    And the code review should identify "bin (regular file unavailable)" before its overview
+    And the review overview should show the low-severity finding at "main.go:2 (RIGHT)"
+    And the incomplete review should have no success marker
+
+  @codereview
   Scenario: Preserve a missing patch limitation after inspecting changed shared tooling
     Given shared tooling is available from the submodule URL "git@github.com:alexfalkowski/bin.git"
     And the contribution updates the shared tooling submodule

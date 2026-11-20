@@ -75,10 +75,11 @@ deploying, and inspecting live services are outside their scope. Lack of executi
 alone does not make a review unfinished; material unresolved source gaps still do.
 
 The App submits one native review with an overview and a separate inline
-conversation for each finding that can be placed on the supplied diff. Findings
-without a reliable diff location remain in the overview with their claimed
-location, when supplied. Each finding has a short 🐛 title with explicit severity
-(`P0` critical, `P1` high, `P2` medium, or `P3` low), followed by separate
+conversation for each P0, P1, or P2 finding that can be placed on the supplied
+diff. The overview lists P3 findings and findings without reliable diff
+placement, with their reported location when supplied. Each finding has a short
+🐛 title with explicit severity (`P0` critical, `P1` high, `P2` medium, or `P3` low),
+followed by separate
 🔎 **Trigger**, 💥 **Impact**, and 🛠️ **Suggested fix** paragraphs. The worker
 renders these labels and escapes each model-provided field. Security-review
 triggers include attacker-controlled input and prerequisites. A review with no
@@ -89,19 +90,25 @@ The worker selects the verdict from the structured result:
 
 | Assessment | GitHub verdict |
 | --- | --- |
-| One or more supported findings, including overview-only findings | `REQUEST_CHANGES` |
-| No findings, high-confidence model completion, and no missing text patches or unavailable repository source | `APPROVE` |
-| No findings with incomplete investigation or missing context | `COMMENT`; approval withheld |
+| Any P0, P1, or P2 finding, including overview-only findings | `REQUEST_CHANGES` |
+| Only P3 findings or no findings, with model-reported completion and no missing text patches or unavailable repository source | `APPROVE` |
+| Only P3 findings or no findings, with incomplete investigation or missing required context | `COMMENT` (approval withheld) |
+
+The model assigns severity from the consequence of a supported trigger. P3
+covers localized defects or test gaps with limited consequences. P2 covers
+material failures of supported behavior and test gaps that could let such
+failures pass. If missing evidence could move a finding across this boundary,
+the prompt tells the model to report the review as incomplete.
 
 The overview shows the worker's assessment and decision separately from model
 prose, with ✅ for approval, ❗ for requested changes, and ⚠️ for comments.
-With no findings, **Review unfinished** means the model explicitly reports that
+**Review unfinished** means the model explicitly reports that
 it did not finish. **Review completed with limitations** means the model reports
 completion but missing patches or unavailable repository source limit the assessment. A
 **Limitations** list identifies each missing patch and unavailable repository source. Both
 outcomes withhold approval, carry no successful-result marker, and allow a new
-manual request on the same revisions. Findings still request changes when other
-source is unavailable. Model completion is a self-report, not proof of coverage.
+manual request on the same revisions. P0 through P2 findings still request
+changes when other source is unavailable. Model completion is a self-report.
 **External source notes** disclose unavailable dependencies and language references
 separately. These gaps alone do not prevent approval when the reviewer has high
 confidence in the changed repository code. Material unresolved questions still
@@ -116,7 +123,8 @@ Details identify the request, head/base SHAs, model, and actual token
 usage, or unavailable usage; no dollar costs are estimated. Missing patches are
 disclosed, along with the source actually inspected and any unavailable reads.
 Citations are not verified, and code/tests are not executed. Findings may be incorrect
-or incomplete; an approval records no supported findings within the inspected scope.
+or incomplete. An approval indicates the review reported no P0, P1, or P2
+findings in the inspected scope.
 Reviews never label, merge, or rebase. Open inline
 conversations can block merging when the repository requires conversation
 resolution. A review targets the analyzed head; a push after the final check can
@@ -124,12 +132,13 @@ still make it outdated. Evaluate approved data before
 [broad use](development.md#-code-review-evaluation).
 
 All review features share one GitHub reviewer identity. Final verdict checks
-and publication are serialized within the worker process. A clean review comments
-instead of approving while any other feature's latest decisive App assessment
+and publication are serialized within the worker process. An approval-eligible
+review publishes a comment while any other feature's latest decisive App assessment
 still requests changes, including across new revisions and restarts or after that
-feature is disabled. Each feature's history is evaluated independently: a clean
-assessment or explicit human dismissal clears only that feature's findings;
-incomplete comments do not. Feature identities come from authenticated App result
+feature is disabled. Each feature's history is evaluated independently. A
+complete assessment that meets the severity and context requirements for
+approval or an explicit human dismissal clears that feature's request for
+changes. Feature identities come from authenticated App result
 markers, so adding a review requires no verdict allowlist. Commands keep independent
 inference and queues. This does not require every review to run before the first approval.
 
@@ -201,8 +210,8 @@ tests, a risky-looking API, malicious prompt text, or an absent secondary defens
 alone does not establish a vulnerability or increase severity. The overview
 describes the inspected security scope and identifies exact unresolved facts and
 the evidence needed to resolve them. Material unresolved questions make the
-assessment incomplete; supported findings still request changes. It excludes
-speculation and unrelated existing issues.
+assessment incomplete. Supported P0 through P2 findings still request changes.
+The security review excludes speculation and unrelated existing issues.
 All review commands use the [shared source lookup](configuration.md#-review-source-access).
 Missing patches and unavailable source are disclosed; citations are not verified
 and code/tests are not executed. A reply
