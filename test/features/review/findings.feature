@@ -36,7 +36,7 @@ Feature: Validate and place review findings
       | path       | line | side  |
       | renamed.go | 2    | RIGHT |
       | worker.go  | 2    | LEFT  |
-    And its overview should retain the finding at the unavailable location
+    And the review overview should retain the finding outside the diff at "renamed.go:3 (RIGHT)"
 
     @codereview
     Examples:

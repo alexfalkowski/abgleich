@@ -193,9 +193,10 @@ Feature: Reuse authenticated results for the reviewed revisions
 
     @codereview
     Examples:
-      | kind | command    | answer          | decision          |
-      | code | codereview | no findings     | APPROVED          |
-      | code | codereview | inline findings | CHANGES_REQUESTED |
+      | kind | command    | answer                | decision          |
+      | code | codereview | no findings           | APPROVED          |
+      | code | codereview | low-severity findings | APPROVED          |
+      | code | codereview | inline findings       | CHANGES_REQUESTED |
 
     @secreview
     Examples:

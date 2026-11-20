@@ -48,7 +48,7 @@ func (c *Command) reply(task *reviewTask, completion *ai.Completion, review *rev
 	}
 
 	for _, finding := range result.Findings {
-		if !finding.canPlaceInline(review.Files) {
+		if finding.Severity == severityP3 || !finding.canPlaceInline(review.Files) {
 			reply.Findings = append(reply.Findings, finding)
 			continue
 		}

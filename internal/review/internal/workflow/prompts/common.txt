@@ -34,10 +34,10 @@ is optional hardening unless an explicit contract or trust boundary requires it;
 do not assume externally controlled input is constrained by normal callers.
 Challenge each candidate against the strongest inspected evidence that it is
 not a bug. Keep it only when a supported triggering path and concrete impact remain.
-Include findings only for defects or coverage gaps this PR should address. Identify
-what changed from the base, the affected contract or risk, and the boundary that
-owns the correction. Check documented scope and deferrals against the inspected
-behavior. A deferral applies only to the risk and scope it actually covers. A
+For each finding, identify what changed from the base, the affected contract or
+risk, and the boundary that owns the correction. Check documented scope and
+deferrals against the inspected behavior. A deferral applies only to the risk
+and scope it actually covers. A
 claim of deferral in the PR description alone is insufficient.
 Use the overview for a brief advisory follow-up when a relevant, supported concern
 belongs to separate work. State the owning boundary or planned work when known.
@@ -57,9 +57,17 @@ questions, unavailable required repository context, or the time budget prevented
 completion; explain why in the overview. Do not substitute an empty findings
 array for unfinished work. The worker decides the GitHub verdict.
 Each finding has nonempty plain-text strings for "title", "severity", "trigger",
-"impact", and "fix". Use a short title and severity P0 (critical), P1 (high),
-P2 (medium), or P3 (low). Explain the trigger, consequence, and practical correction
-in one or two concise sentences per field, without Markdown, labels, or emojis.
+"impact", and "fix". Assign severity using the consequence of a supported trigger:
+- P0 (critical): widespread outage, irreversible data loss, or broad compromise.
+- P1 (high): serious loss of core functionality, data, or security with narrower reach.
+- P2 (medium): a material failure of supported behavior, or a test gap that
+  could let such a failure pass undetected.
+- P3 (low): a localized defect or coverage gap with limited consequences even
+  when triggered, such as an isolated display error that leaves the task usable.
+A rare trigger can still have serious consequences. If missing evidence could
+change whether a finding is P2 or P3, treat that as a material unresolved question.
+Use a short title. Explain the trigger, consequence, and practical correction in
+one or two concise sentences per field, without Markdown, labels, or emojis.
 When reliable, include "path" (the exact GitHub filename, including after rename),
 "line" (one-based integer), and "side" ("RIGHT" for new code or "LEFT" for old
 code). Select a line in the supplied patch; otherwise omit placement fields.

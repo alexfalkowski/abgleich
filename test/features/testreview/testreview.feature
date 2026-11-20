@@ -109,6 +109,22 @@ Feature: Review whether tests protect changed behavior
       | code     | test     | security | secreview  |
       | code     | security | test     | testreview |
 
+  Scenario: Preserve security findings after a low-severity code reassessment
+    Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
+    And all three review commands are enabled
+    And the pull request has these earlier review assessments:
+      | kind     | answer          |
+      | security | inline findings |
+      | code     | inline findings |
+    And the reviewed contribution has new commits
+    And the pull request has these earlier review assessments:
+      | kind | answer                |
+      | code | low-severity findings |
+    And the AI test review answer has "no findings"
+    When a maintainer with "write" access comments "/ab testreview"
+    Then the test review decision should be "COMMENTED"
+    And its decision should explain that the other review still requests changes
+
   Scenario: Preserve findings after their review feature is disabled
     Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
     And all three review commands are enabled

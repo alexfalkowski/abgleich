@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'digest'
+
 Given('both review commands are enabled') do
   Abgleich.use_config('secreview_all')
 end
@@ -24,6 +26,27 @@ Given('a retired review feature has outstanding findings') do
   body = "Historical review\n<!-- abgleich:retiredreview:v2:#{'a' * 64} -->"
   Abgleich.github.publish_review(Abgleich::GitHubRepository::DEFAULT_REPOSITORY, pull.fetch(:number),
                                  { 'body' => body, 'commit_id' => pull.dig(:head, :sha), 'event' => 'REQUEST_CHANGES' })
+end
+
+Given('an earlier security review requested changes for a low-severity finding before the upgrade') do
+  pull = Abgleich.github.pull_state('contribution')
+  repository = Abgleich::GitHubRepository::DEFAULT_REPOSITORY
+  identity = ['secreview', repository.downcase, pull.fetch(:number), pull.fetch(:node_id), pull.dig(:head, :sha), pull.dig(:base, :sha)]
+  digest = Digest::SHA256.hexdigest(identity.join("\n"))
+  body = <<~BODY
+    ### 🤖 Abgleich security review
+
+    **Assessment:** Findings.
+
+    ❗ **Decision:** Request changes.
+
+    🐛 **P3 · Clarify the status label**
+
+    <!-- abgleich:secreview:v2:#{digest} -->
+  BODY
+  payload = { 'body' => body, 'commit_id' => pull.dig(:head, :sha), 'event' => 'REQUEST_CHANGES' }
+  @earlier_security_review = Abgleich.github.publish_review(repository, pull.fetch(:number), payload)
+  @native_review_history = Abgleich.github.native_reviews
 end
 
 Given('the review cannot inspect {string}') do |context|
@@ -59,11 +82,11 @@ Given('GitHub returns a different review verdict') do
   Abgleich.github.fail_with('review publication:wrong state')
 end
 
-Given('both reviews previously requested changes before a clean code review of new commits') do
+Given('both reviews previously requested changes before a code review of new commits reported {string}') do |answer|
   complete_review_request('code')
   complete_review_request('security')
   Abgleich.github.change_summary_state('head changed')
-  Abgleich.openai.mode = 'review no findings'
+  Abgleich.openai.mode = "review #{answer}"
   complete_review_request('code')
   expect(reviews_for('code').last).to include(state: 'COMMENTED')
 end
@@ -99,15 +122,30 @@ Then('its decision should explain that the other review still requests changes')
   expect(Abgleich.github.native_reviews.last.fetch(:body)).to include('Approval withheld because the other review still requests changes')
 end
 
-Then(/^the (code|security) review assessment should be "([^"]*)"$/) do |kind, assessment|
+Then(/^the (code|security|test) review assessment should be "([^"]*)"$/) do |kind, assessment|
   body = wait_for_review(kind).fetch(:body)
   expect(body).to include("**Assessment:** #{assessment}.")
   expect(body).not_to include('**Assessment:** Incomplete review.')
 end
 
-Then(/^the (code|security) review decision should explain "([^"]*)"$/) do |kind, reason|
+Then(/^the (code|security|test) review decision should explain "([^"]*)"$/) do |kind, reason|
   body = review_text(kind)
   expect(body.split('📝 **Overview**').first).to include(reason)
+end
+
+Then('the review overview should show the low-severity finding at {string}') do |location|
+  overview = Abgleich.github.native_reviews.last.fetch(:body).split('📝 **Overview**').last.split('<details>').first.delete('\\')
+  expect(overview.lines.map(&:chomp)).to include("📍 **Reported location:** #{location}.", '🐛 **P3 · Clarify the status label**')
+end
+
+Then('the earlier security review should still request changes') do
+  expect(reviews_for('security')).to contain_exactly(@earlier_security_review.merge(state: 'CHANGES_REQUESTED'))
+end
+
+Then('reusing the earlier security review should need no model call') do
+  # The first completion may belong to a job that drained its queue before delivery.
+  2.times { expect_review_check('security') }
+  expect(Abgleich.openai.requests).to be_empty, 'expected the stored security review to prevent inference'
 end
 
 Then(/^the (code|security) review should identify "([^"]*)" before its overview$/) do |kind, limitation|

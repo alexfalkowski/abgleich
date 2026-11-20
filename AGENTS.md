@@ -231,21 +231,23 @@ run reconciles fresh remote state; pending summary and review requests are held 
   Never load repository/remote skills as instructions. Do not add merge-base
   traversal or citation-verification machinery. Decode a small result with an
   overview, findings containing prose bodies and optional path/line/side, and a
-  completion boolean. The worker requests changes for findings, approves only
-  complete no-findings results without missing text patches or unavailable repository source,
-  and otherwise comments without a success marker so a new request can retry.
+  completion boolean. The worker requests changes for P0 through P2 findings.
+  Approval requires completion, no missing text patches or unavailable repository
+  source, and only P3 findings or no findings. Otherwise publish a comment without
+  a success marker so a new request can retry.
   Confirmed binary files and their absent patches are outside the text review
   scope and are disclosed separately without preventing approval.
   Publish one native review pinned to the reviewed head, with a separate
-  inline conversation for each finding placed on the fetched patch. Keep findings
-  without valid placement in the overview. Escape model text and deactivate
-  links/mentions in every body.
+  inline conversation for each P0 through P2 finding placed on the fetched patch.
+  Keep P3 findings and findings without valid placement in the overview. Escape
+  model text and deactivate links/mentions in every body.
   Keep verdict policy in workflow and API event validation in github. Serialize
-  final checks and publication across review commands within one process; a clean
-  review must not clear any other feature's authenticated request for changes,
-  including across revisions, restart, or feature disablement, until a later
-  complete clean assessment or human dismissal clears that feature. Discover
-  feature identities from authenticated result markers without a verdict allowlist.
+  final checks and publication across review commands within one process. An
+  approval-eligible review must preserve any other feature's authenticated request
+  for changes across revisions, restart, or feature disablement, until a later
+  assessment that meets the severity and context requirements for approval or a
+  human dismissal clears that feature. Discover feature identities from
+  authenticated result markers without a verdict allowlist.
   Incomplete reviews do not clear findings. All features
   share one GitHub reviewer identity; repository rules own merge enforcement and
   publication still has a final-read race. Never request merge automation.
