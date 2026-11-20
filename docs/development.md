@@ -104,6 +104,10 @@ findings, and grading notes out of model input. Record false approvals, missed
 vulnerabilities, false findings, incomplete assessments, source lookups, latency,
 and actual token usage separately for each prompt. Inspect every reported finding
 against the source rather than counting any nonempty answer as a detection.
+Include a known risk that appears through a new caller within a documented
+deferral, paired with a change that materially widens exposure beyond it. Check
+whether the review identifies the owning boundary and keeps only the uncovered
+regression in findings.
 Retain the complete inputs, prompt and source revisions, lookup transcripts,
 raw responses, and grading notes outside version control. Public historical cases
 may be familiar to the model; authored examples and a small comparison establish
@@ -129,6 +133,10 @@ broad use, evaluate approved PRs with known ineffective assertions, missing
 behavior coverage, isolation/lifecycle failures, and clean controls. Include
 Go and Ruby/Cucumber harnesses, production-only changes already covered by
 existing scenarios, and behavior-preserving changes that need no additional tests.
+Include an HTTP-only suite with both missing server-rendered assertions and a
+browser-only recovery path checked manually. Expect findings for the actionable
+assertions and an advisory note for the browser coverage gap. Pair it with an
+established browser suite that can cover the regression.
 Include `.gocov` exclusions already present or added by the PR, regex patterns,
 and changes mixing excluded code with genuine test gaps in other paths. Expect no
 missing-test demands for excluded code, while retaining findings for ineffective

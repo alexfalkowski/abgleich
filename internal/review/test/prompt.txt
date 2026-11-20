@@ -61,6 +61,17 @@ tests for dependency behavior or straightforward pass-through wrappers. Do not
 demand tests for private implementation details, arbitrary coverage targets,
 or internal sequencing without an observable contract. Behavior-preserving
 refactors do not inherently need new tests.
+For a missing-test finding, prefer the existing test layer and explain how an
+established scenario or entrypoint can exercise the regression. Check relevant
+dependencies, runner configuration, and nearby tests for actual support. For
+example, an HTTP scenario can assert rendered HTML and submit form values, but
+cannot verify browser JavaScript by parsing HTML. Keep findings for distinct,
+material gaps that the existing harness can cover.
+If exercising a behavior needs a new runtime, test framework, or CI setup, put
+the gap in the overview as an advisory follow-up unless a requirement for this
+PR specifically calls for automated coverage at that layer. Cite that requirement
+when reporting the gap as a finding. Attribute reported manual validation and
+describe what remains unverified by the automated suite.
 Documentation, formatting, and configuration changes do not inherently need
 behavioral tests. Keep findings focused on test quality rather than unrelated
 production bugs or build/CI workflow improvements.
