@@ -1,6 +1,6 @@
 ### 🤖 Abgleich {{.Title | lower}}
 
-**Assessment:** {{.Assessment}}
+{{assessment .Assessment}}
 
 {{if eq .Event "APPROVE"}}✅{{else if eq .Event "REQUEST_CHANGES"}}❗{{else}}⚠️{{end}} **Decision:** {{.Decision}}
 

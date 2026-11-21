@@ -22,7 +22,7 @@ type Result struct {
 }
 
 // Repository exposes revision-pinned source and per-review inspection records.
-// Workflow checks current consent before every provider tool invocation.
+// The source session applies the workflow's guard before every provider tool invocation.
 type Repository interface {
 	// Files lists regular paths at the reviewed head for manifest context.
 	Files(ctx context.Context) ([]string, error)

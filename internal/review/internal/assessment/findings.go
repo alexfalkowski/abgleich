@@ -1,7 +1,8 @@
-package workflow
+package assessment
 
 import (
 	"github.com/alexfalkowski/abgleich/internal/github"
+	"github.com/alexfalkowski/abgleich/internal/review/internal/history"
 	"github.com/alexfalkowski/go-service/v3/encoding/json"
 	"github.com/alexfalkowski/go-service/v3/errors"
 	"github.com/alexfalkowski/go-service/v3/strings"
@@ -43,7 +44,7 @@ type reviewFinding struct {
 	Path      string          `json:"path"`
 	ID        string          `json:"previous_id,omitempty"`
 	Side      github.DiffSide `json:"side"`
-	reference blockerReference
+	reference history.Reference
 	Line      int   `json:"line"`
 	ReviewID  int64 `json:"review_id,omitempty"`
 }

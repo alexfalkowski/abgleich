@@ -3,12 +3,19 @@ package workflow
 import (
 	"github.com/alexfalkowski/abgleich/internal/commands"
 	"github.com/alexfalkowski/abgleich/internal/github"
+	"github.com/alexfalkowski/abgleich/internal/review/internal/history"
 	"github.com/alexfalkowski/go-service/v3/context"
 	"github.com/alexfalkowski/go-service/v3/errors"
 	"github.com/alexfalkowski/go-service/v3/strings"
 )
 
-func (c *Command) authorize(ctx context.Context, task *reviewTask) (*reviewTask, []*github.IssueComment, error) {
+// consent refreshes review-specific PR eligibility and shared human authorization.
+type consent struct {
+	github     github.Service
+	authorizer *commands.Authorizer
+}
+
+func (c consent) authorize(ctx context.Context, task *reviewTask) (*reviewTask, []*github.IssueComment, error) {
 	current, err := c.refreshTask(ctx, task)
 	if err != nil {
 		return nil, nil, err
@@ -18,7 +25,7 @@ func (c *Command) authorize(ctx context.Context, task *reviewTask) (*reviewTask,
 		return nil, nil, nil
 	}
 
-	comment, comments, err := c.authorizer.AuthorizeWithHistory(ctx, c.requestCommand(task), current.repository, current.request.GetNumber(), task.comment)
+	comment, comments, err := c.authorizer.AuthorizeWithHistory(ctx, task.command, current.repository, current.request.GetNumber(), task.comment)
 	if err != nil || comment == nil {
 		return nil, nil, err
 	}
@@ -28,7 +35,7 @@ func (c *Command) authorize(ctx context.Context, task *reviewTask) (*reviewTask,
 }
 
 // Cancellation still requires consent and PR identity, while permitting closed and draft PRs.
-func (c *Command) authorizeCancellation(ctx context.Context, task *reviewTask) (*reviewTask, []*github.IssueComment, error) {
+func (c consent) authorizeCancellation(ctx context.Context, task *reviewTask) (*reviewTask, []*github.IssueComment, error) {
 	current, err := c.refreshTask(ctx, task)
 	if err != nil {
 		return nil, nil, err
@@ -38,7 +45,7 @@ func (c *Command) authorizeCancellation(ctx context.Context, task *reviewTask) (
 		return nil, nil, errors.New("review: pull request identity changed before cancellation")
 	}
 
-	comment, comments, err := c.authorizer.AuthorizeWithHistory(ctx, c.requestCommand(task), current.repository, current.request.GetNumber(), task.comment)
+	comment, comments, err := c.authorizer.AuthorizeWithHistory(ctx, task.command, current.repository, current.request.GetNumber(), task.comment)
 	if err != nil || comment == nil {
 		return nil, nil, err
 	}
@@ -47,7 +54,7 @@ func (c *Command) authorizeCancellation(ctx context.Context, task *reviewTask) (
 	return current, comments, nil
 }
 
-func (c *Command) refreshTask(ctx context.Context, task *reviewTask) (*reviewTask, error) {
+func (c consent) refreshTask(ctx context.Context, task *reviewTask) (*reviewTask, error) {
 	if err := c.github.ValidateInstallation(ctx); err != nil {
 		return nil, err
 	}
@@ -62,18 +69,10 @@ func (c *Command) refreshTask(ctx context.Context, task *reviewTask) (*reviewTas
 		return nil, err
 	}
 
-	return &reviewTask{repository: repo, request: pull, comment: task.comment}, nil
+	return &reviewTask{repository: repo, request: pull, comment: task.comment, command: task.command}, nil
 }
 
-// Preserve the original command across all consent rechecks, including cancellation.
-func (c *Command) requestCommand(task *reviewTask) string {
-	if commands.Parse(task.comment.GetBody()) == ReviewCommand {
-		return ReviewCommand
-	}
-	return c.profile.Name
-}
-
-func (c *Command) eligible(repo *github.Repository, pull *github.PullRequest) bool {
+func (c consent) eligible(repo *github.Repository, pull *github.PullRequest) bool {
 	return pull.GetState() == github.PullOpen &&
 		!pull.GetDraft() &&
 		c.github.IsSameRepository(repo, pull) &&
@@ -81,45 +80,45 @@ func (c *Command) eligible(repo *github.Repository, pull *github.PullRequest) bo
 		github.ValidatePullRequestMetadata(pull) == nil
 }
 
-func (c *Command) revisionChanged(expected, current *reviewTask) bool {
+func (c consent) revisionChanged(expected, current *reviewTask) bool {
 	return !c.github.IsSamePullRequest(current.request, expected.request) ||
 		current.request.GetBase().GetSHA() != expected.request.GetBase().GetSHA()
 }
 
 // recheck returns a refreshed task only while its authorized revisions still match.
 // A nil task stops processing, including existing results and stale revisions.
-func (c *Command) recheck(ctx context.Context, task *reviewTask) (*reviewTask, reviewHistory, error) {
-	current, comments, err := c.authorize(ctx, task)
+func (c *Command) recheck(ctx context.Context, task *reviewTask) (*reviewTask, history.View, error) {
+	current, comments, err := c.consent.authorize(ctx, task)
 	if err != nil {
-		return nil, reviewHistory{}, err
+		return nil, history.View{}, err
 	}
 	if current == nil {
-		return nil, reviewHistory{}, c.publishCancellation(ctx, task)
+		return nil, history.View{}, c.publishCancellation(ctx, task)
 	}
 
-	if c.revisionChanged(task, current) {
-		return nil, reviewHistory{}, c.publishStaleReview(ctx, task, staleRevisionReason)
+	if c.consent.revisionChanged(task, current) {
+		return nil, history.View{}, c.publishStaleReview(ctx, task, staleRevisionReason)
 	}
 
-	exists, reviews, err := c.reviewHistory(ctx, current, comments)
+	exists, reviews, err := c.history(current).Read(ctx, comments)
 	if err != nil || exists {
-		return nil, reviewHistory{}, err
+		return nil, history.View{}, err
 	}
 
 	return current, reviews, nil
 }
 
-func (c *Command) guard(ctx context.Context, task *reviewTask, review *reviewContext) error {
-	current, comments, err := c.authorize(ctx, task)
+func (c *Command) guard(ctx context.Context, task *reviewTask, review *reviewEvidence) error {
+	current, comments, err := c.consent.authorize(ctx, task)
 	if err != nil {
 		return err
 	}
 
-	if current == nil || c.revisionChanged(task, current) {
+	if current == nil || c.consent.revisionChanged(task, current) {
 		return errors.New("review: authorization or revision changed")
 	}
 
-	exists, history, err := c.reviewHistory(ctx, current, comments)
+	exists, previous, err := c.history(current).Read(ctx, comments)
 	if err != nil {
 		return err
 	}
@@ -127,8 +126,8 @@ func (c *Command) guard(ctx context.Context, task *reviewTask, review *reviewCon
 		return errReviewStopped
 	}
 
-	if review.hasBlockerEvidence() {
-		reason, err := c.reviewChangeReason(ctx, current, review, history)
+	if review != nil && review.followup.HasBlockerEvidence() {
+		reason, err := c.history(current).CheckPrevious(ctx, previous, review.previous, review.followup)
 		if err != nil {
 			return err
 		}

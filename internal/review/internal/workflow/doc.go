@@ -1,13 +1,9 @@
-// Package workflow shares PR review eligibility, revision-pinned source context, inference,
-// result identity, verdict selection, and safe publication. It refreshes consent through
-// commands.Authorizer. Features supply their own prompts, model configuration,
-// and independently registered queue jobs; replies use one shared template.
-// Manual requests wake their job without repository-wide discovery. Scheduled
-// runs also reconcile their own outdated inline threads without inference.
-// One factory constructs independent commands with shared GitHub source access
-// and serialized publication so an approval preserves every other feature's findings.
-// Source caching belongs to github.Service; consent and coverage records stay
-// request-local.
+// Package workflow coordinates admission, inference, and publication for
+// independent review commands. It rechecks human consent and PR revisions before
+// sending source and publishing results. One factory owns the publication gate,
+// which serializes final history checks and submission across features.
+// Manual requests wake their own job. Scheduled runs also reconcile outdated
+// inline threads after draining the manual queue.
 // Reviews and thread maintenance require both branches in the target repository;
 // fork pull requests are ignored.
 package workflow

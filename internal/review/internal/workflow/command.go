@@ -4,7 +4,9 @@ import (
 	"github.com/alexfalkowski/abgleich/internal/ai"
 	"github.com/alexfalkowski/abgleich/internal/commands"
 	"github.com/alexfalkowski/abgleich/internal/github"
+	"github.com/alexfalkowski/abgleich/internal/review/internal/history"
 	"github.com/alexfalkowski/abgleich/internal/review/internal/sources"
+	"github.com/alexfalkowski/abgleich/internal/review/internal/threads"
 	"github.com/alexfalkowski/go-service/v3/context"
 	"github.com/alexfalkowski/go-sync"
 )
@@ -33,6 +35,16 @@ type reviewTask struct {
 	repository *github.Repository
 	request    *github.PullRequest
 	comment    *github.IssueComment
+	command    string
+}
+
+func newReviewTask(event *github.IssueCommentEvent, command string) *reviewTask {
+	return &reviewTask{
+		repository: event.GetRepo(),
+		request:    &github.PullRequest{Number: event.GetIssue().Number},
+		comment:    event.GetComment(),
+		command:    command,
+	}
 }
 
 // Command owns shared review consent, revision checks, deduplication, and queued
@@ -43,7 +55,8 @@ type Command struct {
 	sources     *sources.Registry
 	publication *sync.Worker
 	queue       *commands.Queue
-	authorizer  *commands.Authorizer
+	consent     consent
+	threads     threads.Reconciler
 	profile     ReviewProfile
 }
 
@@ -55,11 +68,7 @@ func (c *Command) Handle(ctx context.Context, event *github.IssueCommentEvent) (
 		return false, nil
 	}
 
-	task, comments, err := c.authorize(ctx, &reviewTask{
-		repository: event.GetRepo(),
-		request:    &github.PullRequest{Number: event.GetIssue().Number},
-		comment:    event.GetComment(),
-	})
+	task, comments, err := c.consent.authorize(ctx, newReviewTask(event, c.profile.Name))
 	if err != nil || task == nil {
 		return false, err
 	}
@@ -68,7 +77,8 @@ func (c *Command) Handle(ctx context.Context, event *github.IssueCommentEvent) (
 }
 
 func (c *Command) enqueue(ctx context.Context, task *reviewTask, comments []*github.IssueComment) (bool, error) {
-	if exists, err := c.hasReview(ctx, task, comments); err != nil || exists {
+	reader := c.history(task)
+	if exists, _, err := reader.Read(ctx, comments); err != nil || exists {
 		return exists, err
 	}
 
@@ -76,9 +86,13 @@ func (c *Command) enqueue(ctx context.Context, task *reviewTask, comments []*git
 		return false, err
 	}
 
-	err := c.queue.Enqueue(c.resultMarker(task), func(ctx context.Context) error {
+	err := c.queue.Enqueue(reader.ResultMarker(), func(ctx context.Context) error {
 		return c.process(ctx, task)
 	})
 
 	return err == nil, err
+}
+
+func (c *Command) history(task *reviewTask) history.Reader {
+	return history.NewReader(c.github, task.repository, task.request, c.profile.Name)
 }

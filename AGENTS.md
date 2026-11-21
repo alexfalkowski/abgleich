@@ -29,8 +29,11 @@ run reconciles fresh remote state; pending summary and review requests are held 
 | `internal/review/code` | Code-review prompt, model configuration, and registration of its own job and command. |
 | `internal/review/sec` | Security-review prompt, model configuration, and registration of its own job and command. |
 | `internal/review/test` | Test-quality review prompt, model configuration, and registration of its own job and command. |
-| `internal/review/internal/workflow` | Shared review PR eligibility, consent rechecks, changed-file and related source context, revision checks, result identity, safe reply rendering/publication, and per-instance queues. |
-| `internal/review/internal/sources` | Provider module composition and selection through a DI value group. |
+| `internal/review/internal/workflow` | Review admission, PR eligibility, consent and revision rechecks, per-feature queues, inference, feedback, and serialized publication. |
+| `internal/review/internal/history` | Authenticated App review history, result markers, follow-up records, prior blocker evidence, and cross-feature approval checks. |
+| `internal/review/internal/assessment` | Model result validation, finding reconciliation and placement, verdict selection, and safe native review rendering. |
+| `internal/review/internal/threads` | Outdated App-owned thread discovery, fresh eligibility and ownership checks, and resolution by feature namespace. |
+| `internal/review/internal/sources` | Pinned repository and submodule reads, per-review evidence and source tools, and provider composition and selection through a DI value group. |
 | `internal/review/internal/sources/provider` | Shared repository-access and tool contracts, DI contributions, source endpoint configuration, and excerpt rendering. |
 | `internal/review/internal/sources/golang` | Go guide, source tools, manifest/checksum resolution, module archives, language references, HTTP policy, and per-review caches. |
 | `internal/review/internal/sources/ruby` | Ruby guide, source tools, lockfile resolution, gem verification, bounded archive reads, HTTP client policy, and per-review caches. |
@@ -56,21 +59,24 @@ run reconciles fresh remote state; pending summary and review requests are held 
   and shared outbound client construction in `transport/http/client`.
 - `review.Module` composes `review/code`, `review/sec`, `review/test`, and shared source access.
   Each feature configures a separate `workflow.Command` instance and owns its
-  prompt, model/schedule configuration, and registration. Keep shared consent,
-  source context, revision checks, reply templates, result markers, inference,
-  and safe publication in `review/internal/workflow`; it depends on `ai`,
-  `github`, and `commands`, which stay independent of review features. Queues and
-  jobs remain independent per command. Provider protocol belongs in `ai`;
-  `sources/provider.Config` owns shared source settings and `review.Config` composes it
-  with feature-owned settings. Neither features nor workflow import the parent
-  `review` package. Never load repository or remote skills as runtime instructions.
+  prompt, model/schedule configuration, and registration. Workflow coordinates
+  consent, revisions, inference, and publication using `sources`, `history`,
+  `assessment`, and `threads`. These packages stay independent of workflow.
+  History owns the persisted review format shared with assessment and the
+  feature namespace checked by thread maintenance. Keep queues and jobs
+  independent per command and share one final publication gate. Provider
+  protocol belongs in `ai`. `sources/provider.Config` owns shared source settings
+  and `review.Config` composes it with feature-owned settings. The feature and
+  internal review packages stay independent of the parent `review` package.
+  Never load repository or remote skills as runtime instructions.
 - `sources.Module` composes provider modules, each contributing its strategy to
   the source DI value group. Keep language/framework guides,
   tools, manifest parsing, verification, HTTP policy, and request-local dependency
   caches in the owning `review/internal/sources` provider packages. Providers do
-  not import workflow or each other. Workflow supplies pinned repository reads
-  and inspection records, and wraps every provider tool with consent/revision
-  checks. Keep registry selection independent of provider implementations.
+  not import workflow or each other. Sources supplies pinned repository reads
+  and inspection records, and applies the workflow's consent and revision guard
+  before every source tool call. Keep registry selection independent of provider
+  implementations.
 - Feature modules register named comment handlers through `commands.Dispatcher.Register`
   before startup. Keep each handler in its owning feature package; `commands`
   stays independent of features. Use exact names with the `/ab` prefix.
@@ -242,7 +248,7 @@ run reconciles fresh remote state; pending summary and review requests are held 
   patch. Keep still-open findings with links to their original reviews, P3
   findings, and findings without valid placement in the overview. Escape model
   text and deactivate links/mentions in every body.
-  Keep verdict policy in workflow and API event validation in github. Serialize
+  Keep verdict policy in assessment and API event validation in github. Serialize
   final checks and publication across review commands within one process. An
   approval-eligible review must preserve any other feature's authenticated request
   for changes across revisions, restart, or feature disablement, until a later
