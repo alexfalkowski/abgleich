@@ -245,8 +245,9 @@ run reconciles fresh remote state; pending summary and review requests are held 
   scope and are disclosed separately without preventing approval.
   Publish one native review pinned to the reviewed head, with a separate
   inline conversation for each new P0 through P2 finding placed on the fetched
-  patch. Keep still-open findings with links to their original reviews, P3
-  findings, and findings without valid placement in the overview. Escape model
+  patch. List inline blockers below the decision alongside findings without valid
+  placement and still-open findings with links to their original reviews. Put
+  P3 findings in an expandable section of the review body. Escape model
   text and deactivate links/mentions in every body.
   Keep verdict policy in assessment and API event validation in github. Serialize
   final checks and publication across review commands within one process. An

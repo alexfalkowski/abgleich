@@ -8,6 +8,7 @@ Feature: Validate and place review findings
     And the reviewer reports "findings on added and removed lines"
     When a maintainer with "write" access comments "/ab <command>"
     Then the <kind> review should contain one overview
+    And the review should list both blockers before the overview
     And the inline findings should be:
       | path      | line | side  |
       | main.go   | 2    | RIGHT |

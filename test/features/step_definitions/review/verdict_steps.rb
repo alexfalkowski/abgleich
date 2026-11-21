@@ -133,9 +133,15 @@ Then(/^the (code|security|test) review decision should explain "([^"]*)"$/) do |
   expect(body.split('📝 **Overview**').first).to include(reason)
 end
 
-Then('the review overview should show the low-severity finding at {string}') do |location|
-  overview = Abgleich.github.native_reviews.last.fetch(:body).split('📝 **Overview**').last.split('<details>').first.delete('\\')
-  expect(overview.lines.map(&:chomp)).to include("📍 **Reported location:** #{location}.", '🐛 **P3 · Clarify the status label**')
+Then('the expandable findings should show the low-severity finding at {string}') do |location|
+  body = Abgleich.github.native_reviews.last.fetch(:body)
+  before, section = body.split("<details>\n<summary>Low-severity findings (P3)</summary>", 2)
+  expect(section).not_to be_nil, 'expected a collapsed section for P3 findings'
+  title = '🐛 **P3 · Clarify the status label**'
+  findings, after = section.split('</details>', 2)
+  expect(findings.delete('\\').lines.map(&:chomp)).to include("📍 **Reported location:** #{location}.", title)
+  expect(before).not_to include(title)
+  expect(after).not_to include(title)
 end
 
 Then('the earlier security review should still request changes') do

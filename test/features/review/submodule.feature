@@ -147,7 +147,7 @@ Feature: Inspect shared tooling pinned by a submodule
     And the code review decision should be "COMMENTED"
     And the code review assessment should be "Review completed with limitations"
     And the code review should identify "bin (regular file unavailable)" before its overview
-    And the review overview should show the low-severity finding at "main.go:2 (RIGHT)"
+    And the expandable findings should show the low-severity finding at "main.go:2 (RIGHT)"
     And the incomplete review should have no success marker
 
   @codereview
