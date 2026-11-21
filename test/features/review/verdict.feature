@@ -35,7 +35,7 @@ Feature: Ground review decisions in the inspected changes
     Then the test review decision should be "APPROVED"
     And the test review assessment should be "Low-severity findings"
     And the test review decision should explain "Only low-severity findings"
-    And the review overview should show the low-severity finding at "<location>"
+    And the expandable findings should show the low-severity finding at "<location>"
     And the native review should have no inline findings
 
     Examples:
@@ -50,7 +50,7 @@ Feature: Ground review decisions in the inspected changes
     And the AI test review answer has "<answer>"
     When a maintainer with "write" access comments "/ab testreview"
     Then the test review decision should be "CHANGES_REQUESTED"
-    And the review overview should show the low-severity finding at "main.go:2 (RIGHT)"
+    And the expandable findings should show the low-severity finding at "main.go:2 (RIGHT)"
     And the inline findings should be:
       | path      | line | side |
       | worker.go | 2    | LEFT |
@@ -71,7 +71,7 @@ Feature: Ground review decisions in the inspected changes
     Then the code review decision should be "CHANGES_REQUESTED"
     And the code review should have no context limitations
     And the review overview should retain the finding outside the diff at "worker.go:3 (LEFT)"
-    And the review overview should show the low-severity finding at "main.go:2 (RIGHT)"
+    And the expandable findings should show the low-severity finding at "main.go:2 (RIGHT)"
     And the native review should have no inline findings
 
   @codereview
@@ -82,7 +82,7 @@ Feature: Ground review decisions in the inspected changes
     When a maintainer with "write" access comments "/ab codereview"
     Then the code review decision should be "COMMENTED"
     And the code review assessment should be "Review unfinished"
-    And the review overview should show the low-severity finding at "main.go:2 (RIGHT)"
+    And the expandable findings should show the low-severity finding at "main.go:2 (RIGHT)"
     And the native review should have no inline findings
     And the incomplete review should have no success marker
 

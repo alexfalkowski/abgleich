@@ -11,25 +11,27 @@ import (
 )
 
 type reviewReply struct {
-	Snapshot   *history.Snapshot
-	Completion *ai.Completion
-	Title      string
-	HeadSHA    string
-	BaseSHA    string
-	Marker     string
-	Assessment string
-	Decision   string
-	Event      github.ReviewEvent
-	Comments   []*github.DraftReviewComment
-	Findings   []reviewFinding
-	Cleared    []clearedFinding
-	Unverified []string
-	Sources    []string
-	Missing    []string
-	External   []string
-	Binary     []string
-	Comparison []string
-	RequestID  int64
+	Snapshot       *history.Snapshot
+	Completion     *ai.Completion
+	Title          string
+	HeadSHA        string
+	BaseSHA        string
+	Marker         string
+	Assessment     string
+	Decision       string
+	Event          github.ReviewEvent
+	Comments       []*github.DraftReviewComment
+	InlineFindings []reviewFinding
+	Findings       []reviewFinding
+	LowSeverity    []reviewFinding
+	Cleared        []clearedFinding
+	Unverified     []string
+	Sources        []string
+	Missing        []string
+	External       []string
+	Binary         []string
+	Comparison     []string
+	RequestID      int64
 }
 
 // Input contains the evidence and provenance used to build one review.
@@ -176,7 +178,11 @@ func (r *reviewReply) body() (string, error) {
 func (r *reviewReply) placeFindings(findings []reviewFinding, files []*github.CommitFile) error {
 	for index := range findings {
 		finding := &findings[index]
-		if finding.ReviewID > 0 || finding.Severity == severityP3 {
+		if finding.Severity == severityP3 {
+			r.LowSeverity = append(r.LowSeverity, *finding)
+			continue
+		}
+		if finding.ReviewID > 0 {
 			r.Findings = append(r.Findings, *finding)
 			continue
 		}
@@ -193,6 +199,7 @@ func (r *reviewReply) placeFindings(findings []reviewFinding, files []*github.Co
 			continue
 		}
 
+		r.InlineFindings = append(r.InlineFindings, *finding)
 		r.Comments = append(r.Comments, &github.DraftReviewComment{
 			Path: new(finding.Path), Line: new(finding.Line), Side: new(finding.Side.String()),
 			Body: new(body),

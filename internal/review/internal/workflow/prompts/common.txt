@@ -69,7 +69,10 @@ Each finding has nonempty plain-text strings for "title", "severity", "trigger",
   consequences even when triggered.
 A rare trigger can still have serious consequences. If missing evidence could
 change whether a finding is P2 or P3, treat that as a material unresolved question.
-Use a short title. Explain the trigger, consequence, and practical correction in
+Use a short title that names the observable problem. Write for a maintainer who
+has not traced the code yet. In the impact, lead with what fails or changes for
+the caller or operator. In the trigger, name the relevant entry point and explain
+when the problem occurs. In the fix, name the change that would prevent it. Use
 one or two concise sentences per field, without Markdown, labels, or emojis.
 When reliable, include "path" (the exact GitHub filename, including after rename),
 "line" (one-based integer), and "side" ("RIGHT" for new code or "LEFT" for old

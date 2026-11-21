@@ -76,9 +76,11 @@ alone does not make a review unfinished; material unresolved source gaps still d
 
 The App submits one native review with an overview and a separate inline
 conversation for each new P0, P1, or P2 finding that can be placed on the supplied
-diff. The overview lists P3 findings, findings without reliable diff placement,
-and still-open findings from earlier reviews. It shows their reported locations
-when supplied and links still-open findings to the original review. Each finding has a short
+diff. **Blocking findings** appears below the decision when changes are requested.
+It lists inline findings with their file and line, shows the full findings without
+reliable diff placement, and links still-open findings to their original reviews.
+Expand **Low-severity findings (P3)** for findings that do not block approval on
+their own. Each full finding has a short
 🐛 title with explicit severity (`P0` critical, `P1` high, `P2` medium, or `P3` low),
 followed by separate
 🔎 **Trigger**, 💥 **Impact**, and 🛠️ **Suggested fix** paragraphs. The worker

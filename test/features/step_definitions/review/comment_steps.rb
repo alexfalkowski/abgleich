@@ -140,6 +140,14 @@ Then('the inline findings should be:') do |table|
   expect(comments).to all(include(body: a_string_matching(/work/)))
 end
 
+Then('the review should list both blockers before the overview') do
+  body = Abgleich.github.native_reviews.last.fetch(:body)
+  blockers = body.split('📝 **Overview**', 2).first
+  expect(blockers).to include('#### Blocking findings',
+                              '- **P1 · Preserve successful work** at main.go:2.',
+                              '- **P2 · Restore the guard** at worker.go:2 (old code).')
+end
+
 Then('no successful review should be posted as an ordinary comment') do
   expect(Abgleich.github.replies).to be_empty, 'expected the native review to own the overview'
 end

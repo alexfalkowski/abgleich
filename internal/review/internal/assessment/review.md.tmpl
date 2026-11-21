@@ -1,9 +1,30 @@
+{{define "findingLocation" -}}
+{{$hasLine := gt .Line 0}}{{if or .Path $hasLine .Side.IsDefined -}}
+📍 **{{if or .ReviewID (eq .Severity.String "P3")}}Reported location{{else}}Location unavailable on the diff{{end}}:** {{.Path | markdown -}}
+{{if $hasLine}}{{if .Path}}:{{else}}line {{end}}{{.Line}}{{end -}}
+{{if .Side.IsDefined}}{{if or .Path $hasLine}} ({{.Side.String | markdown}}){{else}}{{.Side.String | markdown}}{{end}}{{end}}.
+
+{{end}}{{end -}}
 ### 🤖 Abgleich {{.Title | lower}}
 
 {{assessment .Assessment}}
 
 {{if eq .Event "APPROVE"}}✅{{else if eq .Event "REQUEST_CHANGES"}}❗{{else}}⚠️{{end}} **Decision:** {{.Decision}}
 
+{{if or .InlineFindings .Findings}}#### Blocking findings
+
+{{with .InlineFindings}}{{range .}}- **{{.Severity.String}} · {{.Title | markdown}}** at {{.Path | markdown}}:{{.Line}}{{if eq .Side.String "LEFT"}} (old code){{end}}.
+{{end}}
+See the inline comments for details.
+
+{{end}}{{range .Findings}}{{if .ReviewID -}}
+**Still open** [`{{.ID}}`](#pullrequestreview-{{.ReviewID}})
+
+{{end -}}
+{{template "findingLocation" .}}{{if and .ID (not .ReviewID)}}<!-- abgleich:finding:{{.ID}} -->
+{{end}}{{template "finding.md.tmpl" .}}{{if and .ID (not .ReviewID)}}<!-- /abgleich:finding:{{.ID}} -->
+{{end}}
+{{end}}{{end -}}
 {{with .Missing}}⚠️ **Limitations:**
 {{range .}}
 - {{. | markdown}}
@@ -38,19 +59,13 @@
 {{range .}}- `{{.}}`
 {{end}}
 {{end}}
-{{range .Findings}}{{if .ReviewID -}}
-**Still open** [`{{.ID}}`](#pullrequestreview-{{.ReviewID}})
+{{with .LowSeverity}}<details>
+<summary>Low-severity findings (P3)</summary>
+
+{{range .}}{{template "findingLocation" .}}{{template "finding.md.tmpl" .}}
+{{end}}</details>
 
 {{end -}}
-{{$hasLine := gt .Line 0}}{{if or .Path $hasLine .Side.IsDefined -}}
-📍 **{{if or .ReviewID (eq .Severity.String "P3")}}Reported location{{else}}Location unavailable on the diff{{end}}:** {{.Path | markdown -}}
-{{if $hasLine}}{{if .Path}}:{{else}}line {{end}}{{.Line}}{{end -}}
-{{if .Side.IsDefined}}{{if or .Path $hasLine}} ({{.Side.String | markdown}}){{else}}{{.Side.String | markdown}}{{end}}{{end}}.
-
-{{end}}{{if and .ID (not .ReviewID)}}<!-- abgleich:finding:{{.ID}} -->
-{{end}}{{template "finding.md.tmpl" .}}{{if and .ID (not .ReviewID)}}<!-- /abgleich:finding:{{.ID}} -->
-{{end}}
-{{end}}
 <details>
 <summary>🔎 {{.Title}} details</summary>
 
