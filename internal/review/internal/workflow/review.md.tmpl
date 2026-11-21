@@ -19,16 +19,37 @@
 - {{. | markdown}}
 {{end}}
 {{end}}
+{{with .Comparison}}ℹ️ **Follow-up comparison limitations:**
+{{range .}}
+- {{. | markdown}}
+{{end}}
+{{end}}
 📝 **Overview**
 
 {{.Completion.Text | markdown}}
 
-{{range .Findings}}{{$hasLine := gt .Line 0}}{{if or .Path $hasLine .Side.IsDefined -}}
-📍 **{{if eq .Severity.String "P3"}}Reported location{{else}}Location unavailable on the diff{{end}}:** {{.Path | markdown -}}
+{{with .Cleared}}**Cleared findings**
+
+{{range .}}- `{{.ID}}` {{.Reason | markdown}}
+{{end}}
+{{end}}
+{{with .Unverified}}**Previous findings still unverified**
+
+{{range .}}- `{{.}}`
+{{end}}
+{{end}}
+{{range .Findings}}{{if .ReviewID -}}
+**Still open** [`{{.ID}}`](#pullrequestreview-{{.ReviewID}})
+
+{{end -}}
+{{$hasLine := gt .Line 0}}{{if or .Path $hasLine .Side.IsDefined -}}
+📍 **{{if or .ReviewID (eq .Severity.String "P3")}}Reported location{{else}}Location unavailable on the diff{{end}}:** {{.Path | markdown -}}
 {{if $hasLine}}{{if .Path}}:{{else}}line {{end}}{{.Line}}{{end -}}
 {{if .Side.IsDefined}}{{if or .Path $hasLine}} ({{.Side.String | markdown}}){{else}}{{.Side.String | markdown}}{{end}}{{end}}.
 
-{{end}}{{template "finding.md.tmpl" .}}
+{{end}}{{if and .ID (not .ReviewID)}}<!-- abgleich:finding:{{.ID}} -->
+{{end}}{{template "finding.md.tmpl" .}}{{if and .ID (not .ReviewID)}}<!-- /abgleich:finding:{{.ID}} -->
+{{end}}
 {{end}}
 <details>
 <summary>🔎 {{.Title}} details</summary>

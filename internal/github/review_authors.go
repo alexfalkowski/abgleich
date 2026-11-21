@@ -14,7 +14,7 @@ import (
 //go:embed graphql/review_authors.gql
 var reviewAuthorsQuery string
 
-// HasAppReview authenticates bot candidates in batches so forged markers cannot
+// HasAppReview authenticates possible App reviews in batches so forged markers cannot
 // cause one API request per review. Missing or mismatched data fails closed.
 func (s *service) HasAppReview(ctx context.Context, reviews []*PullRequestReview) (bool, error) {
 	authored, err := s.AppReviews(ctx, reviews)
@@ -26,7 +26,9 @@ func (s *service) HasAppReview(ctx context.Context, reviews []*PullRequestReview
 func (s *service) AppReviews(ctx context.Context, reviews []*PullRequestReview) ([]*PullRequestReview, error) {
 	var ids []string
 	for _, review := range reviews {
-		if review.GetUser().GetType() == UserBot {
+		// REST can omit the user. GraphQL still checks whether the App authored the review.
+		switch review.GetUser().GetType() {
+		case UserBot, "":
 			ids = append(ids, review.GetNodeID())
 		}
 	}

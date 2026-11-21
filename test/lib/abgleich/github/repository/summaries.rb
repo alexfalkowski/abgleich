@@ -98,11 +98,11 @@ module Abgleich
         end
       end
 
-      def change_summary_state(mode)
+      def change_summary_state(mode, revision: 'd' * 40)
         @mutex.synchronize do
           if ['head changed', 'base changed'].include?(mode)
             pull = @state[:pulls].values.find { |item| item.dig(:head, :ref) == 'contribution' }
-            pull.fetch(mode.split.first.to_sym)[:sha] = 'd' * 40
+            pull.fetch(mode.split.first.to_sym)[:sha] = revision
           else
             change_summary_authorization(mode)
           end

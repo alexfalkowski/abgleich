@@ -10,15 +10,26 @@ import (
 var errRepositorySource = errors.New("review: could not retrieve complete repository source")
 
 type sourceSession struct {
-	github     github.Service
-	repository *github.Repository
-	files      map[string]string
-	trees      map[string][]*github.TreeEntry
-	headSHA    string
-	missing    []string
-	external   []string
-	inspected  []string
-	binary     []string
+	github       github.Service
+	repository   *github.Repository
+	files        map[string]string
+	fingerprints map[string]string
+	trees        map[string][]*github.TreeEntry
+	headSHA      string
+	missing      []string
+	external     []string
+	inspected    []string
+	binary       []string
+}
+
+func (s *sourceSession) recordFingerprint(revision string, entry *github.TreeEntry) {
+	var side string
+	if revision == s.headSHA {
+		side = "head:"
+	} else {
+		side = "base:"
+	}
+	s.fingerprints[side+entry.GetPath()] = sourceFingerprint(entry)
 }
 
 func (s *sourceSession) unavailable(label string) string {

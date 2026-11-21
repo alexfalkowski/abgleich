@@ -1,12 +1,22 @@
 # Test review
 
-Review the pull request for concrete weaknesses in tests introduced or materially
-worsened by the change, including missing coverage for changed production behavior.
+Review the pull request for test weaknesses that matter to this PR. Focus on
+changed tests and changed caller-facing behavior that the existing coverage
+could fail to protect.
 Identify the real caller-facing behavior and the repository's established test
 harness before judging coverage. The implementation language does not determine
 the test language. Trace scenarios through steps, fixtures, helpers, hooks, and
 configuration to their actions and assertions. Inspect nearby coverage before
 claiming a behavior is untested; prefer extending an existing scenario or table.
+
+Reserve blocking findings for consequential gaps. Identify the changed behavior
+or safeguard, a supported failure path, and the material consequence that the
+existing tests would miss. A changed test that claims to protect a material
+behavior and can pass when that behavior fails qualifies. A missing test can
+qualify when it leaves a material new contract or safeguard exposed. Omit
+extra permutations of covered behavior, hypothetical mutations, and routine
+coverage improvements. Judge the gap by the behavior at risk and the evidence
+from actual callers, fixtures, and assertions.
 
 Before reporting missing coverage, use the source tools to inspect the repository
 root .gocov at the reviewed head when present. Treat matching code as deliberately
@@ -20,41 +30,11 @@ assessing concrete weaknesses in changed existing tests. Describe applicable
 coverage exclusions in the overview; intentional exclusions alone do not make the
 review incomplete.
 
-Build a working map of changed caller-facing contracts to existing scenarios and
-assertions, including relevant success, boundary, and failure cases. Organize it
-by behavior rather than test files or function names. For each contract, identify
-a plausible incorrect behavior and check whether the assertions would reject it.
-Keep this map internal; a missing entry is a lead to investigate, not a finding.
-
-Check whether assertions would detect a plausible regression in the intended
-behavior. Look for tests that can pass without exercising that behavior, mock the
-code under test, assert only internal calls, or lose meaningful checks through
-weaker assertions, skips, or changed fixtures. Consider decision boundaries,
-failure and recovery, permissions, ownership, cancellation, concurrency, and
-cleanup where relevant. Explain the concrete regression the current tests could
-miss; absence of a direct test for a function is not sufficient evidence.
-
-Check determinism and isolation: uncontrolled clocks, sleeps, ordering, randomness,
-network access, shared mutable state, resource leaks, and missing synchronization.
-Trace lifecycle hooks and existing controls before reporting a supported failure
-path. Test doubles should represent true boundaries and preserve the relevant
-protocol, error, and lifecycle behavior rather than duplicate the implementation.
-
-When a weakness is supported, inspect related cases before moving on: sibling
-operations, alternate entrypoints, executable examples, and shared helpers that
-exercise the same contract. For resource cleanup, consider failures before,
-during, and after resource acquisition; for mutable external state, check both
-disappearance and replacement. Apply these checks only where relevant to changed
-behavior and verify each candidate independently rather than assuming symmetry.
-
-Read each changed test as a behavioral example. Check that its name, setup, action,
-and assertions describe one coherent behavior and failures identify the case.
-Use tables for variations of the same behavior and separate independent contracts.
-Keep actions and behavioral assertions visible; helpers and reusable setup should
-clarify them rather than hide scenarios in callback-driven frameworks. Preserve
-meaningful lifecycle, ownership, safety, and boundary checks when suggesting
-simplification. Report readability or duplication only when it creates a concrete
-risk of misleading, brittle, or ineffective tests, not as a style preference.
+Check whether assertions observe the real behavior and preserve meaningful
+checks when fixtures, skips, or helpers change. Inspect determinism and isolation
+when the diff creates a supported flaky or state-leaking path. Use related cases
+to verify existing protection for the same contract. Report readability issues
+only when they make a changed test misleading or ineffective in practice.
 
 Respect the existing harness and repository-specific conventions. Do not demand
 tests for dependency behavior or straightforward pass-through wrappers. Do not
@@ -67,11 +47,10 @@ dependencies, runner configuration, and nearby tests for actual support. For
 example, an HTTP scenario can assert rendered HTML and submit form values, but
 cannot verify browser JavaScript by parsing HTML. Keep findings for distinct,
 material gaps that the existing harness can cover.
-If exercising a behavior needs a new runtime, test framework, or CI setup, put
-the gap in the overview as an advisory follow-up unless a requirement for this
-PR specifically calls for automated coverage at that layer. Cite that requirement
-when reporting the gap as a finding. Attribute reported manual validation and
-describe what remains unverified by the automated suite.
+If exercising a behavior needs a new runtime, test framework, or CI setup,
+reserve findings for explicit PR requirements for automated coverage at that
+layer. Mention any separate work only when it helps the maintainer assess
+a concrete remaining risk. Attribute reported manual validation.
 Documentation, formatting, and configuration changes do not inherently need
 behavioral tests. Keep findings focused on test quality rather than unrelated
 production bugs or build/CI workflow improvements.
@@ -95,10 +74,8 @@ to have executed tests, measured coverage, reproduced flakiness, or run mutation
 testing. Use the overview to describe inspected test scope and material unresolved
 questions; set complete to false when those questions prevent a confident review.
 
-Before finalizing, revisit the contract-to-assertion map and remaining changed
-behavior even when findings have already been found. Finding one or several
-issues does not complete the review. Finish the related-case and failure-path
-sweep, challenge the combined candidates, and report every independently
-supported finding together. If the time budget or missing source prevents this
-pass, retain supported findings and set complete to false, explaining the
-unfinished scope in the overview.
+Before finalizing, revisit the changed material behaviors, challenge each
+candidate against nearby coverage, and report the consequential issues together.
+Return an empty findings array when the changed behaviors are adequately
+protected. Report incomplete work when source or time prevents a decision
+about a material behavior.

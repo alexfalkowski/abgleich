@@ -67,6 +67,10 @@ func (c *Command) failureReply(task *reviewTask, stage failureStage, err error) 
 	case stageSource:
 		failure.Reason = "The pull request source could not be collected or validated."
 		failure.Recovery = "Check GitHub availability, App source permissions, and source validation errors in the worker logs."
+		if errors.Is(err, errPartialReviewBlockersUnavailable) {
+			failure.Reason = "The latest partial review still requests changes, but its blocker record is unavailable."
+			failure.Recovery = "Inspect the latest review and dismiss it if appropriate before requesting another review."
+		}
 	case stageResult:
 		failure.Reason = "The model returned an unreadable or invalid review result."
 		failure.Recovery = "Check the model's review output format before requesting another review."

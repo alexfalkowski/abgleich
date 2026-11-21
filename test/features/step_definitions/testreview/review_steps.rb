@@ -5,7 +5,8 @@ Then('the test reviewer should have read-only access') do
   expect(payload).not_to be_nil, 'expected the test model to receive the authorized source'
   instructions = payload.fetch('instructions')
   expect(instructions).to include('caller-facing behavior', 'existing coverage', 'untrusted',
-                                  'determinism and isolation', 'without claiming')
+                                  'determinism and isolation', 'without claiming',
+                                  'Reserve blocking findings for consequential gaps')
   expect(payload.fetch('store')).to be(false), 'expected test inference response storage to remain disabled'
   names = payload.fetch('tools').map { |tool| tool.fetch('name') }
   expect(names).to contain_exactly('list_source_files', 'read_sources', 'read_submodule', 'read_go_dependency', 'read_go_reference')

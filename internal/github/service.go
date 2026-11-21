@@ -88,6 +88,9 @@ type Service interface {
 	// ListReviews returns complete native review history with validated PR identities.
 	ListReviews(ctx context.Context, repo *Repository, pull *PullRequest) ([]*PullRequestReview, error)
 
+	// ListReviewCommentBodies returns root comments matching the author and identity of an authenticated review.
+	ListReviewCommentBodies(ctx context.Context, repo *Repository, pull *PullRequest, review *PullRequestReview) ([]string, error)
+
 	// HasAppReview checks whether any candidate belongs to the authenticated
 	// installation viewer. Human authors are skipped; bot checks are batched.
 	HasAppReview(ctx context.Context, reviews []*PullRequestReview) (bool, error)

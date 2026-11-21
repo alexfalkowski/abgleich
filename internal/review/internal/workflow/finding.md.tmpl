@@ -5,3 +5,6 @@
 💥 **Impact:** {{.Impact | markdown}}
 
 🛠️ **Suggested fix:** {{.Fix | markdown}}
+{{if and .ID (not .ReviewID)}}
+Finding `{{.ID}}`
+{{end}}

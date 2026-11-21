@@ -8,9 +8,12 @@ import (
 	"github.com/alexfalkowski/go-service/v3/strings"
 )
 
+const staleRevisionReason = "The pull request revision changed. Any findings for the previous revision were discarded."
+
 type staleReview struct {
 	Title     string
 	Command   string
+	Reason    string
 	HeadSHA   string
 	BaseSHA   string
 	RequestID int64
@@ -26,7 +29,7 @@ func (c *Command) publish(ctx context.Context, task *reviewTask, body string) er
 	}
 
 	if c.revisionChanged(task, current) {
-		body, err = c.staleMessage(task)
+		body, err = c.staleMessage(task, staleRevisionReason)
 		if err != nil {
 			return err
 		}
@@ -69,9 +72,17 @@ func (c *Command) publishCancellation(ctx context.Context, task *reviewTask) err
 	return c.github.AddComment(ctx, current.repository, current.request.GetNumber(), body)
 }
 
-func (c *Command) staleMessage(task *reviewTask) (string, error) {
+func (c *Command) publishStaleReview(ctx context.Context, task *reviewTask, reason string) error {
+	body, err := c.staleMessage(task, reason)
+	if err != nil {
+		return err
+	}
+	return c.publish(ctx, task, body)
+}
+
+func (c *Command) staleMessage(task *reviewTask, reason string) (string, error) {
 	return render("stale.md.tmpl", staleReview{
-		Title: c.profile.Title, Command: c.profile.Name,
+		Title: c.profile.Title, Command: c.profile.Name, Reason: reason,
 		HeadSHA: task.request.GetHead().GetSHA(), BaseSHA: task.request.GetBase().GetSHA(),
 		RequestID: task.comment.GetID(),
 	})

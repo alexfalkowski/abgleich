@@ -36,7 +36,7 @@ module Abgleich
       end
       Abgleich.github.record_source_request(filename, revision)
       halt 404 if Abgleich.github.failure == 'source unavailable'
-      content = source_content(filename)
+      content = source_content(filename, revision)
       halt 404 if content.nil?
       content = "\x00binary" if Abgleich.github.failure == 'source binary'
       file = { type: 'file', path: filename, encoding: 'base64', content: Base64.strict_encode64(content),
@@ -47,6 +47,11 @@ module Abgleich
 
     get '/repos/:owner/:repository/git/trees/:revision' do
       GitHubService.record_source_tree_read
+      if Abgleich.github.failure == 'source base tree unavailable' &&
+         params.fetch('revision') == Abgleich.github.pull_state('contribution').dig(:base, :sha)
+        halt 404
+      end
+
       halt submodule_tree.to_json if params.fetch('repository') == 'bin' && Abgleich.github.submodule
       paths = source_project_paths
       paths << 'bin' if Abgleich.github.submodule
@@ -55,12 +60,7 @@ module Abgleich
       paths.concat((1..source_directory_size).map { |index| "helpers/part#{index}.go" })
       paths << 'go.work' if Abgleich.github.failure == 'source managed by a Go workspace'
       paths << 'vendor/modules.txt' if Abgleich.github.failure == 'source vendored in the repository'
-      workspace = {
-        'source workspace beside its manifest' => 'tools/app/go.work',
-        'source workspace in its parent directory' => 'tools/go.work',
-        'source workspace in an unrelated directory' => 'tools/other/go.work'
-      }[Abgleich.github.failure]
-      paths.concat(%w[tools/app/go.mod tools/app/go.sum] << workspace) if workspace
+      paths.concat(source_workspace_paths)
       paths << 'helpers/empty' if Abgleich.github.failure == 'source an empty directory'
       { sha: 'source-tree', truncated: Abgleich.github.failure == 'source missing part of the repository listing',
         tree: paths.map do |path|
@@ -68,12 +68,23 @@ module Abgleich
           mode = '160000' if path == 'bin' || (Abgleich.github.failure == 'source a submodule' && path == 'helpers/guard.go')
           mode = '040000' if %w[helpers helpers/empty helpers/nested helpers/nested/deeper helpers-other].include?(path)
           type = { '160000' => 'commit', '040000' => 'tree' }.fetch(mode, 'blob')
-          content = source_content(path)
+          content = source_content(path, params.fetch('revision'))
           { path:, mode:, type:, sha: path == 'bin' ? 'b' * 40 : source_digest(content), size: content.bytesize }
         end }.to_json
     end
 
     private
+
+    def source_workspace_paths
+      workspace = {
+        'source workspace beside its manifest' => 'tools/app/go.work',
+        'source workspace in its parent directory' => 'tools/go.work',
+        'source workspace in an unrelated directory' => 'tools/other/go.work'
+      }[Abgleich.github.failure]
+      return [] unless workspace
+
+      %w[tools/app/go.mod tools/app/go.sum] << workspace
+    end
 
     def submodule_changes(files)
       return files unless ['submodule update', 'submodule update missing patch'].include?(Abgleich.github.file_mode)
@@ -130,19 +141,20 @@ module Abgleich
 
         revision, filename = expression.split(':', 2)
         Abgleich.github.record_source_request(filename, revision, repository:)
-        object = { node_id: repository.fetch(:node_id), full_name: repository.fetch(:full_name), object: source_blob(filename, repository) }
+        object = { node_id: repository.fetch(:node_id), full_name: repository.fetch(:full_name),
+                   object: source_blob(filename, repository, revision) }
         object[:node_id] = 'R_different' if Abgleich.github.failure == 'source from another repository'
         object = nil if Abgleich.github.failure == 'source missing repository'
         [name, object]
       end.to_h
     end
 
-    def source_blob(filename, repository)
+    def source_blob(filename, repository, revision)
       missing = { 'source final changed file unavailable' => 'file107.go', 'source missing related file' => 'helpers/guard.go',
                   'source missing checksum file' => 'go.sum' }[Abgleich.github.failure]
       return nil if filename == missing
 
-      content = repository.fetch(:name) == 'bin' ? "# shared-tooling-pinned-context for #{filename}\n" : source_content(filename)
+      content = repository.fetch(:name) == 'bin' ? "# shared-tooling-pinned-context for #{filename}\n" : source_content(filename, revision)
       binary = content.include?("\x00")
       { type: 'Blob', content: binary ? nil : content, size: content.bytesize, sha: source_digest(content), binary:, truncated: false }
         .merge(source_blob_changes(content))
@@ -167,27 +179,32 @@ module Abgleich
       end
     end
 
-    def source_content(filename)
+    def source_content(filename, revision = nil)
       return directory_source(filename) if source_directory_size.positive? && filename.start_with?('helpers/part')
 
       case filename
       when 'image.png', 'helpers/favicon.png' then "\x00binary-asset-context"
       when 'go.mod', 'tools/app/go.mod' then source_manifest
       when 'go.sum', 'tools/app/go.sum' then source_checksum
-      when 'helpers/guard.go' then source_helper
+      when 'helpers/guard.go' then source_helper(revision)
       else source_project_content(filename)
       end
     end
 
-    def source_helper
+    def source_helper(revision)
       return '' if ['source empty related file', 'source missing empty file text'].include?(Abgleich.github.failure)
-      if Abgleich.github.failure == 'source changed helper'
-        return "package worker\n// updated-helper-context\nfunc Allowed() bool { return false }\n"
-      end
+      return "package worker\n// updated-helper-context\nfunc Allowed() bool { return false }\n" if changed_helper?(revision)
 
       content = "package worker\n// helper-context\nfunc Allowed() bool { return true }\n"
       content += "// unrelated-source-padding\n" * 200_000 if Abgleich.github.failure == 'source a large related file'
       content
+    end
+
+    def changed_helper?(revision)
+      return true if Abgleich.github.failure == 'source changed helper'
+
+      Abgleich.github.failure == 'source helper changed at new head' &&
+        revision == Abgleich.github.pull_state('contribution').dig(:head, :sha)
     end
 
     def directory_source(filename)

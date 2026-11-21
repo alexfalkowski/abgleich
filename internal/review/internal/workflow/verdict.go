@@ -26,6 +26,9 @@ func (r *reviewReply) assess(result *reviewResult) {
 		r.Event = github.ReviewRequestChanges
 		r.Assessment = "Findings."
 		r.Decision = "Request changes."
+	case len(r.Unverified) > 0:
+		r.Assessment = "Review unfinished."
+		r.Decision = "Comment. Approval withheld because earlier blockers remain unverified."
 	case !*result.Complete:
 		r.Assessment = "Review unfinished."
 		r.Decision = "Comment. Approval withheld because the reviewer did not finish. See the overview for remaining work."
@@ -43,12 +46,7 @@ func (r *reviewReply) assess(result *reviewResult) {
 	}
 }
 
-func (c *Command) otherReviewRequestsChanges(ctx context.Context, task *reviewTask) (bool, error) {
-	reviews, err := c.github.ListReviews(ctx, task.repository, task.request)
-	if err != nil {
-		return false, err
-	}
-
+func (c *Command) otherReviewRequestsChanges(ctx context.Context, reviews []*github.PullRequestReview) (bool, error) {
 	var candidates []*github.PullRequestReview
 	for _, review := range reviews {
 		if c.hasOtherReviewMarker(review) {
@@ -56,7 +54,7 @@ func (c *Command) otherReviewRequestsChanges(ctx context.Context, task *reviewTa
 		}
 	}
 
-	reviews, err = c.github.AppReviews(ctx, candidates)
+	reviews, err := c.github.AppReviews(ctx, candidates)
 	if err != nil {
 		return false, err
 	}
