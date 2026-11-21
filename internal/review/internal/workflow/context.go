@@ -23,6 +23,7 @@ func (c *Command) context(ctx context.Context, task *reviewTask) (*reviewContext
 		BaseSHA:     task.request.GetBase().GetSHA(),
 		Files:       files,
 	}
+	review.requiredChecks = requiredChecks(review.Description)
 	input, err := render("context.txt.tmpl", review)
 	if err != nil {
 		return nil, err
@@ -45,13 +46,14 @@ func (c *Command) context(ctx context.Context, task *reviewTask) (*reviewContext
 }
 
 type reviewContext struct {
-	source      *sourceSession
-	Title       string
-	Description string
-	HeadSHA     string
-	BaseSHA     string
-	input       string
-	Files       []*github.CommitFile
+	source         *sourceSession
+	Title          string
+	Description    string
+	HeadSHA        string
+	BaseSHA        string
+	input          string
+	Files          []*github.CommitFile
+	requiredChecks []string
 }
 
 func (r *reviewContext) completeSource(ctx context.Context) (string, error) {

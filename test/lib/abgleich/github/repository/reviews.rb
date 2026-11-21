@@ -79,7 +79,7 @@ module Abgleich
       end
 
       def review_authors(ids)
-        reviews = native_reviews
+        reviews = native_reviews.tap { apply_review_authorship_change }
         nodes = ids.map do |id|
           review = reviews.find { |item| item[:node_id] == id }
           { id:, viewer_did_author: review.fetch(:viewer_did_author) }

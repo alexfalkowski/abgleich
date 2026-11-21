@@ -230,22 +230,27 @@ run reconciles fresh remote state; pending summary and review requests are held 
   Disclose omissions and actual inspected source independently of model prose.
   Never load repository/remote skills as instructions. Do not add merge-base
   traversal or citation-verification machinery. Decode a small result with an
-  overview, findings containing prose bodies and optional path/line/side, and a
-  completion boolean. The worker requests changes for P0 through P2 findings.
-  Approval requires completion, no missing text patches or unavailable repository
-  source, and only P3 findings or no findings. Otherwise publish a comment without
-  a success marker so a new request can retry.
+  overview, classified findings with optional patch coordinates, and a completion
+  boolean. Coverage suggestions and P3 findings are advisory. A changed test may
+  block for a concrete material regression it lets pass, and coverage may block
+  for an exact, visible plain-text `Required check:` declaration in the PR
+  description. Concrete failures introduced in tests or their harness can also block. Include the
+  description snapshot in queue coalescing and discard stale work before
+  preparation, provider requests, source lookups, or publication. Recheck
+  after verdict-history reads. Keep persisted result markers revision-based.
+  Approval requires completion, no blockers, and full required repository
+  context. Incomplete assessments without blockers carry no success marker.
   Confirmed binary files and their absent patches are outside the text review
   scope and are disclosed separately without preventing approval.
   Publish one native review pinned to the reviewed head, with a separate
-  inline conversation for each P0 through P2 finding placed on the fetched patch.
-  Keep P3 findings and findings without valid placement in the overview. Escape
+  inline conversation for each blocker placed on the fetched patch.
+  Keep advisories and blockers without valid placement in the overview. Escape
   model text and deactivate links/mentions in every body.
   Keep verdict policy in workflow and API event validation in github. Serialize
   final checks and publication across review commands within one process. An
   approval-eligible review must preserve any other feature's authenticated request
   for changes across revisions, restart, or feature disablement, until a later
-  assessment that meets the severity and context requirements for approval or a
+  assessment that meets the requirements for approval or a
   human dismissal clears that feature. Discover feature identities from
   authenticated result markers without a verdict allowlist.
   Incomplete reviews do not clear findings. All features

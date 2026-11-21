@@ -75,9 +75,9 @@ deploying, and inspecting live services are outside their scope. Lack of executi
 alone does not make a review unfinished; material unresolved source gaps still do.
 
 The App submits one native review with an overview and a separate inline
-conversation for each P0, P1, or P2 finding that can be placed on the supplied
-diff. The overview lists P3 findings and findings without reliable diff
-placement, with their reported location when supplied. Each finding has a short
+conversation for each blocker that can be placed on the supplied diff. The
+overview lists advisory findings and blockers without reliable diff placement,
+with their reported location when supplied. Each finding has a short
 🐛 title with explicit severity (`P0` critical, `P1` high, `P2` medium, or `P3` low),
 followed by separate
 🔎 **Trigger**, 💥 **Impact**, and 🛠️ **Suggested fix** paragraphs. The worker
@@ -85,14 +85,22 @@ renders these labels and escapes each model-provided field. Security-review
 triggers include attacker-controlled input and prerequisites. A review with no
 supported findings still publishes its overview. Review prompts reserve findings
 for issues the PR should address. Relevant concerns that belong to separate work
-can appear as advisory follow-ups in the overview and do not affect the verdict.
+can appear as advisory follow-ups in the overview. Optional coverage suggestions
+and P3 findings are advisory. A higher-severity test finding can block if a
+changed test misses a concrete material regression or the tests or their harness
+introduce a concrete failure. To make a missing coverage check eligible to block,
+declare it in the PR description as an unindented plain-text line, for example
+`Required check: Verify the loading state in a browser.` Put the line in an
+ordinary paragraph. Comments, code blocks, and Markdown containers such as
+lists and block quotes do not declare checks. The reviewer must quote the entire
+declaration. Other coverage prose remains advisory.
 The worker selects the verdict from the structured result:
 
 | Assessment | GitHub verdict |
 | --- | --- |
-| Any P0, P1, or P2 finding, including overview-only findings | `REQUEST_CHANGES` |
-| Only P3 findings or no findings, with model-reported completion and no missing text patches or unavailable repository source | `APPROVE` |
-| Only P3 findings or no findings, with incomplete investigation or missing required context | `COMMENT` (approval withheld) |
+| One or more blockers, including overview-only blockers | `REQUEST_CHANGES` |
+| Complete assessment with no blockers and full required source context | `APPROVE` |
+| No blockers and an incomplete investigation or missing required context | `COMMENT` (approval withheld) |
 
 The model assigns severity from the consequence of a supported trigger. P3
 covers localized defects or test gaps with limited consequences. P2 covers
@@ -107,7 +115,7 @@ it did not finish. **Review completed with limitations** means the model reports
 completion but missing patches or unavailable repository source limit the assessment. A
 **Limitations** list identifies each missing patch and unavailable repository source. Both
 outcomes withhold approval, carry no successful-result marker, and allow a new
-manual request on the same revisions. P0 through P2 findings still request
+manual request on the same revisions. Blockers still request
 changes when other source is unavailable. Model completion is a self-report.
 **External source notes** disclose unavailable dependencies and language references
 separately. These gaps alone do not prevent approval when the reviewer has high
@@ -123,8 +131,8 @@ Details identify the request, head/base SHAs, model, and actual token
 usage, or unavailable usage; no dollar costs are estimated. Missing patches are
 disclosed, along with the source actually inspected and any unavailable reads.
 Citations are not verified, and code/tests are not executed. Findings may be incorrect
-or incomplete. An approval indicates the review reported no P0, P1, or P2
-findings in the inspected scope.
+or incomplete. An approval indicates the review reported no blockers in the
+inspected scope.
 Reviews never label, merge, or rebase. Open inline
 conversations can block merging when the repository requires conversation
 resolution. A review targets the analyzed head; a push after the final check can
@@ -136,7 +144,7 @@ and publication are serialized within the worker process. An approval-eligible
 review publishes a comment while any other feature's latest decisive App assessment
 still requests changes, including across new revisions and restarts or after that
 feature is disabled. Each feature's history is evaluated independently. A
-complete assessment that meets the severity and context requirements for
+complete assessment that meets the requirements for
 approval or an explicit human dismissal clears that feature's request for
 changes. Feature identities come from authenticated App result
 markers, so adding a review requires no verdict allowlist. Commands keep independent
@@ -146,13 +154,18 @@ GitHub's [review and branch rules](https://docs.github.com/en/pull-requests/how-
 determine whether a request for changes blocks merging and whether an App approval
 satisfies review requirements. Require CI and human/code-owner reviews separately
 where needed, and enable stale-approval dismissal for changed commits. There is no
-atomic review-state guard: another instance or review after the final read can race
-publication. These verdicts apply to new requests after upgrading; existing
-authenticated results are reused without retroactively changing their verdicts.
+atomic review-state or description guard. A description edit, another instance,
+or another review after the final read can race publication. These verdicts apply
+to new requests after upgrading; existing authenticated results are reused
+without retroactively changing their verdicts.
 
 Authorization, comment identity, PR eligibility, and both branch identities and
 revisions are rechecked before submission and publication. Changes discard stale
-results and require a new request; already transmitted source cannot be recalled.
+results and require a new request. The worker also checks the description before
+preparation, each provider call and source lookup, and publication. If it sees an
+edit, it discards the stale work. A maintainer can request a review of the edited
+description while the earlier request is running. Already transmitted source
+cannot be recalled.
 A matching successful App result prevents another model call across restarts.
 New head or base revisions permit a fresh review; summaries and security reviews
 remain independent.
@@ -210,7 +223,7 @@ tests, a risky-looking API, malicious prompt text, or an absent secondary defens
 alone does not establish a vulnerability or increase severity. The overview
 describes the inspected security scope and identifies exact unresolved facts and
 the evidence needed to resolve them. Material unresolved questions make the
-assessment incomplete. Supported P0 through P2 findings still request changes.
+assessment incomplete. Supported blockers still request changes.
 The security review excludes speculation and unrelated existing issues.
 All review commands use the [shared source lookup](configuration.md#-review-source-access).
 Missing patches and unavailable source are disclosed; citations are not verified
@@ -246,10 +259,9 @@ repository's existing harness, fixtures, helpers, hooks, and assertions. It chec
 regression-sensitive assertions, relevant failure and boundary coverage,
 determinism, isolation, realistic test doubles, and whether scenarios clearly
 explain one coherent behavior. It searches nearby coverage before claiming a gap.
-The prompt asks it to map changed contracts to assertions, inspect related
-operations and failure paths, and finish a completeness pass even after finding
-issues. This aims to surface supported findings together; it does not guarantee
-that one review finds every weakness.
+The review maps changed contracts to existing assertions and checks related
+failure paths. It reports distinct material gaps together and keeps optional
+variants advisory.
 Readability and duplication justify findings only when they create a concrete
 risk of misleading, brittle, or ineffective tests. Private-function coverage,
 arbitrary coverage percentages, implementation-only sequencing, and demands for

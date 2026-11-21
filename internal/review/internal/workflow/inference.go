@@ -11,7 +11,10 @@ import (
 // leaving time for final checks and publication.
 const inferenceTimeoutDivisor = 2
 
-var errReviewStopped = errors.New("review: no further processing is required")
+var (
+	errReviewStopped            = errors.New("review: no further processing is required")
+	errReviewDescriptionChanged = errors.New("review: pull request description changed")
+)
 
 func (c *Command) generateReview(ctx context.Context, task *reviewTask, review *reviewContext) error {
 	inferenceTimeout := time.Minute
@@ -47,6 +50,9 @@ func (c *Command) generateReview(ctx context.Context, task *reviewTask, review *
 	})
 	if errors.Is(err, errReviewStopped) {
 		return nil
+	}
+	if errors.Is(err, errReviewDescriptionChanged) {
+		return c.publishStale(ctx, task, "description")
 	}
 	if err != nil {
 		return c.reportFailure(ctx, task, stageGeneration, err)

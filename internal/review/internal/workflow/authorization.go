@@ -86,23 +86,23 @@ func (c *Command) revisionChanged(expected, current *reviewTask) bool {
 		current.request.GetBase().GetSHA() != expected.request.GetBase().GetSHA()
 }
 
-// recheck returns a refreshed task only while its authorized revisions still match.
-// A nil task stops processing, including existing results and stale revisions.
-func (c *Command) recheck(ctx context.Context, task *reviewTask) (*reviewTask, error) {
-	current, comments, err := c.authorize(ctx, task)
-	if err != nil {
-		return nil, err
+func (c *Command) staleReason(expected, current *reviewTask) string {
+	switch {
+	case c.revisionChanged(expected, current):
+		return "revision"
+	case expected.request.GetBody() != current.request.GetBody():
+		return "description"
+	default:
+		return ""
 	}
-	if current == nil {
-		return nil, c.publishCancellation(ctx, task)
-	}
+}
 
-	if c.revisionChanged(task, current) {
-		body, err := c.staleMessage(task)
-		if err != nil {
-			return nil, err
-		}
-		return nil, c.publish(ctx, task, body)
+// recheck returns a refreshed task while its authorized revisions and description match.
+// A nil task stops processing for stale input or existing results.
+func (c *Command) recheck(ctx context.Context, task *reviewTask) (*reviewTask, error) {
+	current, comments, err := c.authorizeReview(ctx, task)
+	if err != nil || current == nil {
+		return nil, err
 	}
 
 	exists, err := c.hasReview(ctx, current, comments)
@@ -113,6 +113,22 @@ func (c *Command) recheck(ctx context.Context, task *reviewTask) (*reviewTask, e
 	return current, nil
 }
 
+func (c *Command) authorizeReview(ctx context.Context, task *reviewTask) (*reviewTask, []*github.IssueComment, error) {
+	current, comments, err := c.authorize(ctx, task)
+	if err != nil {
+		return nil, nil, err
+	}
+	if current == nil {
+		return nil, nil, c.publishCancellation(ctx, task)
+	}
+
+	if reason := c.staleReason(task, current); reason != "" {
+		return nil, nil, c.publishStale(ctx, task, reason)
+	}
+
+	return current, comments, nil
+}
+
 func (c *Command) guard(ctx context.Context, task *reviewTask) error {
 	current, comments, err := c.authorize(ctx, task)
 	if err != nil {
@@ -121,6 +137,9 @@ func (c *Command) guard(ctx context.Context, task *reviewTask) error {
 
 	if current == nil || c.revisionChanged(task, current) {
 		return errors.New("review: authorization or revision changed")
+	}
+	if current.request.GetBody() != task.request.GetBody() {
+		return errReviewDescriptionChanged
 	}
 
 	exists, err := c.hasReview(ctx, current, comments)

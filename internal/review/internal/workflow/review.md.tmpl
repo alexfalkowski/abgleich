@@ -24,12 +24,22 @@
 {{.Completion.Text | markdown}}
 
 {{range .Findings}}{{$hasLine := gt .Line 0}}{{if or .Path $hasLine .Side.IsDefined -}}
-📍 **{{if eq .Severity.String "P3"}}Reported location{{else}}Location unavailable on the diff{{end}}:** {{.Path | markdown -}}
+📍 **Location unavailable on the diff:** {{.Path | markdown -}}
 {{if $hasLine}}{{if .Path}}:{{else}}line {{end}}{{.Line}}{{end -}}
 {{if .Side.IsDefined}}{{if or .Path $hasLine}} ({{.Side.String | markdown}}){{else}}{{.Side.String | markdown}}{{end}}{{end}}.
 
 {{end}}{{template "finding.md.tmpl" .}}
 {{end}}
+{{with .Advisories}}
+💬 **Advisory feedback**
+
+{{range .}}{{$hasLine := gt .Line 0}}{{if or .Path $hasLine .Side.IsDefined -}}
+📍 **Reported location:** {{.Path | markdown -}}
+{{if $hasLine}}{{if .Path}}:{{else}}line {{end}}{{.Line}}{{end -}}
+{{if .Side.IsDefined}}{{if or .Path $hasLine}} ({{.Side.String | markdown}}){{else}}{{.Side.String | markdown}}{{end}}{{end}}.
+
+{{end}}{{template "finding.md.tmpl" .}}
+{{end}}{{end}}
 <details>
 <summary>🔎 {{.Title}} details</summary>
 
@@ -47,7 +57,7 @@
 {{else}}📊 **Tokens:** Unavailable.
 {{end}}
 
-🔍 **Scope:** Pull request metadata, all available changed-file patches, complete changed-file text where available, and source retrieved through read-only lookups. Binary files are excluded from the text review. Missing text patches and unavailable repository source limit the review. External source gaps are disclosed separately and do not by themselves prevent approval. Code and tests were not executed. Approval indicates the review reported no P0, P1, or P2 findings in the inspected scope. A review does not certify security or constitute a complete audit.
+🔍 **Scope:** Pull request metadata, all available changed-file patches, complete changed-file text where available, and source retrieved through read-only lookups. Binary files are excluded from the text review. Missing text patches and unavailable repository source limit the review. External source gaps are disclosed separately and do not by themselves prevent approval. Code and tests were not executed. Approval indicates the review reported no blockers in the inspected scope. A review does not certify security or constitute a complete audit.
 
 {{with .Sources}}📚 **Inspected source:**
 {{range .}}

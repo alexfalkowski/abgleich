@@ -64,6 +64,22 @@ module Abgleich
       @mutex.synchronize { @state[:repository_failures][repository] = failure }
     end
 
+    def edit_pull_description(branch, body)
+      @mutex.synchronize do
+        pull = @state[:pulls].values.find { |item| item.dig(:head, :ref) == branch }
+        pull[:body] = body
+      end
+    end
+
+    def review_authorship_change=(change)
+      @mutex.synchronize { @state[:review_authorship_change] = change }
+    end
+
+    def apply_review_authorship_change
+      change = @mutex.synchronize { @state.delete(:review_authorship_change) }
+      change&.call
+    end
+
     def fail_with(failure)
       @mutex.synchronize { @state[:failure] = failure }
     end

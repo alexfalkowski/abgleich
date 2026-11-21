@@ -9,7 +9,7 @@ module Abgleich
 
     def source_review_response(payload, mode)
       outputs = source_review_outputs(payload)
-      return source_burst_reply(payload) if source_burst?(mode, outputs)
+      return source_burst_reply(payload) if mode == 'review source several related files' && outputs.empty?
 
       calls = ruby_source_calls(mode) || source_review_calls(mode)
       index = outputs.length
@@ -22,10 +22,6 @@ module Abgleich
       input = payload.fetch('input')
       halt 400 if input.any? { |item| !valid_source_item?(item) }
       input.select { |item| item['type'] == 'function_call_output' }
-    end
-
-    def source_burst?(mode, outputs)
-      mode == 'review source several related files' && outputs.empty?
     end
 
     def valid_source_item?(item)

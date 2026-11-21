@@ -27,13 +27,13 @@ func (c *Command) publishReview(ctx context.Context, task *reviewTask, completio
 }
 
 func (c *Command) submitReview(ctx context.Context, task *reviewTask, reply *reviewReply) error {
-	task, err := c.recheck(ctx, task)
-	if err != nil || task == nil {
+	current, err := c.recheck(ctx, task)
+	if err != nil || current == nil {
 		return err
 	}
 
 	if reply.Event == github.ReviewApprove {
-		blocked, err := c.otherReviewRequestsChanges(ctx, task)
+		blocked, err := c.otherReviewRequestsChanges(ctx, current)
 		if err != nil {
 			return err
 		}
@@ -48,11 +48,17 @@ func (c *Command) submitReview(ctx context.Context, task *reviewTask, reply *rev
 		return c.reportFailure(ctx, task, stageResult, err)
 	}
 
+	// Refresh after verdict history reads without collecting that history again.
+	current, _, err = c.authorizeReview(ctx, task)
+	if err != nil || current == nil {
+		return err
+	}
+
 	if err := ctx.Err(); err != nil {
 		return err
 	}
 
-	return c.github.AddReview(ctx, task.repository, task.request, &github.PullRequestReviewRequest{
+	return c.github.AddReview(ctx, current.repository, current.request, &github.PullRequestReviewRequest{
 		Body: new(body), Comments: reply.Comments, Event: new(reply.Event.String()),
 	})
 }

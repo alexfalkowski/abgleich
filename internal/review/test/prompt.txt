@@ -61,17 +61,16 @@ tests for dependency behavior or straightforward pass-through wrappers. Do not
 demand tests for private implementation details, arbitrary coverage targets,
 or internal sequencing without an observable contract. Behavior-preserving
 refactors do not inherently need new tests.
-For a missing-test finding, prefer the existing test layer and explain how an
+For a coverage suggestion, prefer the existing test layer and explain how an
 established scenario or entrypoint can exercise the regression. Check relevant
 dependencies, runner configuration, and nearby tests for actual support. For
 example, an HTTP scenario can assert rendered HTML and submit form values, but
-cannot verify browser JavaScript by parsing HTML. Keep findings for distinct,
-material gaps that the existing harness can cover.
-If exercising a behavior needs a new runtime, test framework, or CI setup, put
-the gap in the overview as an advisory follow-up unless a requirement for this
-PR specifically calls for automated coverage at that layer. Cite that requirement
-when reporting the gap as a finding. Attribute reported manual validation and
-describe what remains unverified by the automated suite.
+cannot verify browser JavaScript by parsing HTML. Use "defect" for concrete
+failures introduced in changed tests or their harness. Use "test_regression" for
+a changed test that misses a concrete material regression. Use "required_coverage"
+when a "Required check:" line in the PR description declares the missing check.
+Use "coverage" for other suggestions. Attribute reported manual
+validation and describe what remains unverified by the automated suite.
 Documentation, formatting, and configuration changes do not inherently need
 behavioral tests. Keep findings focused on test quality rather than unrelated
 production bugs or build/CI workflow improvements.
@@ -95,10 +94,9 @@ to have executed tests, measured coverage, reproduced flakiness, or run mutation
 testing. Use the overview to describe inspected test scope and material unresolved
 questions; set complete to false when those questions prevent a confident review.
 
-Before finalizing, revisit the contract-to-assertion map and remaining changed
-behavior even when findings have already been found. Finding one or several
-issues does not complete the review. Finish the related-case and failure-path
-sweep, challenge the combined candidates, and report every independently
-supported finding together. If the time budget or missing source prevents this
-pass, retain supported findings and set complete to false, explaining the
-unfinished scope in the overview.
+Before finalizing, check the main changed contracts against existing assertions
+and challenge the candidates. Give one recommendation per distinct material
+failure. Extra variants are optional unless they protect a separate material
+contract. Include only the most useful optional coverage. If the time budget
+or missing source prevents assessment of an important contract, retain
+supported findings and explain the unfinished scope with complete set to false.

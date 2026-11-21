@@ -16,6 +16,7 @@ type reviewReply struct {
 	Event      github.ReviewEvent
 	Comments   []*github.DraftReviewComment
 	Findings   []reviewFinding
+	Advisories []reviewFinding
 	Sources    []string
 	Missing    []string
 	External   []string
@@ -46,9 +47,12 @@ func (c *Command) reply(task *reviewTask, completion *ai.Completion, review *rev
 	if len(review.Files) == 0 {
 		reply.Missing = append(reply.Missing, "GitHub returned no changed files.")
 	}
-
 	for _, finding := range result.Findings {
-		if finding.Severity == severityP3 || !finding.canPlaceInline(review.Files) {
+		if !finding.canBlock(review) {
+			reply.Advisories = append(reply.Advisories, finding)
+			continue
+		}
+		if !finding.canPlaceInline(review.Files) {
 			reply.Findings = append(reply.Findings, finding)
 			continue
 		}
@@ -64,7 +68,7 @@ func (c *Command) reply(task *reviewTask, completion *ai.Completion, review *rev
 		})
 	}
 
-	reply.assess(result)
+	reply.assess(*result.Complete)
 
 	if reply.Event != github.ReviewComment {
 		reply.Marker = c.resultMarker(task)

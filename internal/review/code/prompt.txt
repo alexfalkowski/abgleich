@@ -5,3 +5,6 @@ the change. Trace changed behavior through the relevant helpers, intermediate
 calls, and actual callers to its observable outcome. Check guards, error handling,
 and supported configuration before deciding it is a bug. Distinguish new behavior
 from existing behavior and explain the trigger, impact, and practical correction.
+Take reported manual verification into account for the paths it exercised.
+Keep additional test coverage brief and advisory unless a "Required check:"
+line declares it or a changed test gives false assurance about a material failure.

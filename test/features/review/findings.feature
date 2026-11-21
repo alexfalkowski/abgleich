@@ -59,7 +59,7 @@ Feature: Validate and place review findings
     And exactly 1 request should reach the AI service
     And no native review should be submitted
 
-  Scenario Outline: Reject findings without complete explanations
+  Scenario Outline: Reject findings with missing or invalid fields
     Given AI <kind> reviews are configured for this repository
     And a pull request from "the repository" for branch "contribution" is "waiting for checks"
     And the reviewer provides a finding with "<problem>"
@@ -82,6 +82,8 @@ Feature: Validate and place review findings
       | code | codereview | blank impact        |
       | code | codereview | blank fix           |
       | code | codereview | an invalid severity |
+      | code | codereview | missing kind        |
+      | code | codereview | an invalid kind     |
 
     @secreview
     Examples:

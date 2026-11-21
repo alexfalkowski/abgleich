@@ -17,8 +17,8 @@ Given('the contribution renames a reviewed file') do
 end
 
 Given('the reviewer provides a finding with {string}') do |problem|
-  Abgleich.openai.mode = if problem == 'an invalid severity'
-                           'review invalid finding severity'
+  Abgleich.openai.mode = if problem.start_with?('an invalid ')
+                           "review invalid finding #{problem.delete_prefix('an invalid ')}"
                          else
                            state, field = problem.split
                            "review #{state} finding #{field}"

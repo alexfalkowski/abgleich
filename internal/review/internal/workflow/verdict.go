@@ -8,34 +8,32 @@ import (
 )
 
 const (
-	noFindings          = "No findings."
-	lowSeverityFindings = "Low-severity findings."
+	noFindings       = "No findings."
+	advisoryFindings = "Advisory feedback."
 
-	// Keep authenticated history checks aligned with rendered approval-eligible assessments.
+	// Recognize the assessment labels used for approval-eligible results.
 	cleanAssessment       = "\n**Assessment:** " + noFindings + "\n"
-	lowSeverityAssessment = "\n**Assessment:** " + lowSeverityFindings + "\n"
+	advisoryAssessment    = "\n**Assessment:** " + advisoryFindings + "\n"
+	lowSeverityAssessment = "\n**Assessment:** Low-severity findings.\n"
 )
 
-func (r *reviewReply) assess(result *reviewResult) {
-	requiresChanges := slices.ContainsFunc(result.Findings, func(finding reviewFinding) bool {
-		return finding.Severity != severityP3
-	})
+func (r *reviewReply) assess(complete bool) {
 	r.Event = github.ReviewComment
 	switch {
-	case requiresChanges:
+	case len(r.Comments) > 0 || len(r.Findings) > 0:
 		r.Event = github.ReviewRequestChanges
 		r.Assessment = "Findings."
 		r.Decision = "Request changes."
-	case !*result.Complete:
+	case !complete:
 		r.Assessment = "Review unfinished."
 		r.Decision = "Comment. Approval withheld because the reviewer did not finish. See the overview for remaining work."
 	case len(r.Missing) > 0:
 		r.Assessment = "Review completed with limitations."
 		r.Decision = "Comment. Approval withheld because the worker recorded the limitations below."
-	case len(result.Findings) > 0:
+	case len(r.Advisories) > 0:
 		r.Event = github.ReviewApprove
-		r.Assessment = lowSeverityFindings
-		r.Decision = "Approve. Only low-severity findings."
+		r.Assessment = advisoryFindings
+		r.Decision = "Approve. Feedback is advisory."
 	default:
 		r.Event = github.ReviewApprove
 		r.Assessment = noFindings
@@ -63,7 +61,7 @@ func (c *Command) otherReviewRequestsChanges(ctx context.Context, task *reviewTa
 
 	// Resolve each feature independently, including features no longer enabled.
 	// Incomplete comments do not clear prior findings, including across revisions.
-	// A complete assessment with at most P3 findings clears its feature even if another feature blocks approval.
+	// An approval-eligible assessment clears its feature even if another feature blocked approval.
 	assessed := make(map[string]bool)
 	for _, review := range slices.Backward(reviews) {
 		name := reviewThreadMarker.FindStringSubmatch(review.GetBody())[1]
@@ -84,7 +82,8 @@ func (c *Command) otherReviewRequestsChanges(ctx context.Context, task *reviewTa
 }
 
 func isApprovalAssessment(body string) bool {
-	return strings.Contains(body, cleanAssessment) || strings.Contains(body, lowSeverityAssessment)
+	return strings.Contains(body, cleanAssessment) || strings.Contains(body, advisoryAssessment) ||
+		strings.Contains(body, lowSeverityAssessment)
 }
 
 func (c *Command) hasOtherReviewMarker(review *github.PullRequestReview) bool {

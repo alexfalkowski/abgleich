@@ -1,6 +1,6 @@
 @manual @commands @review-results
 Feature: Ground review decisions in the inspected changes
-  Findings above low severity request changes. Approval requires a complete assessment and preserves outstanding requests for changes from other reviews.
+  Blockers request changes. Approval requires a complete assessment and preserves outstanding requests for changes from other reviews.
 
   Scenario Outline: Select the decision from the completed assessment
     Given AI <kind> reviews are configured for this repository
@@ -33,8 +33,8 @@ Feature: Ground review decisions in the inspected changes
     And the AI test review answer has "<answer>"
     When a maintainer with "write" access comments "/ab testreview"
     Then the test review decision should be "APPROVED"
-    And the test review assessment should be "Low-severity findings"
-    And the test review decision should explain "Only low-severity findings"
+    And the test review assessment should be "Advisory feedback"
+    And the test review decision should explain "Feedback is advisory"
     And the review overview should show the low-severity finding at "<location>"
     And the native review should have no inline findings
 
@@ -85,6 +85,140 @@ Feature: Ground review decisions in the inspected changes
     And the review overview should show the low-severity finding at "main.go:2 (RIGHT)"
     And the native review should have no inline findings
     And the incomplete review should have no success marker
+
+  @codereview
+  Scenario: Keep optional browser coverage advisory even at medium severity
+    Given AI code reviews are configured for this repository
+    And a pull request from "the repository" for branch "contribution" is "waiting for checks"
+    And the AI code review answer has "optional browser coverage"
+    When a maintainer with "write" access comments "/ab codereview"
+    Then the code review decision should be "APPROVED"
+    And the code review assessment should be "Advisory feedback"
+    And the review overview should show the advisory about browser coverage
+    And the native review should have no inline findings
+
+  @codereview
+  Scenario Outline: Request a missing browser check only when the description requires it
+    Given AI code reviews are configured for this repository
+    And a pull request from "the repository" for branch "contribution" is "waiting for checks"
+    And the PR description "<requirement>" a browser check
+    And the AI code review answer has "<answer>"
+    When a maintainer with "write" access comments "/ab codereview"
+    Then the code review decision should be "<decision>"
+    And the coverage finding should open <threads> inline conversations
+
+    Examples:
+      | requirement                        | answer                                 | decision          | threads |
+      | requires                           | missing required browser coverage      | CHANGES_REQUESTED | 1       |
+      | hides an example and then requires | missing required browser coverage      | CHANGES_REQUESTED | 1       |
+      | requires a specific variant of     | missing required browser coverage      | APPROVED          | 0       |
+      | mentions a declaration for         | missing required browser coverage      | APPROVED          | 0       |
+      | has a hidden template example for  | missing required browser coverage      | APPROVED          | 0       |
+      | has an inline template example for | missing required browser coverage      | APPROVED          | 0       |
+      | has a fenced example for           | missing required browser coverage      | APPROVED          | 0       |
+      | has a tilde-fenced example for     | missing required browser coverage      | APPROVED          | 0       |
+      | has an indented example for        | missing required browser coverage      | APPROVED          | 0       |
+      | suggests                           | a browser suggestion cited as required | APPROVED          | 0       |
+
+  @codereview
+  Scenario: Stop a queued review of a description the author has edited
+    Given AI code reviews are configured for this repository
+    And a pull request from "the repository" for branch "contribution" is "waiting for checks"
+    And the PR description "requires" a browser check
+    And another code review is still being prepared
+    And a maintainer's code review request is waiting
+    When the author removes the browser requirement before the queued review starts
+    Then the maintainer should be asked for a new review of the updated description
+    And no native review should be submitted for the contribution
+    And exactly 1 request should reach the AI service
+
+  @codereview
+  Scenario: Stop a stale review before sending the description to the AI service
+    Given AI code reviews are configured for this repository
+    And a pull request from "the repository" for branch "contribution" is "waiting for checks"
+    And the PR description "requires" a browser check
+    And the author removes the browser requirement before source submission
+    When a maintainer with "write" access comments "/ab codereview"
+    Then the maintainer should be asked for a new review of the updated description
+    And no native review should be submitted
+    And exactly 0 requests should reach the AI service
+
+  @codereview
+  Scenario: Discard a review when the author removes the coverage requirement during inference
+    Given AI code reviews are configured for this repository
+    And a pull request from "the repository" for branch "contribution" is "waiting for checks"
+    And the PR description "requires" a browser check
+    And the AI code review answer has "missing required browser coverage"
+    And the author removes the browser requirement during review
+    When a maintainer with "write" access comments "/ab codereview"
+    Then the maintainer should be asked for a new review of the updated description
+    And no native review should be submitted
+
+  @codereview
+  Scenario: Review the edited description when a new request arrives during inference
+    Given AI code reviews are configured for this repository
+    And a pull request from "the repository" for branch "contribution" is "waiting for checks"
+    And the PR description "requires" a browser check
+    And the AI code review answer has "missing required browser coverage"
+    And a code review of the original description is in progress
+    When a maintainer removes the browser requirement and requests another code review
+    Then the maintainer should be asked for a new review of the updated description
+    And only the fresh code review should publish a verdict
+
+  @codereview
+  Scenario: Stop investigating when the author edits the description between provider turns
+    Given repository source and public Go dependencies are available for review
+    And a pull request from "the repository" for branch "contribution" is "waiting for checks"
+    And the PR description "requires" a browser check
+    And the reviewer needs "a related source file"
+    And the author removes the browser requirement during review
+    When a maintainer with "write" access comments "/ab codereview"
+    Then the maintainer should be asked for a new review of the updated description
+    And the code review should stop before sharing related source
+
+  @codereview
+  Scenario: Discard an approval when the author edits the description during verdict history checks
+    Given AI code reviews are configured for this repository
+    And a pull request from "the repository" for branch "contribution" is "waiting for checks"
+    And both review commands are enabled
+    And the AI security review answer has "no findings"
+    And the pull request has already received a security review
+    And the AI code review answer has "no findings"
+    And the author edits the description while the worker checks prior review authorship
+    When a maintainer with "write" access comments "/ab codereview"
+    Then the maintainer should be asked for a new review of the updated description
+    And native review history should remain unchanged
+
+  @testreview
+  Scenario Outline: Request changes when a rewritten test no longer detects a material regression
+    Given AI test reviews are configured for this repository
+    And a pull request from "the repository" for branch "contribution" is "waiting for checks"
+    And the AI test review answer has "<answer>"
+    When a maintainer with "write" access comments "/ab testreview"
+    Then the test review decision should be "CHANGES_REQUESTED"
+    And the inline findings should be:
+      | path           | line | side   |
+      | worker_test.go | 3    | <side> |
+
+    Examples:
+      | answer                                       | side  |
+      | a changed test that misses a regression      | RIGHT |
+      | a removed assertion that misses a regression | LEFT  |
+
+  @testreview
+  Scenario Outline: Keep a test regression advisory when it lacks a changed line or supporting evidence
+    Given AI test reviews are configured for this repository
+    And a pull request from "the repository" for branch "contribution" is "waiting for checks"
+    And the AI test review answer has "<answer>"
+    When a maintainer with "write" access comments "/ab testreview"
+    Then the test review decision should be "APPROVED"
+    And the test review assessment should be "Advisory feedback"
+    And the native review should have no inline findings
+
+    Examples:
+      | answer                                          |
+      | an unchanged test line that misses a regression |
+      | a changed test finding without an explanation   |
 
   Scenario Outline: Withhold approval when the worker records missing context
     Given AI <kind> reviews are configured for this repository
@@ -279,6 +413,17 @@ Feature: Ground review decisions in the inspected changes
       | answer                |
       | no findings           |
       | low-severity findings |
+
+  @secreview
+  Scenario: Honor a pre-upgrade review comment that cleared an earlier request for changes
+    Given AI security reviews are configured for this repository
+    And a pull request from "the repository" for branch "contribution" is "waiting for checks"
+    And both review commands are enabled
+    And both reviews previously requested changes before a code review of new commits reported "low-severity findings"
+    And the clearing code review used the pre-upgrade assessment label
+    And the AI security review answer has "no findings"
+    When a maintainer with "write" access comments "/ab secreview"
+    Then the security review decision should be "APPROVED"
 
   @secreview
   Scenario Outline: Ignore requests for changes from unauthenticated lookalikes

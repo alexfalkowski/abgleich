@@ -23,7 +23,7 @@ module Abgleich
 
     REVIEW_FINDING = {
       title: 'Preserve successful work', severity: 'P2', trigger: 'When work succeeds.',
-      impact: 'The caller reports a failure.', fix: 'Preserve its successful result.'
+      impact: 'The caller reports a failure.', fix: 'Preserve its successful result.', kind: 'defect'
     }.freeze
 
     INLINE_FINDINGS = [
@@ -35,7 +35,7 @@ module Abgleich
     LOW_SEVERITY_FINDING = {
       title: 'Clarify the status label', severity: 'P3', trigger: 'When work succeeds.',
       impact: 'The label is ambiguous, but the result remains visible.', fix: 'Name the completed action.',
-      path: 'main.go', line: 2, side: 'RIGHT'
+      path: 'main.go', line: 2, side: 'RIGHT', kind: 'defect'
     }.freeze
 
     MIXED_LOCATION_FINDINGS = [
@@ -44,9 +44,23 @@ module Abgleich
       REVIEW_FINDING.merge(impact: 'The unavailable location needs inspection.', path: 'renamed.go', line: 3, side: 'RIGHT')
     ].freeze
 
+    BROWSER_COVERAGE = REVIEW_FINDING.merge(title: 'Exercise loading in a browser', path: 'main.go', line: 2, side: 'RIGHT').freeze
+    COVERAGE_REQUIREMENT = 'Required check: Add a browser check for the loading state.'
+    COVERAGE_SUGGESTION = 'Consider a browser check for the loading state.'
+    TEST_GAP = REVIEW_FINDING.merge(
+      kind: 'test_regression', evidence: TEST_REVIEW_TEXT, path: 'worker_test.go', line: 3, side: 'RIGHT'
+    ).freeze
+
     FINDINGS_BY_MODE = {
       'review no findings' => [], 'review incomplete' => [], 'review missing completion' => [],
       'review inline findings' => INLINE_FINDINGS,
+      'review optional browser coverage' => [BROWSER_COVERAGE.merge(kind: 'coverage')],
+      'review missing required browser coverage' => [BROWSER_COVERAGE.merge(kind: 'required_coverage', evidence: COVERAGE_REQUIREMENT)],
+      'review a browser suggestion cited as required' => [BROWSER_COVERAGE.merge(kind: 'required_coverage', evidence: COVERAGE_SUGGESTION)],
+      'review a changed test that misses a regression' => [TEST_GAP],
+      'review a removed assertion that misses a regression' => [TEST_GAP.merge(side: 'LEFT')],
+      'review an unchanged test line that misses a regression' => [TEST_GAP.merge(line: 2)],
+      'review a changed test finding without an explanation' => [TEST_GAP.merge(evidence: '  ')],
       'review low-severity findings' => [LOW_SEVERITY_FINDING],
       'review incomplete with low-severity findings' => [LOW_SEVERITY_FINDING],
       'review low- and medium-severity findings' => [LOW_SEVERITY_FINDING, INLINE_FINDINGS.last],
@@ -86,6 +100,7 @@ module Abgleich
         REVIEW_FINDING.merge(title: text, trigger: text, impact: text, fix: text)
       when 'review low-severity findings with a path only' then LOW_SEVERITY_FINDING.except(:line, :side)
       when 'review invalid finding severity' then REVIEW_FINDING.merge(severity: 'urgent')
+      when 'review invalid finding kind' then REVIEW_FINDING.merge(kind: 'unknown')
       when /^review missing finding (.+)$/ then REVIEW_FINDING.except(Regexp.last_match(1).to_sym)
       when /^review blank finding (.+)$/ then REVIEW_FINDING.merge(Regexp.last_match(1).to_sym => " \n\t")
       else REVIEW_FINDING.merge(impact: text)

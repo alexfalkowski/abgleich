@@ -13,6 +13,7 @@ type staleReview struct {
 	Command   string
 	HeadSHA   string
 	BaseSHA   string
+	Changed   string
 	RequestID int64
 }
 
@@ -25,8 +26,8 @@ func (c *Command) publish(ctx context.Context, task *reviewTask, body string) er
 		return c.publishCancellation(ctx, task)
 	}
 
-	if c.revisionChanged(task, current) {
-		body, err = c.staleMessage(task)
+	if reason := c.staleReason(task, current); reason != "" {
+		body, err = c.staleMessage(task, reason)
 		if err != nil {
 			return err
 		}
@@ -69,11 +70,19 @@ func (c *Command) publishCancellation(ctx context.Context, task *reviewTask) err
 	return c.github.AddComment(ctx, current.repository, current.request.GetNumber(), body)
 }
 
-func (c *Command) staleMessage(task *reviewTask) (string, error) {
+func (c *Command) publishStale(ctx context.Context, task *reviewTask, reason string) error {
+	body, err := c.staleMessage(task, reason)
+	if err != nil {
+		return err
+	}
+	return c.publish(ctx, task, body)
+}
+
+func (c *Command) staleMessage(task *reviewTask, changed string) (string, error) {
 	return render("stale.md.tmpl", staleReview{
 		Title: c.profile.Title, Command: c.profile.Name,
 		HeadSHA: task.request.GetHead().GetSHA(), BaseSHA: task.request.GetBase().GetSHA(),
-		RequestID: task.comment.GetID(),
+		Changed: changed, RequestID: task.comment.GetID(),
 	})
 }
 

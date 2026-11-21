@@ -41,6 +41,11 @@ func (c *Command) hasReview(ctx context.Context, task *reviewTask, comments []*g
 	return c.github.HasAppReview(ctx, candidates)
 }
 
+func (c *Command) queueKey(task *reviewTask) string {
+	description := sha256.Sum256(strings.Bytes(task.request.GetBody()))
+	return fmt.Sprintf("%s:%x", c.resultMarker(task), description)
+}
+
 func (c *Command) resultMarker(task *reviewTask) string {
 	identity := strings.Join("\n",
 		c.profile.Name,

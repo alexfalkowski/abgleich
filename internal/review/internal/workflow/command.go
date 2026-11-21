@@ -47,8 +47,8 @@ type Command struct {
 	profile     ReviewProfile
 }
 
-// Handle refreshes human consent and queues one revision-specific review. A full
-// queue preserves existing command backpressure; inference never holds the slot.
+// Handle refreshes human consent and queues a review of the current revisions and
+// description. A full queue preserves backpressure; inference never holds the slot.
 // A nil Command represents a disabled feature and declines the request.
 func (c *Command) Handle(ctx context.Context, event *github.IssueCommentEvent) (bool, error) {
 	if c == nil {
@@ -76,7 +76,7 @@ func (c *Command) enqueue(ctx context.Context, task *reviewTask, comments []*git
 		return false, err
 	}
 
-	err := c.queue.Enqueue(c.resultMarker(task), func(ctx context.Context) error {
+	err := c.queue.Enqueue(c.queueKey(task), func(ctx context.Context) error {
 		return c.process(ctx, task)
 	})
 

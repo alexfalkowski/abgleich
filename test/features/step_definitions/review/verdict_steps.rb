@@ -10,6 +10,46 @@ Given('all three review commands are enabled') do
   Abgleich.use_config('testreview_all')
 end
 
+Given('the PR description {string} a browser check') do |requirement|
+  required_check = Abgleich::OpenAIService::COVERAGE_REQUIREMENT
+  line = {
+    'requires' => required_check,
+    'requires a specific variant of' => "#{required_check} Exercise both success and recovery.",
+    'suggests' => Abgleich::OpenAIService::COVERAGE_SUGGESTION,
+    'mentions a declaration for' => "Example only: #{required_check}",
+    'has a hidden template example for' => "<!--\n#{required_check}\n-->",
+    'has an inline template example for' => "Template example <!--\n#{required_check}\n-->",
+    'has a fenced example for' => "```text\n#{required_check}\n```",
+    'has a tilde-fenced example for' => "~~~~\n#{required_check}\n~~~~",
+    'has an indented example for' => "    #{required_check}",
+    'hides an example and then requires' => "<!--\nTemplate example\n-->\n\n#{required_check}"
+  }.fetch(requirement)
+  description = "Update the loading state.\n\n#{line}\n\nExisting checks cover the status code."
+  Abgleich.github.edit_pull_description('contribution', description)
+end
+
+Given('the author removes the browser requirement before source submission') do
+  Abgleich.github.collection_change = -> { Abgleich.github.edit_pull_description('contribution', Abgleich::OpenAIService::COVERAGE_SUGGESTION) }
+end
+
+Given('the author removes the browser requirement during review') do
+  Abgleich.openai.on_request = lambda do
+    Abgleich.github.edit_pull_description('contribution', Abgleich::OpenAIService::COVERAGE_SUGGESTION)
+  end
+end
+
+Given('the author edits the description while the worker checks prior review authorship') do
+  Abgleich.github.review_authorship_change = lambda do
+    Abgleich.github.edit_pull_description('contribution', Abgleich::OpenAIService::COVERAGE_REQUIREMENT)
+  end
+end
+
+Given('a code review of the original description is in progress') do
+  Abgleich.openai.pause_responses
+  @stale_review_request = queue_review('code')
+  wait_for { Abgleich.openai.requests.length }.to eq(1), 'expected inference to start before editing the description'
+end
+
 Given('the pull request has these earlier review assessments:') do |table|
   table.hashes.each do |row|
     Abgleich.openai.mode = "review #{row.fetch('answer')}"
@@ -91,11 +131,28 @@ Given('both reviews previously requested changes before a code review of new com
   expect(reviews_for('code').last).to include(state: 'COMMENTED')
 end
 
+Given('the clearing code review used the pre-upgrade assessment label') do
+  body = reviews_for('code').last.fetch(:body)
+  expect(body).to include('**Assessment:** Advisory feedback.')
+  Abgleich.github.change_native_review(:body, body.sub('**Assessment:** Advisory feedback.', '**Assessment:** Low-severity findings.'))
+end
+
 When('maintainers request both reviews together') do
   Abgleich.openai.pause_responses
   queue_review('code')
   queue_review('security')
   wait_for { Abgleich.openai.requests.length }.to eq(2), 'expected both independent reviews to reach inference'
+  Abgleich.openai.resume_responses
+end
+
+When('a maintainer removes the browser requirement and requests another code review') do
+  Abgleich.github.edit_pull_description('contribution', Abgleich::OpenAIService::COVERAGE_SUGGESTION)
+  @comment_event = queue_review('code')
+  Abgleich.openai.resume_responses
+end
+
+When('the author removes the browser requirement before the queued review starts') do
+  Abgleich.github.edit_pull_description('contribution', Abgleich::OpenAIService::COVERAGE_SUGGESTION)
   Abgleich.openai.resume_responses
 end
 
@@ -120,6 +177,44 @@ end
 
 Then('its decision should explain that the other review still requests changes') do
   expect(Abgleich.github.native_reviews.last.fetch(:body)).to include('Approval withheld because the other review still requests changes')
+end
+
+Then('the review overview should show the advisory about browser coverage') do
+  overview = review_text('code').split('📝 **Overview**').last.split('<details>').first
+  expect(overview).to include('Advisory feedback', 'P2 · Exercise loading in a browser')
+end
+
+Then('the coverage finding should open {int} inline conversations') do |expected|
+  comments = wait_for_review('code').fetch(:comments)
+  expect(comments.length).to eq(expected)
+end
+
+Then('the maintainer should be asked for a new review of the updated description') do
+  event = @stale_review_request || @comment_event
+  request = "#issuecomment-#{event.fetch(:comment).fetch('id')}"
+  notice = nil
+  wait_for do
+    notice = Abgleich.github.replies.map { |reply| reply.fetch(:body) }.find do |body|
+      body.include?('description changed') && body.include?(request)
+    end
+  end.not_to be_nil, 'expected a stale notice for the original review request'
+  expect(notice).to include('discarded', 'Post a new `/ab codereview`')
+  expect(notice).not_to include('<!-- abgleich:')
+  expect_review_check('code')
+end
+
+Then('only the fresh code review should publish a verdict') do
+  review = wait_for_requested_review('code', @comment_event)
+  expect(review.fetch(:state)).to eq('APPROVED')
+  expect(reviews_for('code')).to contain_exactly(review)
+  requests = Abgleich.openai.requests
+  expect(requests.length).to eq(2), 'expected inference for both descriptions'
+  expect(requests.first.fetch('input').to_json).to include(Abgleich::OpenAIService::COVERAGE_REQUIREMENT)
+  expect(requests.last.fetch('input').to_json).to include(Abgleich::OpenAIService::COVERAGE_SUGGESTION)
+end
+
+Then('no native review should be submitted for the contribution') do
+  expect(Abgleich.github.native_reviews_for('contribution')).to be_empty
 end
 
 Then(/^the (code|security|test) review assessment should be "([^"]*)"$/) do |kind, assessment|

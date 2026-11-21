@@ -151,7 +151,7 @@ fails, or use `/ab review` to request remaining configured reviews. The
 [code-review recovery rules](#-code-review-recovery) apply, with independent
 `testreview` result markers. Outstanding requests for changes from disabled
 features still apply when another feature considers approval. A later assessment
-that meets the severity and context requirements for approval or a human
+that meets the requirements for approval or a human
 dismissal clears that feature's request for changes.
 
 ### 🧹 Cleanup recovery

@@ -135,10 +135,11 @@ broad use, evaluate approved PRs with known ineffective assertions, missing
 behavior coverage, isolation/lifecycle failures, and clean controls. Include
 Go and Ruby/Cucumber harnesses, production-only changes already covered by
 existing scenarios, and behavior-preserving changes that need no additional tests.
-Include an HTTP-only suite with both missing server-rendered assertions and a
-browser-only recovery path checked manually. Expect findings for the actionable
-assertions and an advisory note for the browser coverage gap. Pair it with an
-established browser suite that can cover the regression.
+Include an HTTP-only suite with a changed assertion that misses a material
+server-rendered regression and a browser-only recovery path checked manually.
+Expect the ineffective changed test to block and the optional browser coverage
+to stay advisory. Pair it with a PR description that declares the missing browser
+check on a `Required check:` line.
 Include `.gocov` exclusions already present or added by the PR, regex patterns,
 and changes mixing excluded code with genuine test gaps in other paths. Expect no
 missing-test demands for excluded code, while retaining findings for ineffective
