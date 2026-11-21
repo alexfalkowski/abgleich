@@ -59,6 +59,7 @@ func (s *sourceSession) readSubmodule(ctx context.Context, args submoduleRequest
 			return strings.Empty, errors.Join(errRepositorySource, err)
 		}
 
+		s.recordFingerprint(s.headSHA, entry)
 		return s.submoduleSource(ctx, repo, entry.GetSHA(), args, files)
 	}
 

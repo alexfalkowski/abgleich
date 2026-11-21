@@ -238,9 +238,10 @@ run reconciles fresh remote state; pending summary and review requests are held 
   Confirmed binary files and their absent patches are outside the text review
   scope and are disclosed separately without preventing approval.
   Publish one native review pinned to the reviewed head, with a separate
-  inline conversation for each P0 through P2 finding placed on the fetched patch.
-  Keep P3 findings and findings without valid placement in the overview. Escape
-  model text and deactivate links/mentions in every body.
+  inline conversation for each new P0 through P2 finding placed on the fetched
+  patch. Keep still-open findings with links to their original reviews, P3
+  findings, and findings without valid placement in the overview. Escape model
+  text and deactivate links/mentions in every body.
   Keep verdict policy in workflow and API event validation in github. Serialize
   final checks and publication across review commands within one process. An
   approval-eligible review must preserve any other feature's authenticated request
@@ -270,8 +271,12 @@ run reconciles fresh remote state; pending summary and review requests are held 
   discussion and native review history, using API-authenticated App attribution.
   New revisions permit new reviews; summaries remain
   independent. Source-enabled reviews use v2 result markers so old patch-only
-  results do not suppress a new request. Failures carry no success marker. Do not automatically retry
-  ambiguous publication; later human requests first check existing results.
+  results do not suppress a new request. Carry earlier blockers from the latest
+  authenticated same-feature assessment when it has a usable follow-up record.
+  Incomplete requests for changes remain blocking and retain their own marker so
+  maintainers can retry them on the same revisions. Failures carry no success
+  marker. Do not automatically retry ambiguous publication; later human requests
+  first check existing results.
 - Report request, head/base SHAs, model, and provider token usage; missing usage
   stays explicit. Do not estimate dollar costs or request billing credentials.
   Model accuracy remains unestablished; evaluate approved data before broad use.

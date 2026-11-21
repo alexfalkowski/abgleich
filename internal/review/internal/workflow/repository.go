@@ -34,6 +34,7 @@ func (s *sourceSession) repositoryFiles(ctx context.Context, revision string, fi
 		key := revision + ":" + filename
 		if content, ok := current[filename]; ok {
 			s.inspected = append(s.inspected, key)
+			s.recordFingerprint(revision, file)
 			s.files[key] = content
 			contents[filename] = content
 			continue

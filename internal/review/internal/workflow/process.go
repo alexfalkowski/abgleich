@@ -29,12 +29,12 @@ func (c *Command) Process(ctx context.Context) error {
 }
 
 func (c *Command) process(ctx context.Context, task *reviewTask) error {
-	task, err := c.recheck(ctx, task)
+	task, reviews, err := c.recheck(ctx, task)
 	if err != nil || task == nil {
 		return err
 	}
 
-	review, err := c.context(ctx, task)
+	review, err := c.context(ctx, task, reviews)
 	if err != nil {
 		return c.reportFailure(ctx, task, stageSource, err)
 	}

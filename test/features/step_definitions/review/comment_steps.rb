@@ -146,7 +146,7 @@ end
 
 Then('each inline finding should separate its title, trigger, impact, and suggested fix') do
   comments = Abgleich.github.native_reviews.last.fetch(:comments)
-  expect(comments.first.fetch(:body)).to eq(<<~BODY)
+  expect(comments.first.fetch(:body)).to start_with(<<~BODY)
     🐛 **P1 · Preserve successful work**
 
     🔎 **Trigger:** When work succeeds.
@@ -155,7 +155,7 @@ Then('each inline finding should separate its title, trigger, impact, and sugges
 
     🛠️ **Suggested fix:** Preserve its successful result.
   BODY
-  expect(comments.last.fetch(:body)).to eq(<<~BODY)
+  expect(comments.last.fetch(:body)).to start_with(<<~BODY)
     🐛 **P2 · Restore the guard**
 
     🔎 **Trigger:** When work succeeds.
@@ -164,11 +164,15 @@ Then('each inline finding should separate its title, trigger, impact, and sugges
 
     🛠️ **Suggested fix:** Preserve its successful result.
   BODY
+  ids = comments.map { |comment| comment.fetch(:body)[/Finding `(F-[a-f0-9]+)`/, 1] }
+  expect(ids).not_to include(nil)
+  expect(ids.uniq.length).to eq(comments.length)
 end
 
 Then('the review overview should retain the finding outside the diff at {string}') do |location|
-  body = Abgleich.github.native_reviews.last.fetch(:body).delete('\\')
-  expect(body).to include(<<~BODY)
+  body = Abgleich.github.native_reviews.last.fetch(:body)
+  visible = body.lines.reject { |line| line.start_with?('<!--') }.join.delete('\\')
+  expect(visible).to include(<<~BODY)
     📍 **Location unavailable on the diff:** #{location}.
 
     🐛 **P2 · Preserve successful work**

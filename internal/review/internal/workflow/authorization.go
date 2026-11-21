@@ -88,32 +88,28 @@ func (c *Command) revisionChanged(expected, current *reviewTask) bool {
 
 // recheck returns a refreshed task only while its authorized revisions still match.
 // A nil task stops processing, including existing results and stale revisions.
-func (c *Command) recheck(ctx context.Context, task *reviewTask) (*reviewTask, error) {
+func (c *Command) recheck(ctx context.Context, task *reviewTask) (*reviewTask, reviewHistory, error) {
 	current, comments, err := c.authorize(ctx, task)
 	if err != nil {
-		return nil, err
+		return nil, reviewHistory{}, err
 	}
 	if current == nil {
-		return nil, c.publishCancellation(ctx, task)
+		return nil, reviewHistory{}, c.publishCancellation(ctx, task)
 	}
 
 	if c.revisionChanged(task, current) {
-		body, err := c.staleMessage(task)
-		if err != nil {
-			return nil, err
-		}
-		return nil, c.publish(ctx, task, body)
+		return nil, reviewHistory{}, c.publishStaleReview(ctx, task, staleRevisionReason)
 	}
 
-	exists, err := c.hasReview(ctx, current, comments)
+	exists, reviews, err := c.reviewHistory(ctx, current, comments)
 	if err != nil || exists {
-		return nil, err
+		return nil, reviewHistory{}, err
 	}
 
-	return current, nil
+	return current, reviews, nil
 }
 
-func (c *Command) guard(ctx context.Context, task *reviewTask) error {
+func (c *Command) guard(ctx context.Context, task *reviewTask, review *reviewContext) error {
 	current, comments, err := c.authorize(ctx, task)
 	if err != nil {
 		return err
@@ -123,12 +119,22 @@ func (c *Command) guard(ctx context.Context, task *reviewTask) error {
 		return errors.New("review: authorization or revision changed")
 	}
 
-	exists, err := c.hasReview(ctx, current, comments)
+	exists, history, err := c.reviewHistory(ctx, current, comments)
 	if err != nil {
 		return err
 	}
 	if exists {
 		return errReviewStopped
+	}
+
+	if review.hasBlockerEvidence() {
+		reason, err := c.reviewChangeReason(ctx, current, review, history)
+		if err != nil {
+			return err
+		}
+		if reason != "" {
+			return staleReviewError(reason)
+		}
 	}
 
 	return ctx.Err()

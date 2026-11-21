@@ -111,11 +111,15 @@ func (s *service) AddReview(ctx context.Context, repo *Repository, pull *PullReq
 
 // ListReviews collects every native review page before returning history.
 func (s *service) ListReviews(ctx context.Context, repo *Repository, pull *PullRequest) ([]*PullRequestReview, error) {
+	pullRequests := s.client.installation.PullRequests
+	owner := repo.GetOwner().GetLogin()
+	name := repo.GetName()
+	number := pull.GetNumber()
 	var reviews []*PullRequestReview
 	opts := &github.ListOptions{PerPage: pageSize}
 
 	for {
-		page, response, err := s.client.installation.PullRequests.ListReviews(ctx, repo.GetOwner().GetLogin(), repo.GetName(), pull.GetNumber(), opts)
+		page, response, err := pullRequests.ListReviews(ctx, owner, name, number, opts)
 		if err != nil {
 			return nil, err
 		}
@@ -152,4 +156,66 @@ func (s *service) validateReview(repo *Repository, pull *PullRequest, review *Pu
 	}
 
 	return nil
+}
+
+// ListReviewCommentBodies reads the complete inline discussion for a previously
+// authenticated App review. Replies and comments from other authors are excluded.
+func (s *service) ListReviewCommentBodies(ctx context.Context, repo *Repository, pull *PullRequest, review *PullRequestReview) ([]string, error) {
+	if err := s.validateReview(repo, pull, review); err != nil {
+		return nil, err
+	}
+
+	pullRequests := s.client.installation.PullRequests
+	owner := repo.GetOwner().GetLogin()
+	name := repo.GetName()
+	number := pull.GetNumber()
+	reviewID := review.GetID()
+	var bodies []string
+	opts := &github.ListOptions{PerPage: pageSize}
+
+	for {
+		page, response, err := pullRequests.ListReviewComments(ctx, owner, name, number, reviewID, opts)
+		if err != nil {
+			return nil, err
+		}
+		if page == nil {
+			return nil, errors.New("github: review comments returned a missing page")
+		}
+
+		for _, comment := range page {
+			body, err := appReviewCommentBody(review, comment)
+			if err != nil {
+				return nil, err
+			}
+			if body != "" {
+				bodies = append(bodies, body)
+			}
+		}
+
+		if response.NextPage == 0 {
+			return bodies, nil
+		}
+		if response.NextPage <= opts.Page {
+			return nil, errors.New("github: review comments have invalid pagination")
+		}
+		opts.Page = response.NextPage
+	}
+}
+
+func appReviewCommentBody(review *PullRequestReview, comment *github.PullRequestComment) (string, error) {
+	commentID := comment.GetID()
+	parentID := comment.GetPullRequestReviewID()
+	commentURL := strings.ToLower(comment.GetPullRequestURL())
+	reviewURL := strings.ToLower(review.GetPullRequestURL())
+	if commentID <= 0 || parentID != review.GetID() || commentURL != reviewURL {
+		return "", errors.New("github: review comment returned an incomplete or mismatched identity")
+	}
+
+	author := comment.GetUser()
+	reviewAuthorID := review.GetUser().GetID()
+	sameApp := reviewAuthorID > 0 && author.GetID() == reviewAuthorID && author.GetType() == UserBot
+	if comment.GetInReplyTo() != 0 || !sameApp {
+		return "", nil
+	}
+	return comment.GetBody(), nil
 }

@@ -33,6 +33,18 @@ module Abgleich
       end
     end
 
+    get '/repos/:owner/:repository/pulls/:number/reviews/:review_id/comments' do
+      repository = "#{params.fetch('owner')}/#{params.fetch('repository')}"
+      url = "http://localhost:11001/github/repos/#{repository}/pulls/#{params.fetch('number')}"
+      id = params.fetch('review_id').to_i
+      review = Abgleich.github.native_reviews.find { |item| item[:id] == id && item[:pull_request_url] == url }
+      halt 404 unless review
+
+      review.fetch(:comments).map.with_index do |comment, index|
+        comment.merge(id: index + 1, pull_request_review_id: id, pull_request_url: url, user: review.fetch(:user))
+      end.to_json
+    end
+
     private
 
     def review_thread_response(query, variables)

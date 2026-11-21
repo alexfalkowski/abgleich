@@ -23,20 +23,29 @@ func (s severity) String() string {
 }
 
 type reviewResult struct {
-	Complete *bool           `json:"complete"`
-	Overview string          `json:"overview"`
-	Findings []reviewFinding `json:"findings"`
+	Complete *bool            `json:"complete"`
+	Overview string           `json:"overview"`
+	Findings []reviewFinding  `json:"findings"`
+	Cleared  []clearedFinding `json:"cleared_findings"`
+}
+
+type clearedFinding struct {
+	ID     string `json:"id"`
+	Reason string `json:"reason"`
 }
 
 type reviewFinding struct {
-	Title    string          `json:"title"`
-	Severity severity        `json:"severity"`
-	Trigger  string          `json:"trigger"`
-	Impact   string          `json:"impact"`
-	Fix      string          `json:"fix"`
-	Path     string          `json:"path"`
-	Side     github.DiffSide `json:"side"`
-	Line     int             `json:"line"`
+	Title     string          `json:"title"`
+	Severity  severity        `json:"severity"`
+	Trigger   string          `json:"trigger"`
+	Impact    string          `json:"impact"`
+	Fix       string          `json:"fix"`
+	Path      string          `json:"path"`
+	ID        string          `json:"previous_id,omitempty"`
+	Side      github.DiffSide `json:"side"`
+	reference blockerReference
+	Line      int   `json:"line"`
+	ReviewID  int64 `json:"review_id,omitempty"`
 }
 
 // canPlaceInline reports whether the finding's location is present on the requested side of GitHub's patch.

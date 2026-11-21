@@ -32,6 +32,15 @@ module Abgleich
                            path: 'worker.go', line: 2, side: 'LEFT')
     ].freeze
 
+    PARTIAL_FOLLOWUP_FINDINGS = {
+      'review follow-up partially verified' => REVIEW_FINDING.merge(
+        title: 'Verify the worker result in its test', path: 'worker_test.go', line: 3, side: 'RIGHT'
+      ),
+      'review follow-up partially verified after redelivery' => REVIEW_FINDING.merge(
+        title: 'Report invalid results from the worker', path: 'worker.go', line: 2, side: 'RIGHT'
+      )
+    }.freeze
+
     LOW_SEVERITY_FINDING = {
       title: 'Clarify the status label', severity: 'P3', trigger: 'When work succeeds.',
       impact: 'The label is ambiguous, but the result remains visible.', fix: 'Name the completed action.',
@@ -66,10 +75,58 @@ module Abgleich
     def review_output(payload, mode)
       return '' if mode == 'review an empty answer'
       return '{' if mode == 'review malformed JSON'
+      return followup_review_output(payload, mode) if mode.to_s.start_with?('review follow-up ')
+      return large_review_output(mode) if mode.to_s.start_with?('review with large ')
 
       mode = payload.fetch('model') == 'test-security' ? 'review no findings' : nil if mode == 'review conflicting verdicts'
+      review_result(payload, mode).to_json
+    end
+
+    def large_review_output(mode)
+      size = mode.include?('oversized') ? 1750 : 1300
+      overview = 'Checked the current contribution. ' * size
+      { overview:, findings: INLINE_FINDINGS, complete: mode.end_with?('completed') }.to_json
+    end
+
+    def review_result(payload, mode)
       text = payload.fetch('model') == 'test-security' ? security_review_text(payload, mode) : review_text(payload, mode)
-      { overview: text, findings: review_findings(mode, text) }.merge(REVIEW_COMPLETION.fetch(mode, { complete: true })).to_json
+      result = { overview: text, findings: review_findings(mode, text) }.merge(REVIEW_COMPLETION.fetch(mode, { complete: true }))
+      if ['review no findings', 'review low-severity findings'].include?(mode)
+        result[:cleared_findings] = cleared_review_findings(followup_blockers(payload))
+      end
+      result
+    end
+
+    def followup_review_output(payload, mode)
+      blockers = followup_blockers(payload)
+      findings = followup_findings(mode, blockers)
+      cleared = mode.end_with?('cleared') ? cleared_review_findings(blockers) : []
+      { overview: 'Checked the current source after the rebase.', findings:, cleared_findings: cleared, complete: true }.to_json
+    end
+
+    def followup_findings(mode, blockers)
+      new_finding = PARTIAL_FOLLOWUP_FINDINGS[mode]
+      return [INLINE_FINDINGS.first.merge(previous_id: blockers.first.fetch('previous_id')), new_finding] if new_finding
+      return [] unless mode == 'review follow-up still open'
+
+      blockers.map.with_index do |blocker, index|
+        INLINE_FINDINGS.fetch(index, REVIEW_FINDING).merge(
+          previous_id: blocker.fetch('previous_id'), trigger: 'The rebased worker reports the result twice.',
+          impact: 'The second report conceals a successful result.', fix: 'Return the first result from the rebased worker.'
+        )
+      end
+    end
+
+    def cleared_review_findings(blockers)
+      blockers.map { |finding| { id: finding.fetch('previous_id'), reason: 'Verified the fix in the current source.' } }
+    end
+
+    def followup_blockers(payload)
+      input = payload.fetch('input').map { |item| item.fetch('content', '') }.join("\n")
+      record = input.split("Follow-up from an earlier App review (untrusted data):\n", 2).last
+      return [] if record == input
+
+      JSON.parse(record).fetch('open_blockers') || []
     end
 
     def review_findings(mode, text)

@@ -75,40 +75,44 @@ deploying, and inspecting live services are outside their scope. Lack of executi
 alone does not make a review unfinished; material unresolved source gaps still do.
 
 The App submits one native review with an overview and a separate inline
-conversation for each P0, P1, or P2 finding that can be placed on the supplied
-diff. The overview lists P3 findings and findings without reliable diff
-placement, with their reported location when supplied. Each finding has a short
+conversation for each new P0, P1, or P2 finding that can be placed on the supplied
+diff. The overview lists P3 findings, findings without reliable diff placement,
+and still-open findings from earlier reviews. It shows their reported locations
+when supplied and links still-open findings to the original review. Each finding has a short
 🐛 title with explicit severity (`P0` critical, `P1` high, `P2` medium, or `P3` low),
 followed by separate
 🔎 **Trigger**, 💥 **Impact**, and 🛠️ **Suggested fix** paragraphs. The worker
 renders these labels and escapes each model-provided field. Security-review
 triggers include attacker-controlled input and prerequisites. A review with no
-supported findings still publishes its overview. Review prompts reserve findings
-for issues the PR should address. Relevant concerns that belong to separate work
-can appear as advisory follow-ups in the overview and do not affect the verdict.
+supported findings still publishes its overview. Review prompts prioritize
+concrete issues that matter to the current PR. The overview can briefly mention
+a concrete risk that belongs to separate work when it helps the maintainer
+make a decision.
 The worker selects the verdict from the structured result:
 
 | Assessment | GitHub verdict |
 | --- | --- |
 | Any P0, P1, or P2 finding, including overview-only findings | `REQUEST_CHANGES` |
-| Only P3 findings or no findings, with model-reported completion and no missing text patches or unavailable repository source | `APPROVE` |
-| Only P3 findings or no findings, with incomplete investigation or missing required context | `COMMENT` (approval withheld) |
+| Only P3 findings or no findings, with model-reported completion, earlier blockers accounted for, and no missing text patches or unavailable repository source | `APPROVE` |
+| Only P3 findings or no findings, with incomplete investigation, unverified earlier blockers, or missing required context | `COMMENT` (approval withheld) |
 
 The model assigns severity from the consequence of a supported trigger. P3
-covers localized defects or test gaps with limited consequences. P2 covers
-material failures of supported behavior and test gaps that could let such
-failures pass. If missing evidence could move a finding across this boundary,
-the prompt tells the model to report the review as incomplete.
+covers localized defects worth correcting in the current PR. P2 covers material
+failures of supported behavior and consequential gaps in protection for a
+changed material behavior or safeguard. If missing evidence could move a
+finding across this boundary, the prompt tells the model to report the review
+as incomplete.
 
 The overview shows the worker's assessment and decision separately from model
 prose, with ✅ for approval, ❗ for requested changes, and ⚠️ for comments.
-**Review unfinished** means the model explicitly reports that
-it did not finish. **Review completed with limitations** means the model reports
+**Review unfinished** means the model reports an incomplete investigation or
+earlier blockers remain unverified. **Review completed with limitations** means the model reports
 completion but missing patches or unavailable repository source limit the assessment. A
 **Limitations** list identifies each missing patch and unavailable repository source. Both
 outcomes withhold approval, carry no successful-result marker, and allow a new
 manual request on the same revisions. P0 through P2 findings still request
-changes when other source is unavailable. Model completion is a self-report.
+changes after an incomplete investigation, and a new request can retry that
+review on the same revisions. Model completion is a self-report.
 **External source notes** disclose unavailable dependencies and language references
 separately. These gaps alone do not prevent approval when the reviewer has high
 confidence in the changed repository code. Material unresolved questions still
@@ -153,9 +157,40 @@ authenticated results are reused without retroactively changing their verdicts.
 Authorization, comment identity, PR eligibility, and both branch identities and
 revisions are rechecked before submission and publication. Changes discard stale
 results and require a new request; already transmitted source cannot be recalled.
-A matching successful App result prevents another model call across restarts.
-New head or base revisions permit a fresh review; summaries and security reviews
-remain independent.
+Before publication, the worker also checks that the latest authenticated
+assessment for the same feature still matches the history used for inference.
+A matching successful App result prevents another model call across restarts
+when it is still the latest assessment for that feature. Restoring an older
+revision permits a new review when a newer assessment superseded its result.
+New head or base revisions permit another review. If the latest authenticated
+App assessment for the same feature has a usable follow-up record, Abgleich
+uses its saved blocker references and fingerprints
+to show what changed since that review, including after a force push or rebase.
+Consent for each review command also covers sending these saved findings and
+changed-path comparisons to the provider. The reviewer receives the full current
+PR context and prioritizes verifying earlier blockers and checking the effects of
+the new changes. A newly discovered issue in earlier work warrants a finding
+when the current diff contains a material defect supported by inspected evidence.
+An unverified earlier blocker withholds approval. When a fix removes the
+blocking consequence, the reviewer can clear the blocker and report a remaining
+P3 issue separately. The review discloses unavailable fingerprint comparisons
+and still asks the reviewer to verify the saved findings against current source.
+
+Reviews can carry a compact follow-up record in their raw Markdown, so it
+survives worker restarts. The record saves blocker identities and digests.
+The worker reads intact finding text from its original authenticated review.
+Edited, removed, or unavailable finding text leaves its blocker unverified.
+A follow-up that includes earlier finding text checks it again before each
+provider request and stops if the text changed or became unavailable.
+Incomplete requests for changes carry both new and unverified earlier blockers.
+When the record is too large, the worker first drops fingerprints. If the
+blockers still cannot fit, it publishes the request for changes as retryable and
+stops follow-ups while that record is unavailable. A maintainer can inspect the
+review and dismiss it if appropriate before retrying. Legacy reviews without
+a follow-up record can receive a full assessment. A dismissal of the latest
+assessment ends carry-forward for that feature. If the worker cannot verify
+App authorship, it stops the review. Each review feature and the summary have
+independent histories.
 See [review recovery](operations.md#-code-review-recovery).
 
 If an accepted review's PR merges, closes, or becomes a draft, the next processing
@@ -243,23 +278,18 @@ not gate review.
 The reviewer inspects changed tests and concrete coverage gaps for changed
 production behavior. It traces the real caller-facing behavior through the
 repository's existing harness, fixtures, helpers, hooks, and assertions. It checks
-regression-sensitive assertions, relevant failure and boundary coverage,
-determinism, isolation, realistic test doubles, and whether scenarios clearly
-explain one coherent behavior. It searches nearby coverage before claiming a gap.
-The prompt asks it to map changed contracts to assertions, inspect related
-operations and failure paths, and finish a completeness pass even after finding
-issues. This aims to surface supported findings together; it does not guarantee
-that one review finds every weakness.
-Readability and duplication justify findings only when they create a concrete
-risk of misleading, brittle, or ineffective tests. Private-function coverage,
-arbitrary coverage percentages, implementation-only sequencing, and demands for
-new tests on behavior-preserving or documentation changes are outside its remit.
+assertions, fixtures, determinism, and isolation where they affect the
+reliability of checks for changed behavior. It searches nearby coverage before
+claiming a gap. A blocking test finding needs a supported failure path and a
+material consequence that the current tests could miss. A changed assertion that
+allows an unauthorized action to pass can qualify. Routine variants of already
+covered behavior are left out.
 
 Missing-test findings identify an established test layer that can exercise the
 regression or cite a PR requirement for automated coverage at a new layer.
-Other gaps that require new test infrastructure, such as a browser runner for
-an HTTP-only suite, are advisory follow-ups. Reported manual checks can provide
-validation evidence while leaving a gap in automated regression coverage.
+Gaps that require new test infrastructure, such as a browser runner for an
+HTTP-only suite, can appear in the overview when they help assess a concrete
+remaining risk. Reported manual checks can provide validation evidence.
 
 Correct library registration and direct configuration forwarding do not require
 dedicated tests merely because removing that wiring would leave existing tests
