@@ -1,4 +1,4 @@
-package workflow
+package sources
 
 import (
 	"github.com/alexfalkowski/go-service/v3/errors"

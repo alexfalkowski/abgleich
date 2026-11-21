@@ -1,4 +1,4 @@
-package workflow
+package sources
 
 import (
 	"fmt"
@@ -10,7 +10,7 @@ import (
 	"github.com/alexfalkowski/go-service/v3/strings"
 )
 
-func (s *sourceSession) list(ctx context.Context, filter string) ([]string, error) {
+func (s *Session) list(ctx context.Context, filter string) ([]string, error) {
 	files, err := s.treeEntries(ctx, s.headSHA)
 	if err != nil {
 		return nil, err
@@ -29,7 +29,7 @@ func (s *sourceSession) list(ctx context.Context, filter string) ([]string, erro
 	return paths, nil
 }
 
-func (s *sourceSession) read(ctx context.Context, filenames []string) (string, error) {
+func (s *Session) read(ctx context.Context, filenames []string) (string, error) {
 	paths, err := s.treeFiles(ctx, s.headSHA)
 	if err != nil {
 		return strings.Empty, err
@@ -72,7 +72,7 @@ func (s *sourceSession) read(ctx context.Context, filenames []string) (string, e
 	return source.String(), nil
 }
 
-func (s *sourceSession) readPath(ctx context.Context, filename string, paths []string, contents map[string]string) string {
+func (s *Session) readPath(ctx context.Context, filename string, paths []string, contents map[string]string) string {
 	if !io.ValidPath(filename) || strings.Contains(filename, "\\") {
 		return s.unavailable("review: invalid repository path")
 	}
@@ -104,7 +104,7 @@ func (s *sourceSession) readPath(ctx context.Context, filename string, paths []s
 }
 
 // missingPath distinguishes absent paths from excluded source using the complete tree.
-func (s *sourceSession) missingPath(filename string) string {
+func (s *Session) missingPath(filename string) string {
 	if sourcePathUnavailable(s.trees[s.headSHA], filename) {
 		return s.unavailable(filename)
 	}

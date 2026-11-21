@@ -1,4 +1,4 @@
-package workflow
+package sources
 
 import (
 	"github.com/alexfalkowski/abgleich/internal/github"
@@ -8,12 +8,12 @@ import (
 	"github.com/alexfalkowski/go-service/v3/strings"
 )
 
-func (s *sourceSession) repositoryFile(ctx context.Context, revision, filename string) (string, error) {
+func (s *Session) repositoryFile(ctx context.Context, revision, filename string) (string, error) {
 	contents, err := s.repositoryFiles(ctx, revision, []string{filename})
 	return contents[filename], err
 }
 
-func (s *sourceSession) repositoryFiles(ctx context.Context, revision string, filenames []string) (map[string]string, error) {
+func (s *Session) repositoryFiles(ctx context.Context, revision string, filenames []string) (map[string]string, error) {
 	contents, missing := s.uncachedFiles(revision, filenames)
 	if len(missing) == 0 {
 		return contents, nil
@@ -49,7 +49,7 @@ func (s *sourceSession) repositoryFiles(ctx context.Context, revision string, fi
 	return contents, nil
 }
 
-func (s *sourceSession) uncachedFiles(revision string, filenames []string) (map[string]string, []string) {
+func (s *Session) uncachedFiles(revision string, filenames []string) (map[string]string, []string) {
 	contents := make(map[string]string, len(filenames))
 	seen := make(map[string]bool, len(filenames))
 
@@ -77,7 +77,7 @@ func (s *sourceSession) uncachedFiles(revision string, filenames []string) (map[
 	return contents, missing
 }
 
-func (s *sourceSession) regularFiles(ctx context.Context, revision string, filenames []string, contents map[string]string) ([]*github.TreeEntry, error) {
+func (s *Session) regularFiles(ctx context.Context, revision string, filenames []string, contents map[string]string) ([]*github.TreeEntry, error) {
 	entries, err := s.treeEntries(ctx, revision)
 	if err != nil {
 		return nil, err
@@ -100,7 +100,7 @@ func (s *sourceSession) regularFiles(ctx context.Context, revision string, filen
 	return files, nil
 }
 
-func (s *sourceSession) treeFiles(ctx context.Context, revision string) ([]string, error) {
+func (s *Session) treeFiles(ctx context.Context, revision string) ([]string, error) {
 	entries, err := s.treeEntries(ctx, revision)
 	if err != nil {
 		return nil, err
@@ -116,7 +116,7 @@ func (s *sourceSession) treeFiles(ctx context.Context, revision string) ([]strin
 	return paths, nil
 }
 
-func (s *sourceSession) treeEntries(ctx context.Context, revision string) ([]*github.TreeEntry, error) {
+func (s *Session) treeEntries(ctx context.Context, revision string) ([]*github.TreeEntry, error) {
 	if entries, ok := s.trees[revision]; ok {
 		return entries, nil
 	}

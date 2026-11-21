@@ -1,4 +1,4 @@
-package workflow
+package sources
 
 import (
 	"github.com/alexfalkowski/abgleich/internal/github"
@@ -9,7 +9,7 @@ import (
 	"github.com/alexfalkowski/go-service/v3/strings"
 )
 
-func (s *sourceSession) submodulePath(filename string) (submoduleRequest, bool) {
+func (s *Session) submodulePath(filename string) (submoduleRequest, bool) {
 	if !io.ValidPath(filename) || strings.Contains(filename, "\\") {
 		return submoduleRequest{}, false
 	}
@@ -33,7 +33,7 @@ func (s *sourceSession) submodulePath(filename string) (submoduleRequest, bool) 
 	return submoduleRequest{}, false
 }
 
-func (s *sourceSession) readSubmodule(ctx context.Context, args submoduleRequest) (string, error) {
+func (s *Session) readSubmodule(ctx context.Context, args submoduleRequest) (string, error) {
 	if err := args.validate(); err != nil {
 		return strings.Empty, err
 	}
@@ -66,7 +66,7 @@ func (s *sourceSession) readSubmodule(ctx context.Context, args submoduleRequest
 	return strings.Concat("Source not found: ", args.Submodule), nil
 }
 
-func (s *sourceSession) submoduleSource(ctx context.Context, repo *github.Repository, revision string, args submoduleRequest, files []*github.TreeEntry) (string, error) {
+func (s *Session) submoduleSource(ctx context.Context, repo *github.Repository, revision string, args submoduleRequest, files []*github.TreeEntry) (string, error) {
 	label := strings.Concat(args.Submodule, " (", repo.GetFullName(), "): ", revision)
 	var paths []string
 
@@ -93,7 +93,7 @@ func (s *sourceSession) submoduleSource(ctx context.Context, repo *github.Reposi
 	return strings.Concat("Submodule: ", label, "\n", strings.Join("\n", paths...)), nil
 }
 
-func (s *sourceSession) submoduleFile(ctx context.Context, repo *github.Repository, revision string, file *github.TreeEntry, args submoduleRequest) (string, error) {
+func (s *Session) submoduleFile(ctx context.Context, repo *github.Repository, revision string, file *github.TreeEntry, args submoduleRequest) (string, error) {
 	contents, err := s.github.ReadSourceFiles(ctx, repo, revision, []*github.TreeEntry{file})
 	if err != nil {
 		return strings.Empty, errors.Join(errRepositorySource, err)

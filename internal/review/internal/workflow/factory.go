@@ -5,6 +5,7 @@ import (
 	"github.com/alexfalkowski/abgleich/internal/commands"
 	"github.com/alexfalkowski/abgleich/internal/github"
 	"github.com/alexfalkowski/abgleich/internal/review/internal/sources"
+	"github.com/alexfalkowski/abgleich/internal/review/internal/threads"
 	"github.com/alexfalkowski/go-service/v3/context"
 	"github.com/alexfalkowski/go-service/v3/errors"
 	"github.com/alexfalkowski/go-signal/v2"
@@ -34,10 +35,9 @@ type FactoryParams struct {
 // when an enabled feature requests a command.
 func NewFactory(params FactoryParams) *Factory {
 	return &Factory{
-		github:      params.GitHub,
 		providers:   params.Providers,
 		sources:     params.Sources,
-		authorizer:  params.Authorizer,
+		consent:     consent{github: params.GitHub, authorizer: params.Authorizer},
 		publication: sync.NewWorker(1),
 	}
 }
@@ -46,10 +46,9 @@ func NewFactory(params FactoryParams) *Factory {
 // Commands from one factory serialize final verdict checks and publication
 // within the worker process. Construct all commands before serving requests.
 type Factory struct {
-	github      github.Service
 	providers   *ai.Registry
 	sources     *sources.Registry
-	authorizer  *commands.Authorizer
+	consent     consent
 	publication *sync.Worker
 	commands    []*Command
 }
@@ -64,13 +63,14 @@ func (f *Factory) NewCommand(profile ReviewProfile) (*Command, error) {
 	}
 
 	command := &Command{
-		github:      f.github,
+		github:      f.consent.github,
 		provider:    provider,
 		sources:     f.sources,
 		publication: f.publication,
 		queue:       commands.NewQueue(),
-		authorizer:  f.authorizer,
+		consent:     f.consent,
 		profile:     profile,
+		threads:     threads.NewReconciler(f.consent.github, profile.Name),
 	}
 	f.commands = append(f.commands, command)
 	return command, nil
@@ -89,11 +89,7 @@ func (f *Factory) Handle(ctx context.Context, event *github.IssueCommentEvent) (
 
 	// Every command uses the same GitHub service, authorizer, and aggregate consent.
 	// Repeating these remote reads per feature can exhaust the webhook deadline.
-	task, comments, err := f.commands[0].authorize(ctx, &reviewTask{
-		repository: event.GetRepo(),
-		request:    &github.PullRequest{Number: event.GetIssue().Number},
-		comment:    event.GetComment(),
-	})
+	task, comments, err := f.consent.authorize(ctx, newReviewTask(event, ReviewCommand))
 	if err != nil || task == nil {
 		return false, err
 	}

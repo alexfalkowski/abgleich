@@ -20,7 +20,7 @@ type staleReview struct {
 }
 
 func (c *Command) publish(ctx context.Context, task *reviewTask, body string) error {
-	current, comments, err := c.authorize(ctx, task)
+	current, comments, err := c.consent.authorize(ctx, task)
 	if err != nil {
 		return err
 	}
@@ -28,14 +28,14 @@ func (c *Command) publish(ctx context.Context, task *reviewTask, body string) er
 		return c.publishCancellation(ctx, task)
 	}
 
-	if c.revisionChanged(task, current) {
+	if c.consent.revisionChanged(task, current) {
 		body, err = c.staleMessage(task, staleRevisionReason)
 		if err != nil {
 			return err
 		}
 	}
 
-	exists, err := c.hasReview(ctx, current, comments)
+	exists, _, err := c.history(current).Read(ctx, comments)
 	if err != nil || exists {
 		return err
 	}
@@ -50,7 +50,7 @@ func (c *Command) publish(ctx context.Context, task *reviewTask, body string) er
 // Cancellation feedback requires fresh consent, but permits closed and draft PRs.
 // Source submission and review publication keep their stricter eligibility checks.
 func (c *Command) publishCancellation(ctx context.Context, task *reviewTask) error {
-	current, comments, err := c.authorizeCancellation(ctx, task)
+	current, comments, err := c.consent.authorizeCancellation(ctx, task)
 	if err != nil || current == nil {
 		return err
 	}
@@ -60,7 +60,7 @@ func (c *Command) publishCancellation(ctx context.Context, task *reviewTask) err
 		return nil
 	}
 
-	exists, err := c.hasReview(ctx, current, comments)
+	exists, _, err := c.history(current).Read(ctx, comments)
 	if err != nil || exists {
 		return err
 	}

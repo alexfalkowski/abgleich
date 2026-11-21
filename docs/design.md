@@ -13,21 +13,34 @@ modules. Package docs describe [cleanup](../internal/cleanup/doc.go),
 [`review`](../internal/review/doc.go) composes the code, security, and test feature modules
 and their configuration, and registers `/ab review`. Every enabled command
 constructed through `workflow.Factory` joins aggregate requests automatically.
-The aggregate preserves the original comment for consent rechecks and uses
-each feature's existing queue and result identity. Each feature configures a separate instance of the shared
-[`workflow`](../internal/review/internal/workflow/doc.go), which owns PR eligibility,
-patch and related-source collection, revision checks, deduplication, inference,
-safe publication, and the common reply template.
-[`sources`](../internal/review/internal/sources/doc.go) selects registered providers
-from reviewed paths. Go and Ruby providers own their guides, source tools,
-manifest parsing, verification, HTTP policy, and per-review caches. Workflow
-provides pinned repository reads and wraps every tool with consent/revision checks.
-`sources.Module` composes provider modules, which contribute strategies through a
-DI value group. The registry collects that group without constructing individual
-providers; workflow uses their shared contract. Feature packages retain prompts,
-model settings, schedules, and registration. Reviews, summaries, status, and automerge use `commands.Authorizer`
-to re-read human commands and current permissions at their own consent boundaries;
-PR eligibility and automation history remain with their owning feature.
+The aggregate checks consent and PR eligibility once on delivery and passes the
+original comment to each feature's independent queue. Feature packages own their
+prompts, models, schedules, and registration.
+
+[`workflow`](../internal/review/internal/workflow/doc.go) coordinates review
+admission, source collection, inference, and publication. It rechecks consent
+and revisions at each boundary and serializes final checks and publication
+across features.
+
+- [`sources`](../internal/review/internal/sources/doc.go) reads repository and
+  submodule files at pinned revisions. A session records inspected source and
+  omissions and applies the workflow's guard to every model-requested lookup.
+  Providers contribute through a DI value group. Each owns its guides, tools,
+  manifest parsing, verification, HTTP policy, and per-review lookup caches as
+  applicable.
+- [`history`](../internal/review/internal/history/doc.go) interprets authenticated
+  App reviews. It owns result markers and follow-up records, detects duplicate
+  results, and checks whether another feature's verdict still blocks approval.
+- [`assessment`](../internal/review/internal/assessment/doc.go) validates model
+  output, reconciles findings against earlier evidence, and prepares the
+  verdict and safely rendered native review. Workflow applies the latest
+  cross-feature approval check before submission.
+- [`threads`](../internal/review/internal/threads/doc.go) reconciles outdated
+  threads within the feature's scheduled run after the manual queue drains.
+
+Reviews, summaries, status, and automerge use `commands.Authorizer` to re-read
+human commands and current permissions. Each feature owns its eligibility
+criteria and chooses when to recheck consent.
 
 AI features embed `ai.ModelConfig` for provider, model, and effort selection.
 `ai.Registry` constructs named connections and resolves each feature's selection

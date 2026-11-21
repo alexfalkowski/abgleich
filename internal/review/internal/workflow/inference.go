@@ -19,7 +19,7 @@ func (e staleReviewError) Error() string {
 	return string(e)
 }
 
-func (c *Command) generateReview(ctx context.Context, task *reviewTask, review *reviewContext) error {
+func (c *Command) generateReview(ctx context.Context, task *reviewTask, review *reviewEvidence) (*ai.Completion, error) {
 	inferenceTimeout := time.Minute
 	if deadline, ok := ctx.Deadline(); ok {
 		inferenceTimeout = time.Until(deadline) / inferenceTimeoutDivisor
@@ -27,7 +27,7 @@ func (c *Command) generateReview(ctx context.Context, task *reviewTask, review *
 
 	paths, err := review.source.Files(ctx)
 	if err != nil {
-		return c.reportFailure(ctx, task, stageSource, err)
+		return nil, c.reportFailure(ctx, task, stageSource, err)
 	}
 	for _, file := range review.Files {
 		paths = append(paths, file.GetFilename())
@@ -35,18 +35,15 @@ func (c *Command) generateReview(ctx context.Context, task *reviewTask, review *
 
 	providers := c.sources.Select(paths)
 
-	// Keep checks read-only; the failure path owns feedback publication.
-	tools := sourceTools{session: review.source, beforeLookup: func(ctx context.Context) error {
-		return c.guard(ctx, task, nil)
-	}}
-
 	completion, err := c.provider.Generate(ctx, ai.Prompt{
 		Task:         c.profile.Name,
 		Model:        c.profile.Model,
 		Effort:       c.profile.Effort,
 		Instructions: reviewInstructions(c.profile.Instructions, providers, review.followup != nil),
 		Input:        review.input,
-		Tools:        tools.definitions(providers),
+		Tools: review.source.Tools(providers, func(ctx context.Context) error {
+			return c.guard(ctx, task, nil)
+		}),
 		BeforeRequest: func(ctx context.Context) error {
 			// Each model request can resend the original finding text.
 			return c.guard(ctx, task, review)
@@ -54,18 +51,18 @@ func (c *Command) generateReview(ctx context.Context, task *reviewTask, review *
 		Timeout: inferenceTimeout,
 	})
 	if errors.Is(err, errReviewStopped) {
-		return nil
+		return nil, nil
 	}
 	if stale, ok := errors.AsType[staleReviewError](err); ok {
-		return c.publishStaleReview(ctx, task, stale.Error())
+		return nil, c.publishStaleReview(ctx, task, stale.Error())
 	}
 	if err != nil {
-		return c.reportFailure(ctx, task, stageGeneration, err)
+		return nil, c.reportFailure(ctx, task, stageGeneration, err)
 	}
 
 	if err := ctx.Err(); err != nil {
-		return err
+		return nil, err
 	}
 
-	return c.publishReview(ctx, task, completion, review)
+	return completion, nil
 }

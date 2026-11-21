@@ -2,6 +2,7 @@ package workflow
 
 import (
 	"github.com/alexfalkowski/abgleich/internal/ai"
+	"github.com/alexfalkowski/abgleich/internal/review/internal/history"
 	"github.com/alexfalkowski/go-service/v3/context"
 	"github.com/alexfalkowski/go-service/v3/errors"
 )
@@ -67,7 +68,7 @@ func (c *Command) failureReply(task *reviewTask, stage failureStage, err error) 
 	case stageSource:
 		failure.Reason = "The pull request source could not be collected or validated."
 		failure.Recovery = "Check GitHub availability, App source permissions, and source validation errors in the worker logs."
-		if errors.Is(err, errPartialReviewBlockersUnavailable) {
+		if errors.Is(err, history.ErrPartialBlockersUnavailable) {
 			failure.Reason = "The latest partial review still requests changes, but its blocker record is unavailable."
 			failure.Recovery = "Inspect the latest review and dismiss it if appropriate before requesting another review."
 		}

@@ -1,4 +1,5 @@
-// Package sources selects language-owned review guides and source tools.
-// Providers retain shared transports; each review gets independent lookup caches.
-// Workflow owns repository access, authorization, and publication.
+// Package sources reads repository and submodule source at pinned revisions,
+// selects provider guides and tools, and records evidence for each review.
+// Tool calls use a consent and revision guard supplied by the workflow.
+// Providers retain shared transports and keep lookup caches per review.
 package sources

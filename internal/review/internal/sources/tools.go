@@ -1,4 +1,4 @@
-package workflow
+package sources
 
 import (
 	"github.com/alexfalkowski/abgleich/internal/ai"
@@ -11,11 +11,14 @@ import (
 
 // sourceTools keeps model arguments and command consent checks outside source access.
 type sourceTools struct {
-	session      *sourceSession
+	session      *Session
 	beforeLookup func(context.Context) error
 }
 
-func (t *sourceTools) definitions(providers []provider.Strategy) []ai.Tool {
+// Tools binds repository and provider lookups to this session. It calls
+// beforeLookup before each model-requested lookup, including cached ones.
+func (s *Session) Tools(providers []provider.Strategy, beforeLookup func(context.Context) error) []ai.Tool {
+	t := &sourceTools{session: s, beforeLookup: beforeLookup}
 	tools := []ai.Tool{
 		{
 			Name: "list_source_files", Parameters: provider.Schema("filter"), Call: t.list,
