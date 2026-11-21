@@ -3,10 +3,10 @@ module github.com/alexfalkowski/abgleich
 go 1.27.0
 
 require (
-	github.com/alexfalkowski/go-health/v2 v2.43.0
-	github.com/alexfalkowski/go-service/v3 v3.2.0
-	github.com/alexfalkowski/go-signal/v2 v2.0.0
-	github.com/alexfalkowski/go-sync v1.39.0
+	github.com/alexfalkowski/go-health/v2 v2.44.0
+	github.com/alexfalkowski/go-service/v3 v3.6.0
+	github.com/alexfalkowski/go-signal/v2 v2.1.0
+	github.com/alexfalkowski/go-sync v1.40.0
 	github.com/bluekeyes/go-gitdiff v0.9.0
 	github.com/bradleyfalzon/ghinstallation/v2 v2.19.0
 	github.com/google/go-github/v93 v93.0.0
