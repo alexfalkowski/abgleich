@@ -77,7 +77,7 @@ func NewRegistry(params RegistryParams) (*Registry, error) {
 			// supplies credentials, endpoints, and headers. Inference never retries.
 			service := responses.NewResponseService(
 				option.WithAPIKey(apiKey),
-				option.WithBaseURL(config.GetURL()),
+				option.WithBaseURL(config.URL.String()),
 				option.WithHTTPClient(connection),
 				option.WithMaxRetries(0),
 			)

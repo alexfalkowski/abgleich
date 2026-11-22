@@ -49,6 +49,17 @@ Feature: Start with a usable worker configuration
     When the operator starts the worker
     Then the worker should refuse to start
 
+  Scenario Outline: Reject <problem> at startup
+    Given the worker is configured with "<problem>"
+    When the operator starts the worker
+    Then the worker should refuse to start
+
+    Examples:
+      | problem                          |
+      | a missing AI provider URL        |
+      | a remote AI provider URL on HTTP |
+      | a missing Go module proxy URL    |
+
   Scenario Outline: Reject an empty resolved webhook secret at startup
     Given the webhook secret comes from "<source>" with "<content>" content
     When the operator starts the worker

@@ -2,7 +2,7 @@ package github
 
 import (
 	"github.com/alexfalkowski/go-service/v3/config/client"
-	"github.com/alexfalkowski/go-service/v3/strings"
+	"github.com/alexfalkowski/go-service/v3/net/url"
 	"github.com/alexfalkowski/go-service/v3/time"
 )
 
@@ -11,7 +11,6 @@ const defaultWebhookTimeout = 5 * time.Second
 // Config identifies the owner whose installation repositories are reconciled.
 // App credentials supply worker and comment access. The private key is loaded
 // at startup; installation tokens renew automatically.
-// URL optionally overrides the REST API base URL; an empty URL uses api.github.com.
 type Config struct {
 	// Client configures the GitHub HTTP pool, request timeout, and safe-method retries.
 	Client *client.Config `yaml:"client,omitempty" json:"client,omitempty" toml:"client,omitempty"`
@@ -22,11 +21,11 @@ type Config struct {
 	// Webhook enables signed delivery processing when present; omission disables the endpoint.
 	Webhook *WebhookConfig `yaml:"webhook,omitempty" json:"webhook,omitempty" toml:"webhook,omitempty" validate:"omitempty"`
 
+	// URL supplies the required base URL shared by REST and GraphQL.
+	URL *url.SecureURL `yaml:"url,omitempty" json:"url,omitempty" toml:"url,omitempty" validate:"required"`
+
 	// Owner identifies the installation account whose owned repositories may be accessed.
 	Owner string `yaml:"owner,omitempty" json:"owner,omitempty" toml:"owner,omitempty" validate:"required"`
-
-	// URL overrides the REST API base URL; empty uses https://api.github.com/.
-	URL string `yaml:"url,omitempty" json:"url,omitempty" toml:"url,omitempty" validate:"omitempty,http_url"`
 }
 
 // GetTimeout returns the HTTP request timeout, defaulting to one minute when
@@ -37,16 +36,6 @@ func (c *Config) GetTimeout() time.Duration {
 	}
 
 	return time.Minute
-}
-
-// GetURL returns the GitHub REST API URL, defaulting to https://api.github.com/
-// when no URL is configured.
-func (c *Config) GetURL() string {
-	if strings.IsEmpty(c.URL) {
-		return "https://api.github.com/"
-	}
-
-	return c.URL
 }
 
 // AppConfig identifies one installation. PrivateKey is a go-service source read

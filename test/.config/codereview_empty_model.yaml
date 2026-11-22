@@ -30,7 +30,7 @@ telemetry:
     kind: prometheus
   tracer:
     kind: otlp
-    url: http://localhost:4318/v1/traces
+    endpoint: http://localhost:4318/v1/traces
 transport:
   http:
     address: tcp://:11000
@@ -43,6 +43,9 @@ ai:
       api_key: file:secrets/openai-api-key
       url: http://localhost:11001/openai/v1/
 review:
+  go_docs: http://localhost:11001/modules/docs
+  module_proxy: http://localhost:11001/modules
+  gem_registry: http://localhost:11001/rubygems
   code:
     provider: openai
     model: ''
