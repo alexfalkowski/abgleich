@@ -33,7 +33,7 @@ func NewClient(cfg *Config, fs *os.FS, conn *http.Client) (*Client, error) {
 		return nil, err
 	}
 
-	endpoint := cfg.GetURL()
+	endpoint := cfg.URL.String()
 	applicationTransport.BaseURL = endpoint
 
 	applicationConnection := tokenConnection

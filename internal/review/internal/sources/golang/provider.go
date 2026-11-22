@@ -24,7 +24,7 @@ func NewProvider(cfg *provider.Config, connections *client.Factory) (provider.Re
 		return provider.Result{}, nil
 	}
 
-	if !provider.ValidEndpoint(cfg.GetModuleProxy()) || !provider.ValidEndpoint(cfg.GetGoDocs()) {
+	if !provider.ValidEndpoint(cfg.ModuleProxy) || !provider.ValidEndpoint(cfg.GoDocs) {
 		return provider.Result{}, errors.New("review: invalid public source endpoint")
 	}
 
@@ -34,7 +34,7 @@ func NewProvider(cfg *provider.Config, connections *client.Factory) (provider.Re
 	}
 	connection.CheckRedirect = sourceRedirect
 
-	return provider.Result{Strategy: &Provider{client: connection, proxy: strings.TrimRight(cfg.GetModuleProxy(), "/"), goDocs: strings.TrimRight(cfg.GetGoDocs(), "/")}}, nil
+	return provider.Result{Strategy: &Provider{client: connection, proxy: strings.TrimRight(cfg.ModuleProxy.String(), "/"), goDocs: strings.TrimRight(cfg.GoDocs.String(), "/")}}, nil
 }
 
 // Provider owns Go proxy and documentation access shared by review commands.

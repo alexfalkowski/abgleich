@@ -17,6 +17,7 @@ positive and have no defaults. Other blocks configure shared go-service faciliti
 environment: production
 github:
   owner: alexfalkowski
+  url: https://api.github.com/
   app:
     id: 5427450
     installation_id: 174152088
@@ -41,6 +42,10 @@ transport:
 
 This runs merge automation; optional features and [defaults](#-defaults-and-validation)
 follow below.
+
+`github.url`, each configured AI connection URL, and the shared review source URLs
+must be set explicitly. Use HTTPS for remote hosts. Plain HTTP is accepted for
+`localhost` and loopback addresses, such as the local test services.
 
 ## 🤖 GitHub App setup
 
@@ -168,14 +173,14 @@ ai:
     openai:
       kind: openai
       api_key: file:/etc/secrets/abgleich/openai-api-key
+      url: https://api.openai.com/v1/
 ```
 
 Several connections can use the same provider kind with different credentials or
 trusted endpoints. Define only the connections you intend to use. Unknown connection
 names, unsupported kinds, and missing or empty credentials prevent startup.
-Only override `ai.providers.<name>.url` with a trusted endpoint: it receives the
-configured key and authorized source. Requests stay on the selected connection;
-there is no automatic fallback to another provider.
+Set `ai.providers.<name>.url` to a trusted API base URL. The endpoint receives the
+configured key and authorized source. Requests stay on the selected connection.
 
 **Migration:** Replace `ai.provider`, `ai.openai`, and `ai.client` with named
 connections as above. Put existing client settings under the connection's `client`
@@ -204,8 +209,8 @@ Existing App permissions cover summaries. Read the
 
 ## 🔬 Code-review settings
 
-Review commands and shared source options live under one `review` mapping.
-Merge the `code`, `sec`, `test`, and source settings below into that mapping as needed.
+Review commands and [shared source endpoints](#-review-source-access) live under
+one `review` mapping. Include the source endpoints and the feature blocks you need.
 [`/ab review`](reviews.md#-request-all-configured-reviews) requests every enabled
 review without an additional configuration block.
 
@@ -278,6 +283,18 @@ and [evaluation guidance](development.md#-test-review-evaluation) before enablin
 
 ## 📚 Review source access
 
+When configuring `review`, include all three trusted source endpoints in the
+same mapping as the feature settings. To use the public services, set:
+
+```yaml
+review:
+  go_docs: https://go.dev/doc
+  module_proxy: https://proxy.golang.org
+  gem_registry: https://rubygems.org
+```
+
+These base URLs must be free of credentials, queries, and fragments.
+
 All review commands include every patch returned by GitHub and complete changed-file
 text where available. Read-only tools let the model find relevant repository files,
 inspect helpers/callers/tests, and resolve public Go and Ruby dependencies. A separate read-only tool retrieves
@@ -300,8 +317,7 @@ Language providers are selected once per review from the reviewed head's paths
 and changed filenames. Only matching providers supply language guides and tools.
 Their transport clients are shared across review commands, while dependency and
 reference caches stay local to each review. Repository tools remain available
-independently of language selection. Configuration keys and defaults are unchanged
-by provider selection.
+independently of language selection.
 
 Direct GitHub submodules using `git@github.com:owner/repository.git` are readable
 when they are public, share the reviewed repository's owner, and are active repositories
@@ -390,11 +406,9 @@ notes; unverified contents are never submitted to the model. These gaps alone
 do not prevent approval when the reviewer has high confidence in the repository
 changes. Material unresolved questions can still make the assessment incomplete.
 Local replacements, workspaces, vendored source, and private dependencies
-require repository source inspection. Go lookup
-uses `https://proxy.golang.org` without GitHub or AI credentials. Override
-`review.module_proxy` only with a trusted Go module proxy; it receives declared
-module names. Go references use `https://go.dev/doc`; `review.go_docs` may select
-a trusted documentation mirror. These requests also carry no credentials.
+require repository source inspection. The configured Go module proxy receives
+declared module names. Go references use the configured documentation endpoint,
+which may be an operator-trusted mirror. These requests carry no credentials.
 These Go tools accept neither arbitrary URLs nor model-selected versions.
 Public dependency archives and language references remain cached per request.
 
@@ -431,8 +445,8 @@ Cancellation is checked during network and archive reads. Exceeding the budget
 is disclosed as unavailable external source, so a large or repeatedly inspected
 gem may be omitted while the review continues under the normal verdict rules.
 
-The default registry endpoint is `https://rubygems.org`; `review.gem_registry`
-may select an operator-trusted mirror. Requests carry no GitHub or AI credentials.
+`review.gem_registry` may select an operator-trusted mirror. Requests carry no
+GitHub or AI credentials.
 Ruby source GETs use the shared HTTP client's safe-method retry policy, with at
 most one retry and its default jittered backoff. When `Retry-After` seconds or an
 HTTP date requires a longer wait than that backoff, the client returns the rate
@@ -488,6 +502,7 @@ ai:
     openai:
       kind: openai
       api_key: file:/etc/secrets/abgleich/openai-api-key
+      url: https://api.openai.com/v1/
       client:
         timeout: 3m
 ```
@@ -539,17 +554,18 @@ scheduler:
 | `review.test.effort` | Provider default | Optional model-supported reasoning effort. |
 | `review.test.interval` | `30s` | Time between scheduled thread maintenance and recovery runs; manual requests wake the job immediately. |
 | `review.test.timeout` | `2m` | Deadline for a complete test-review job run. |
-| `review.module_proxy` | `https://proxy.golang.org` | Trusted credential-free Go module source endpoint. |
-| `review.go_docs` | `https://go.dev/doc` | Trusted versioned Go release-note source or mirror. |
+| `review.module_proxy` | None | Required trusted Go module source endpoint when `review` is configured. |
+| `review.go_docs` | None | Required trusted Go release-note endpoint when `review` is configured. |
+| `review.gem_registry` | None | Required trusted RubyGems endpoint when `review` is configured. |
 | `cache.max_entries` | `1024` | Maximum entries in the configured in-memory cache. |
 | `cache.max_size` | `4MB` | Maximum encoded cache value size; larger source remains readable without caching. |
 | `github.client.timeout` | `1m` | Deadline for an individual GitHub HTTP request. |
-| `github.url` | `https://api.github.com/` | REST API base URL, shared with GraphQL. |
+| `github.url` | None | Required REST API base URL, shared with GraphQL. |
 | `github.webhook.timeout` | `5s` | Complete synchronous delivery budget; must be positive and below `10s`. |
 | `ai.providers.<name>.client.timeout` | `1m` | Deadline for an AI HTTP request, bounded by the inference and job budgets. |
 | `ai.providers.<name>.kind` | None | Required provider adapter; currently `openai`. |
 | `ai.providers.<name>.api_key` | None | Required credential source resolved once at startup. |
-| `ai.providers.<name>.url` | `https://api.openai.com/v1/` | Trusted provider API base URL. |
+| `ai.providers.<name>.url` | None | Required trusted provider API base URL. |
 | `transport.http.max_receive_size` | `4MB` | Incoming request body limit for all HTTP routes. |
 
 Omitted or zero auto-merge, cleanup, summary, code-review, security-review, and test-review job durations, inactivity

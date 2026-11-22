@@ -26,7 +26,7 @@ func NewProvider(cfg *provider.Config, connections *client.Factory) (provider.Re
 		return provider.Result{}, nil
 	}
 
-	if !provider.ValidEndpoint(cfg.GetGemRegistry()) {
+	if !provider.ValidEndpoint(cfg.GemRegistry) {
 		return provider.Result{}, errors.New("review: invalid public source endpoint")
 	}
 
@@ -36,7 +36,7 @@ func NewProvider(cfg *provider.Config, connections *client.Factory) (provider.Re
 		return provider.Result{}, errors.Prefix("review: source client", err)
 	}
 
-	return provider.Result{Strategy: &Provider{client: connection, gemRegistry: strings.TrimRight(cfg.GetGemRegistry(), "/")}}, nil
+	return provider.Result{Strategy: &Provider{client: connection, gemRegistry: strings.TrimRight(cfg.GemRegistry.String(), "/")}}, nil
 }
 
 // Provider shares a credential-free RubyGems HTTP client across review commands.

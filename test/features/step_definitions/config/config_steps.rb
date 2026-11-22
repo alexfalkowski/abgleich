@@ -21,6 +21,15 @@ Given('the App installation is not configured') do
   Abgleich.use_config('app_missing')
 end
 
+Given('the worker is configured with {string}') do |problem|
+  profile = {
+    'a missing AI provider URL' => 'ai_url_missing',
+    'a remote AI provider URL on HTTP' => 'ai_url_insecure',
+    'a missing Go module proxy URL' => 'review_module_proxy_missing'
+  }.fetch(problem)
+  Abgleich.use_config(profile)
+end
+
 Given('the installation token approaches expiry after one second') do
   Abgleich.github.token_lifetime = 61
 end
