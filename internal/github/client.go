@@ -2,25 +2,69 @@ package github
 
 import (
 	"github.com/alexfalkowski/go-service/v3/context"
+	"github.com/alexfalkowski/go-service/v3/env"
 	"github.com/alexfalkowski/go-service/v3/errors"
+	"github.com/alexfalkowski/go-service/v3/id"
 	"github.com/alexfalkowski/go-service/v3/meta"
 	"github.com/alexfalkowski/go-service/v3/net/http"
 	"github.com/alexfalkowski/go-service/v3/net/http/body"
 	"github.com/alexfalkowski/go-service/v3/os"
 	"github.com/alexfalkowski/go-service/v3/strings"
+	"github.com/alexfalkowski/go-service/v3/telemetry/logger"
+	transporthttp "github.com/alexfalkowski/go-service/v3/transport/http"
+	"github.com/alexfalkowski/go-service/v3/transport/http/retry"
+	"github.com/alexfalkowski/go-signal/v2"
 	"github.com/bradleyfalzon/ghinstallation/v2"
 	"github.com/google/go-github/v93/github"
 )
+
+// ClientParams supplies startup credentials and the GitHub transport settings.
+type ClientParams struct {
+	// In marks the injected dependencies.
+	signal.In
+
+	// Lifecycle closes the shared pool during shutdown.
+	Lifecycle signal.Lifecycle
+
+	// ID generates outbound request identifiers.
+	ID id.Generator
+
+	// Config supplies the endpoint and App identity.
+	Config *Config
+
+	// FS resolves the configured App private key at startup.
+	FS *os.FS
+
+	// Logger records outbound HTTP outcomes.
+	Logger *logger.Logger
+
+	// UserAgent identifies the worker in outbound API requests.
+	UserAgent env.UserAgent
+}
 
 // NewClient reads the App key once at startup. Missing or empty sources and
 // invalid RSA PEMs prevent startup; replacement requires a restart. Signing and
 // installation token renewal are handled by ghinstallation. Construction makes
 // no GitHub requests.
-func NewClient(cfg *Config, fs *os.FS, conn *http.Client) (*Client, error) {
-	key, err := fs.ReadSource(cfg.App.PrivateKey)
+func NewClient(params ClientParams) (*Client, error) {
+	cfg := params.Config
+	key, err := params.FS.ReadSource(cfg.App.PrivateKey)
 	if err != nil {
 		return nil, errors.Prefix("github: app private key", err)
 	}
+
+	conn, endpoint, err := transporthttp.NewClientFromConfig(cfg.Client,
+		transporthttp.WithClientLifecycle(params.Lifecycle),
+		transporthttp.WithClientTimeout(cfg.GetTimeout()),
+		transporthttp.WithClientRetry(retry.NewConfig(cfg.Client.Retry), retry.SafeMethods),
+		transporthttp.WithClientLogger(params.Logger),
+		transporthttp.WithClientUserAgent(params.UserAgent),
+		transporthttp.WithClientID(params.ID),
+	)
+	if err != nil {
+		return nil, errors.Prefix("github.client", err)
+	}
+	conn.CheckRedirect = http.SameOriginRedirect
 
 	// Copy HTTP settings so token renewal, App requests, and installation requests
 	// can use different transports while sharing the underlying connection pool.
@@ -33,12 +77,12 @@ func NewClient(cfg *Config, fs *os.FS, conn *http.Client) (*Client, error) {
 		return nil, err
 	}
 
-	endpoint := cfg.URL.String()
-	applicationTransport.BaseURL = endpoint
+	apiURL := endpoint.String()
+	applicationTransport.BaseURL = apiURL
 
 	applicationConnection := tokenConnection
 	applicationConnection.Transport = applicationTransport
-	application, err := github.NewClient(github.WithHTTPClient(&applicationConnection), github.WithURLs(&endpoint, &endpoint))
+	application, err := github.NewClient(github.WithHTTPClient(&applicationConnection), github.WithURLs(&apiURL, &apiURL))
 	if err != nil {
 		return nil, err
 	}
@@ -48,7 +92,7 @@ func NewClient(cfg *Config, fs *os.FS, conn *http.Client) (*Client, error) {
 	installationConnection := tokenConnection
 	installationConnection.Transport = &installationTransport{RoundTripper: transport, authentication: installationAuth, requests: make(chan struct{}, 1)}
 
-	installation, err := github.NewClient(github.WithHTTPClient(&installationConnection), github.WithURLs(&endpoint, &endpoint))
+	installation, err := github.NewClient(github.WithHTTPClient(&installationConnection), github.WithURLs(&apiURL, &apiURL))
 	if err != nil {
 		return nil, err
 	}

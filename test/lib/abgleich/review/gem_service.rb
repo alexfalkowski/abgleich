@@ -6,6 +6,9 @@ module Abgleich
     before '/api/v2/*' do
       count = Abgleich.github.record_gem_request(request.path_info, request.env['HTTP_AUTHORIZATION'])
       halt 403 if request.env['HTTP_AUTHORIZATION']
+      if Abgleich.github.failure == 'Ruby redirect with credentials'
+        redirect 'http://fixture-user@localhost:11001/rubygems/api/v2/rubygems/example/versions/1.2.3.json?platform=ruby', 302
+      end
       if Abgleich.github.failure == 'Ruby persistent registry failure' ||
          (Abgleich.github.failure == 'Ruby temporary registry failure' && count == 1)
         halt 503

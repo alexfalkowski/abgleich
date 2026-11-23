@@ -1,6 +1,7 @@
 environment: development
 github:
   client:
+    endpoint: http://localhost:11001/github/
     timeout: 1m
     retry:
       attempts: 2
@@ -10,7 +11,6 @@ github:
     id: 42
     installation_id: 99
     private_key: file:secrets/github-app-missing-private-key.pem
-  url: http://localhost:11001/github/
 scheduler:
   interval: 1s
   timeout: 2s

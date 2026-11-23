@@ -7,6 +7,9 @@ module Abgleich
       Abgleich.github.record_reference_request(params.fetch('version'), request.env['HTTP_AUTHORIZATION'])
       halt 403 if request.env['HTTP_AUTHORIZATION']
       halt 503 if Abgleich.github.failure == 'source Go reference unavailable'
+      if Abgleich.github.failure == 'source a Go documentation redirect with credentials'
+        redirect 'http://fixture-user@localhost:11001/modules/docs/go1.22', 302
+      end
       halt 404 unless params.fetch('version') == '1.22'
       content_type 'text/html'
       '<html><body>Go 1.22 official reference fixture: go1.22-reference-marker</body></html>'

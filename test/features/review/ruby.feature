@@ -81,6 +81,7 @@ Feature: Review Ruby with relevant guidance and pinned dependency source
       | rate limit beyond deadline  | RubyGems rate limited     | 1        |
       | rate limit once             | RubyGems rate limited     | 1        |
       | rate limit date             | RubyGems rate limited     | 1        |
+      | redirect with credentials   | public source unavailable | 1        |
       | persistent registry failure | public source unavailable | 2        |
 
   @codereview

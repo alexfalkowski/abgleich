@@ -1,13 +1,14 @@
 package ai
 
 import (
-	"github.com/alexfalkowski/abgleich/internal/transport/http/client"
 	"github.com/alexfalkowski/go-service/v3/bytes"
 	"github.com/alexfalkowski/go-service/v3/context"
 	"github.com/alexfalkowski/go-service/v3/errors"
+	"github.com/alexfalkowski/go-service/v3/net/http"
 	"github.com/alexfalkowski/go-service/v3/os"
 	"github.com/alexfalkowski/go-service/v3/strings"
 	"github.com/alexfalkowski/go-service/v3/telemetry/logger"
+	transporthttp "github.com/alexfalkowski/go-service/v3/transport/http"
 	"github.com/alexfalkowski/go-signal/v2"
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
@@ -23,7 +24,7 @@ type Provider interface {
 	Generate(ctx context.Context, prompt Prompt) (*Completion, error)
 }
 
-// RegistryParams supplies startup configuration and shared transport construction.
+// RegistryParams supplies startup configuration and provider lifecycle dependencies.
 type RegistryParams struct {
 	// In marks this struct as an injected dependency group.
 	signal.In
@@ -37,8 +38,8 @@ type RegistryParams struct {
 	// Logger records outcomes without prompts, responses, or credentials.
 	Logger *logger.Logger
 
-	// Connections registers connection cleanup after feature jobs stop.
-	Connections *client.Factory
+	// Lifecycle closes provider pools during shutdown.
+	Lifecycle signal.Lifecycle
 }
 
 // NewRegistry constructs named provider connections without contacting providers.
@@ -65,10 +66,14 @@ func NewRegistry(params RegistryParams) (*Registry, error) {
 			return nil, errors.Prefix("ai: "+name, errors.New("api key unavailable"))
 		}
 
-		connection, err := params.Connections.NewClient(config.Client, config.GetTimeout())
+		connection, endpoint, err := transporthttp.NewClientFromConfig(config.Client,
+			transporthttp.WithClientLifecycle(params.Lifecycle),
+			transporthttp.WithClientTimeout(config.GetTimeout()),
+		)
 		if err != nil {
-			return nil, errors.Prefix("ai: "+name+" client", err)
+			return nil, errors.Prefix("ai.providers."+name+".client", err)
 		}
+		connection.CheckRedirect = http.SameOriginRedirect
 
 		var backend Provider
 		switch config.Kind {
@@ -77,7 +82,7 @@ func NewRegistry(params RegistryParams) (*Registry, error) {
 			// supplies credentials, endpoints, and headers. Inference never retries.
 			service := responses.NewResponseService(
 				option.WithAPIKey(apiKey),
-				option.WithBaseURL(config.URL.String()),
+				option.WithBaseURL(endpoint.String()),
 				option.WithHTTPClient(connection),
 				option.WithMaxRetries(0),
 			)

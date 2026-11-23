@@ -6,37 +6,50 @@ import (
 
 	"github.com/alexfalkowski/abgleich/internal/ai"
 	"github.com/alexfalkowski/abgleich/internal/review/internal/sources/provider"
-	"github.com/alexfalkowski/abgleich/internal/transport/http/client"
 	"github.com/alexfalkowski/go-service/v3/context"
 	"github.com/alexfalkowski/go-service/v3/encoding/json"
 	"github.com/alexfalkowski/go-service/v3/errors"
 	"github.com/alexfalkowski/go-service/v3/net/http"
 	"github.com/alexfalkowski/go-service/v3/strings"
 	transporthttp "github.com/alexfalkowski/go-service/v3/transport/http"
-	httpretry "github.com/alexfalkowski/go-service/v3/transport/http/retry"
 	"github.com/alexfalkowski/go-service/v3/transport/retry"
+	"github.com/alexfalkowski/go-signal/v2"
 )
 
 //go:embed prompt.txt
 var guide string
 
 // NewProvider constructs credential-free RubyGems access without remote calls.
-func NewProvider(cfg *provider.Config, connections *client.Factory) (provider.Result, error) {
+func NewProvider(cfg *provider.Config, lifecycle signal.Lifecycle) (provider.Registration, error) {
 	if !cfg.IsEnabled() {
-		return provider.Result{}, nil
+		return provider.Registration{}, nil
 	}
 
-	if !provider.ValidEndpoint(cfg.GemRegistry) {
-		return provider.Result{}, errors.New("review: invalid public source endpoint")
+	const configPath = "review.gem_registry"
+	registry := *cfg.GemRegistry
+	if registry.Retry == nil {
+		registry.Retry = &retry.Config{Attempts: 2}
 	}
 
-	retries := httpretry.NewConfig(&retry.Config{Attempts: 2})
-	connection, err := connections.NewClient(nil, provider.RequestTimeout, transporthttp.WithClientRetry(retries, httpretry.SafeMethods))
+	opts, err := provider.ClientOptions(&registry, lifecycle)
 	if err != nil {
-		return provider.Result{}, errors.Prefix("review: source client", err)
+		return provider.Registration{}, errors.Prefix(configPath, err)
+	}
+	connection, endpoint, err := transporthttp.NewClientFromConfig(&registry, opts...)
+	if err != nil {
+		return provider.Registration{}, errors.Prefix(configPath, err)
+	}
+	if err := provider.ValidateEndpoint(endpoint); err != nil {
+		return provider.Registration{}, errors.Prefix(configPath, err)
+	}
+	connection.CheckRedirect = func(request *http.Request, via []*http.Request) error {
+		if request.URL.User != nil {
+			return http.ErrUseLastResponse
+		}
+		return http.SameOriginRedirect(request, via)
 	}
 
-	return provider.Result{Strategy: &Provider{client: connection, gemRegistry: strings.TrimRight(cfg.GemRegistry.String(), "/")}}, nil
+	return provider.Registration{Strategy: &Provider{client: connection, gemRegistry: strings.TrimRight(endpoint.String(), "/")}}, nil
 }
 
 // Provider shares a credential-free RubyGems HTTP client across review commands.

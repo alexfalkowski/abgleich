@@ -12,8 +12,8 @@ import (
 var guide string
 
 // NewProvider contributes framework guidance to the review source DI group.
-func NewProvider() provider.Result {
-	return provider.Result{Strategy: Provider{}}
+func NewProvider() provider.Registration {
+	return provider.Registration{Strategy: Provider{}}
 }
 
 // Provider adds framework guidance without external source access or mutable state.

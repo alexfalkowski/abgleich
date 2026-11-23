@@ -25,7 +25,10 @@ Given('the worker is configured with {string}') do |problem|
   profile = {
     'a missing AI provider URL' => 'ai_url_missing',
     'a remote AI provider URL on HTTP' => 'ai_url_insecure',
-    'a missing Go module proxy URL' => 'review_module_proxy_missing'
+    'a missing Go module proxy URL' => 'review_module_proxy_missing',
+    'TLS client credentials for the Go module proxy' => 'review_module_proxy_tls_credentials',
+    'token credentials for the Go module proxy' => 'review_module_proxy_token',
+    'URL credentials for the Go module proxy' => 'review_module_proxy_url_credentials'
   }.fetch(problem)
   Abgleich.use_config(profile)
 end
@@ -77,6 +80,11 @@ end
 
 Then('the worker should refuse to start') do
   expect(@start_error).to be_a(Nonnative::StartError)
+end
+
+Then('the startup error for the Go module proxy should say {string}') do |reason|
+  log = Nonnative.configuration.process_by_name('server').log
+  expect(File.read(log)).to include("review.module_proxy: #{reason}")
 end
 
 Then('GitHub should receive one installation check per sweep and {int} for comment commands') do |command_checks|

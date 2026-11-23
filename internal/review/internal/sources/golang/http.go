@@ -1,20 +1,25 @@
 package golang
 
 import (
-	"net/url"
 	"path"
 
 	"github.com/alexfalkowski/go-service/v3/context"
 	"github.com/alexfalkowski/go-service/v3/errors"
 	"github.com/alexfalkowski/go-service/v3/io"
 	"github.com/alexfalkowski/go-service/v3/net/http"
+	"github.com/alexfalkowski/go-service/v3/net/url"
 	"github.com/alexfalkowski/go-service/v3/strings"
 )
 
 const maxSourceRedirects = 10
 
-func (s *Provider) readSource(ctx context.Context, endpoint string) ([]byte, error) {
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+type source struct {
+	client   *http.Client
+	endpoint string
+}
+
+func (s source) read(ctx context.Context, suffix string) ([]byte, error) {
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, s.endpoint+suffix, nil)
 	if err != nil {
 		return nil, errors.Prefix("review: source request", err)
 	}
@@ -33,8 +38,9 @@ func (s *Provider) readSource(ctx context.Context, endpoint string) ([]byte, err
 	return content, errors.Prefix("review: read public source", err)
 }
 
-// sourceRedirect permits the public Go proxy's archive bucket in addition to
-// the original origin. Checking the initial origin constrains every later hop.
+// sourceRedirect rejects URL credentials and permits the public Go proxy's
+// archive bucket in addition to the original origin. Checking the initial
+// origin constrains every later hop.
 func sourceRedirect(request *http.Request, via []*http.Request) error {
 	if len(via) >= maxSourceRedirects {
 		return errors.New("review: too many source redirects")

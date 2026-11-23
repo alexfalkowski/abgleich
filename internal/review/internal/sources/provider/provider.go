@@ -11,10 +11,10 @@ import (
 // rather than become a best-effort external source omission.
 var ErrInvalidLookup = errors.New("invalid source lookup")
 
-// Result contributes an optional strategy to the review source DI value group.
+// Registration contributes an optional strategy to the review source DI value group.
 // An omitted review configuration contributes a nil strategy without opening transports.
-type Result struct {
-	// Out marks the result as an injected value group contribution.
+type Registration struct {
+	// Out marks the registration as an injected value group contribution.
 	signal.Out
 
 	// Strategy supplies source support; nil disables this contribution.

@@ -43,7 +43,6 @@ run reconciles fresh remote state; pending summary and review requests are held 
 | `internal/config` | Composition and injection of package-owned configuration. |
 | `internal/health` | Health observers, independent of job outcomes. |
 | `internal/transport/http` | Webhook HTTP registration, request deadlines, and responses. |
-| `internal/transport/http/client` | Shared outbound HTTP client construction and connection-pool lifecycle, independent of feature packages. |
 
 - Constructors belong in the packages owning their types; `cmd` composes their
   modules. Keep dependencies directed from `automerge` to `github`, `scheduler`,
@@ -55,8 +54,9 @@ run reconciles fresh remote state; pending summary and review requests are held 
   explanations, while `status` owns GitHub Markdown rendering.
 - `summarise` depends on `ai`, `github`, `commands`, and `scheduler`; these
   dependencies stay independent of `summarise`. Keep source selection and
-  authorization in `summarise`, provider access and OpenAI SDK imports in `ai`,
-  and shared outbound client construction in `transport/http/client`.
+  authorization in `summarise` and provider access and OpenAI SDK imports in `ai`.
+  GitHub, AI, and review source packages build their outbound HTTP clients from
+  package-owned settings using go-service and register pool cleanup with the lifecycle.
 - `review.Module` composes `review/code`, `review/sec`, `review/test`, and shared source access.
   Each feature configures a separate `workflow.Command` instance and owns its
   prompt, model/schedule configuration, and registration. Workflow coordinates
@@ -293,8 +293,9 @@ run reconciles fresh remote state; pending summary and review requests are held 
 
 - GitHub owner, credentials, and transport settings belong under `github`;
   provider settings belong under `ai`. HTTP client settings belong under
-  `github.client` and `ai.providers.<name>.client`. Keep their connection pools separate;
-  AI requests never retry.
+  `github.client`, `ai.providers.<name>.client`, `review.module_proxy`,
+  `review.go_docs`, and `review.gem_registry`. Set `endpoint` in each block and keep
+  the connection pools separate. AI requests never retry.
   Auto-merge job timing belongs under `scheduler`; the summary model and its job
   timing belong under `summarise`; the code-review model and its independent job
   timing belong under `review.code`; security-review settings belong under

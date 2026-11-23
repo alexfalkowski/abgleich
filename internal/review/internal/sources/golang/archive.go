@@ -2,12 +2,12 @@ package golang
 
 import (
 	"archive/zip"
-	"net/url"
 
 	"github.com/alexfalkowski/go-service/v3/bytes"
 	"github.com/alexfalkowski/go-service/v3/context"
 	"github.com/alexfalkowski/go-service/v3/errors"
 	"github.com/alexfalkowski/go-service/v3/io"
+	"github.com/alexfalkowski/go-service/v3/net/url"
 	"github.com/alexfalkowski/go-service/v3/strings"
 	"golang.org/x/mod/module"
 	"golang.org/x/mod/sumdb/dirhash"
@@ -24,8 +24,7 @@ func (s *Provider) archive(ctx context.Context, name, version, checksum string) 
 		return nil, errors.Prefix("review: escape module version", err)
 	}
 
-	endpoint := strings.Concat(s.proxy, "/", escapedName, "/@v/", url.PathEscape(escapedVersion), ".zip")
-	content, err := s.readSource(ctx, endpoint)
+	content, err := s.proxy.read(ctx, strings.Concat("/", escapedName, "/@v/", url.PathEscape(escapedVersion), ".zip"))
 	if err != nil {
 		return nil, err
 	}

@@ -17,7 +17,8 @@ positive and have no defaults. Other blocks configure shared go-service faciliti
 environment: production
 github:
   owner: alexfalkowski
-  url: https://api.github.com/
+  client:
+    endpoint: https://api.github.com/
   app:
     id: 5427450
     installation_id: 174152088
@@ -43,8 +44,8 @@ transport:
 This runs merge automation; optional features and [defaults](#-defaults-and-validation)
 follow below.
 
-`github.url`, each configured AI connection URL, and the shared review source URLs
-must be set explicitly. Use HTTPS for remote hosts. Plain HTTP is accepted for
+Set `github.client.endpoint` and the endpoint for each configured AI or review
+source client explicitly. Use HTTPS for remote hosts. Plain HTTP is accepted for
 `localhost` and loopback addresses, such as the local test services.
 
 ## 🤖 GitHub App setup
@@ -173,14 +174,15 @@ ai:
     openai:
       kind: openai
       api_key: file:/etc/secrets/abgleich/openai-api-key
-      url: https://api.openai.com/v1/
+      client:
+        endpoint: https://api.openai.com/v1/
 ```
 
 Several connections can use the same provider kind with different credentials or
 trusted endpoints. Define only the connections you intend to use. Unknown connection
 names, unsupported kinds, and missing or empty credentials prevent startup.
-Set `ai.providers.<name>.url` to a trusted API base URL. The endpoint receives the
-configured key and authorized source. Requests stay on the selected connection.
+Set `ai.providers.<name>.client.endpoint` to a trusted API endpoint. It receives
+the configured key and authorized source. Requests stay on the selected connection.
 
 **Migration:** Replace `ai.provider`, `ai.openai`, and `ai.client` with named
 connections as above. Put existing client settings under the connection's `client`
@@ -288,12 +290,17 @@ same mapping as the feature settings. To use the public services, set:
 
 ```yaml
 review:
-  go_docs: https://go.dev/doc
-  module_proxy: https://proxy.golang.org
-  gem_registry: https://rubygems.org
+  go_docs:
+    endpoint: https://go.dev/doc
+  module_proxy:
+    endpoint: https://proxy.golang.org
+  gem_registry:
+    endpoint: https://rubygems.org
 ```
 
-These base URLs must be free of credentials, queries, and fragments.
+These endpoints must be free of credentials, queries, and fragments. Source
+clients can configure trusted roots in `tls`, and startup rejects client
+certificate, private key, or token settings for these clients.
 
 All review commands include every patch returned by GitHub and complete changed-file
 text where available. Read-only tools let the model find relevant repository files,
@@ -445,12 +452,11 @@ Cancellation is checked during network and archive reads. Exceeding the budget
 is disclosed as unavailable external source, so a large or repeatedly inspected
 gem may be omitted while the review continues under the normal verdict rules.
 
-`review.gem_registry` may select an operator-trusted mirror. Requests carry no
-GitHub or AI credentials.
-Ruby source GETs use the shared HTTP client's safe-method retry policy, with at
-most one retry and its default jittered backoff. When `Retry-After` seconds or an
-HTTP date requires a longer wait than that backoff, the client returns the rate
-limit without retrying. The review discloses unavailable source and continues
+`review.gem_registry.endpoint` may select an operator-trusted mirror. Requests carry no
+GitHub or AI credentials. RubyGems follows same-origin redirects without URL credentials.
+Ruby source GETs allow one retry with jittered backoff by default. When
+`Retry-After` seconds or an HTTP date requires a longer wait than that backoff,
+the client returns the rate limit immediately. The review discloses unavailable source and continues
 under the normal verdict rules. There is no separate Ruby pacing or cooldown
 state, so one rate-limited lookup does not hold another review. Provider
 inference requests still never retry.
@@ -477,9 +483,12 @@ Summaries remain focused on patches and do not use source tools.
 
 ## 🔌 HTTP transport
 
-`github.client` and each `ai.providers.<name>.client` have separate connection pools, request timeouts,
-TLS, and circuit-breaking settings. Circuit breaking and GitHub retries are
-disabled unless configured. To enable safe-method retries, merge into `github`:
+GitHub, each named AI connection, and each review source have their own connection
+pool and `timeout`, `tls`, and `breaker` settings. Circuit breaking is opt-in.
+GitHub and review sources support retries for safe methods. GitHub, the Go module
+proxy, and Go docs default to one attempt. RubyGems defaults to two total attempts
+when `retry` is omitted. Set `retry.attempts: 1` to use a single attempt. To enable
+one GitHub retry, set:
 
 ```yaml
 github:
@@ -489,9 +498,8 @@ github:
       backoff: 100ms
 ```
 
-Mutations are never retried by the transport; later runs read fresh state.
-AI requests never retry, even with `ai.providers.<name>.client.retry` configured. Their HTTP timeout
-cannot extend the independent inference or job budget.
+Later runs read fresh state after a failed mutation. AI requests make one attempt
+regardless of `retry` settings. The inference and job budgets also bound AI requests.
 
 For deeper reviews, allow longer individual model requests alongside the feature
 job timeout. The default one-minute HTTP timeout can interrupt high-effort reasoning:
@@ -502,12 +510,20 @@ ai:
     openai:
       kind: openai
       api_key: file:/etc/secrets/abgleich/openai-api-key
-      url: https://api.openai.com/v1/
       client:
+        endpoint: https://api.openai.com/v1/
         timeout: 3m
 ```
 
 This setting applies to features selecting that connection; summaries retain their separate inference limit.
+
+### 🔄 Migrate endpoint settings
+
+Move `github.url` to `github.client.endpoint` and each `ai.providers.<name>.url`
+to `ai.providers.<name>.client.endpoint`. Keep any existing settings in those
+`client` blocks. Convert each scalar `review.module_proxy`, `review.go_docs`, and
+`review.gem_registry` value to a mapping with an `endpoint` key. Deploy the
+updated configuration with the new worker binary.
 
 ## 🗓️ Auto-merge schedule
 
@@ -554,22 +570,23 @@ scheduler:
 | `review.test.effort` | Provider default | Optional model-supported reasoning effort. |
 | `review.test.interval` | `30s` | Time between scheduled thread maintenance and recovery runs; manual requests wake the job immediately. |
 | `review.test.timeout` | `2m` | Deadline for a complete test-review job run. |
-| `review.module_proxy` | None | Required trusted Go module source endpoint when `review` is configured. |
-| `review.go_docs` | None | Required trusted Go release-note endpoint when `review` is configured. |
-| `review.gem_registry` | None | Required trusted RubyGems endpoint when `review` is configured. |
+| `review.module_proxy.endpoint` | None | Required trusted Go module source endpoint when `review` is configured. |
+| `review.go_docs.endpoint` | None | Required trusted Go release-note endpoint when `review` is configured. |
+| `review.gem_registry.endpoint` | None | Required trusted RubyGems endpoint when `review` is configured. |
+| `review.module_proxy.timeout`, `review.go_docs.timeout`, `review.gem_registry.timeout` | `10s` each | Independent deadline for each source HTTP request. |
 | `cache.max_entries` | `1024` | Maximum entries in the configured in-memory cache. |
 | `cache.max_size` | `4MB` | Maximum encoded cache value size; larger source remains readable without caching. |
 | `github.client.timeout` | `1m` | Deadline for an individual GitHub HTTP request. |
-| `github.url` | None | Required REST API base URL, shared with GraphQL. |
+| `github.client.endpoint` | None | Required GitHub API endpoint for REST and GraphQL. |
 | `github.webhook.timeout` | `5s` | Complete synchronous delivery budget; must be positive and below `10s`. |
 | `ai.providers.<name>.client.timeout` | `1m` | Deadline for an AI HTTP request, bounded by the inference and job budgets. |
 | `ai.providers.<name>.kind` | None | Required provider adapter; currently `openai`. |
 | `ai.providers.<name>.api_key` | None | Required credential source resolved once at startup. |
-| `ai.providers.<name>.url` | None | Required trusted provider API base URL. |
+| `ai.providers.<name>.client.endpoint` | None | Required trusted provider API endpoint. |
 | `transport.http.max_receive_size` | `4MB` | Incoming request body limit for all HTTP routes. |
 
 Omitted or zero auto-merge, cleanup, summary, code-review, security-review, and test-review job durations, inactivity
-thresholds, webhook budgets, and GitHub and AI client timeouts use the defaults
+thresholds, webhook budgets, and GitHub, AI, and review source client timeouts use the defaults
 above. Negative schedule durations, inactivity thresholds, and HTTP client
 timeouts are invalid. AI effort must be omitted or one of `none`,
 `minimal`, `low`, `medium`, `high`, `xhigh`, or `max`; the chosen model must support it. Excluded branch and repository names must be nonempty.
