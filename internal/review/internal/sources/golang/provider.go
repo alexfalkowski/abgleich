@@ -11,6 +11,7 @@ import (
 	"github.com/alexfalkowski/go-service/v3/context"
 	"github.com/alexfalkowski/go-service/v3/encoding/json"
 	"github.com/alexfalkowski/go-service/v3/errors"
+	"github.com/alexfalkowski/go-service/v3/os"
 	"github.com/alexfalkowski/go-service/v3/strings"
 	"github.com/alexfalkowski/go-service/v3/transport/http"
 	"github.com/alexfalkowski/go-signal/v2"
@@ -20,17 +21,17 @@ import (
 var guide string
 
 // NewProvider constructs credential-free Go source access without remote calls.
-func NewProvider(cfg *provider.Config, lifecycle signal.Lifecycle) (provider.Registration, error) {
+func NewProvider(cfg *provider.Config, lifecycle signal.Lifecycle, fs *os.FS) (provider.Registration, error) {
 	if !cfg.IsEnabled() {
 		return provider.Registration{}, nil
 	}
 
-	proxy, err := newSource(cfg.ModuleProxy, lifecycle)
+	proxy, err := newSource(cfg.ModuleProxy, lifecycle, fs)
 	if err != nil {
 		return provider.Registration{}, errors.Prefix("review.module_proxy", err)
 	}
 
-	docs, err := newSource(cfg.GoDocs, lifecycle)
+	docs, err := newSource(cfg.GoDocs, lifecycle, fs)
 	if err != nil {
 		return provider.Registration{}, errors.Prefix("review.go_docs", err)
 	}
@@ -38,8 +39,8 @@ func NewProvider(cfg *provider.Config, lifecycle signal.Lifecycle) (provider.Reg
 	return provider.Registration{Strategy: &Provider{proxy: proxy, docs: docs}}, nil
 }
 
-func newSource(cfg *client.Config, lifecycle signal.Lifecycle) (source, error) {
-	opts, err := provider.ClientOptions(cfg, lifecycle)
+func newSource(cfg *client.Config, lifecycle signal.Lifecycle, fs *os.FS) (source, error) {
+	opts, err := provider.ClientOptions(cfg, lifecycle, fs)
 	if err != nil {
 		return source{}, err
 	}

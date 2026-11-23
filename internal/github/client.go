@@ -32,7 +32,7 @@ type ClientParams struct {
 	// Config supplies the endpoint and App identity.
 	Config *Config
 
-	// FS resolves the configured App private key at startup.
+	// FS resolves the configured App private key and client TLS sources at startup.
 	FS *os.FS
 
 	// Logger records outbound HTTP outcomes.
@@ -55,6 +55,7 @@ func NewClient(params ClientParams) (*Client, error) {
 
 	conn, endpoint, err := transporthttp.NewClientFromConfig(cfg.Client,
 		transporthttp.WithClientLifecycle(params.Lifecycle),
+		transporthttp.WithClientFS(params.FS),
 		transporthttp.WithClientTimeout(cfg.GetTimeout()),
 		transporthttp.WithClientRetry(retry.NewConfig(cfg.Client.Retry), retry.SafeMethods),
 		transporthttp.WithClientLogger(params.Logger),

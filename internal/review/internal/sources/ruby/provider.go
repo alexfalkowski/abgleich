@@ -10,6 +10,7 @@ import (
 	"github.com/alexfalkowski/go-service/v3/encoding/json"
 	"github.com/alexfalkowski/go-service/v3/errors"
 	"github.com/alexfalkowski/go-service/v3/net/http"
+	"github.com/alexfalkowski/go-service/v3/os"
 	"github.com/alexfalkowski/go-service/v3/strings"
 	transporthttp "github.com/alexfalkowski/go-service/v3/transport/http"
 	"github.com/alexfalkowski/go-service/v3/transport/retry"
@@ -20,7 +21,7 @@ import (
 var guide string
 
 // NewProvider constructs credential-free RubyGems access without remote calls.
-func NewProvider(cfg *provider.Config, lifecycle signal.Lifecycle) (provider.Registration, error) {
+func NewProvider(cfg *provider.Config, lifecycle signal.Lifecycle, fs *os.FS) (provider.Registration, error) {
 	if !cfg.IsEnabled() {
 		return provider.Registration{}, nil
 	}
@@ -31,7 +32,7 @@ func NewProvider(cfg *provider.Config, lifecycle signal.Lifecycle) (provider.Reg
 		registry.Retry = &retry.Config{Attempts: 2}
 	}
 
-	opts, err := provider.ClientOptions(&registry, lifecycle)
+	opts, err := provider.ClientOptions(&registry, lifecycle, fs)
 	if err != nil {
 		return provider.Registration{}, errors.Prefix(configPath, err)
 	}
