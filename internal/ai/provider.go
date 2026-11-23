@@ -32,7 +32,7 @@ type RegistryParams struct {
 	// Config defines optional provider connections and credential sources.
 	Config *Config
 
-	// FS resolves explicit credential sources once at startup.
+	// FS resolves explicit credential and client TLS sources once at startup.
 	FS *os.FS
 
 	// Logger records outcomes without prompts, responses, or credentials.
@@ -68,6 +68,7 @@ func NewRegistry(params RegistryParams) (*Registry, error) {
 
 		connection, endpoint, err := transporthttp.NewClientFromConfig(config.Client,
 			transporthttp.WithClientLifecycle(params.Lifecycle),
+			transporthttp.WithClientFS(params.FS),
 			transporthttp.WithClientTimeout(config.GetTimeout()),
 		)
 		if err != nil {
