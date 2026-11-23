@@ -61,6 +61,15 @@ Feature: Inspect verified public dependency source
       | secreview  | security | public dependency rate limited             | source unavailable    | dependency | 1              |
 
   @codereview
+  Scenario: Retry a Go module proxy failure when configured
+    Given the Go module proxy is configured to retry
+    And related source is "public dependency unavailable"
+    When a maintainer with "write" access comments "/ab codereview"
+    Then the code review should disclose external source note "public dependency source unavailable"
+    And the code review decision should be "APPROVED"
+    And the public dependency proxy should receive 2 requests without credentials
+
+  @codereview
   Scenario: Refuse a dependency redirect to an unrelated origin
     Given related source is "redirected to an unrelated origin"
     When a maintainer with "write" access comments "/ab codereview"

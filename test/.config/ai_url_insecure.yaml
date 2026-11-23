@@ -2,6 +2,7 @@
 environment: development
 github:
   client:
+    endpoint: http://localhost:11001/github/
     timeout: 1m
     retry:
       attempts: 2
@@ -11,7 +12,6 @@ github:
     id: 42
     installation_id: 99
     private_key: file:secrets/github-app-private-key.pem
-  url: http://localhost:11001/github/
   webhook:
     secret: file:secrets/github-webhook-secret
     timeout: 2s
@@ -42,4 +42,5 @@ ai:
     openai:
       kind: openai
       api_key: file:secrets/openai-api-key
-      url: http://example.invalid/v1/
+      client:
+        endpoint: http://example.invalid/v1/

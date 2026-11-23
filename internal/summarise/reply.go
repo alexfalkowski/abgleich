@@ -1,9 +1,8 @@
 package summarise
 
 import (
-	"net/url"
-
 	"github.com/alexfalkowski/abgleich/internal/ai"
+	"github.com/alexfalkowski/go-service/v3/net/url"
 	"github.com/alexfalkowski/go-service/v3/slices"
 	"github.com/alexfalkowski/go-service/v3/strings"
 )

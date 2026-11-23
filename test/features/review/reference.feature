@@ -18,7 +18,17 @@ Feature: Consult the declared Go language reference
     And both language lookups should receive the same complete reference
 
   Scenario: Complete a confident review without external language documentation
-    Given external Go reference documentation is unavailable
+    Given the Go module proxy is configured to retry
+    And external Go reference documentation is unavailable
     When a maintainer with "write" access comments "/ab codereview"
     Then the code review should disclose external source note "Go 1.22 release notes"
     And the code review decision should be "APPROVED"
+    And the Go documentation endpoint should receive one request without credentials
+
+  Scenario: Decline a Go documentation redirect with credentials
+    Given related source is "a Go documentation redirect with credentials"
+    And the reviewer needs "the declared Go language rules"
+    When a maintainer with "write" access comments "/ab codereview"
+    Then the code review should disclose external source note "Go 1.22 release notes"
+    And the code review decision should be "APPROVED"
+    And the Go documentation endpoint should receive one request without credentials

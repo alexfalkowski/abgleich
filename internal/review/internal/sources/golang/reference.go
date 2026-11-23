@@ -55,7 +55,7 @@ func goLanguageVersion(content string) string {
 }
 
 func (s *Provider) reference(ctx context.Context, version string) (string, error) {
-	content, err := s.readSource(ctx, strings.Concat(s.goDocs, "/go", version))
+	content, err := s.docs.read(ctx, "/go"+version)
 	if err != nil {
 		return strings.Empty, err
 	}

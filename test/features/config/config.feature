@@ -60,6 +60,18 @@ Feature: Start with a usable worker configuration
       | a remote AI provider URL on HTTP |
       | a missing Go module proxy URL    |
 
+  Scenario Outline: Reject credentials for the public Go module proxy
+    Given the worker is configured with "<credential> for the Go module proxy"
+    When the operator starts the worker
+    Then the worker should refuse to start
+    And the startup error for the Go module proxy should say "<reason>"
+
+    Examples:
+      | credential             | reason                                                       |
+      | TLS client credentials | public source client requires credential-free access         |
+      | token credentials      | public source client requires credential-free access         |
+      | URL credentials        | endpoint must be free of credentials, queries, and fragments |
+
   Scenario Outline: Reject an empty resolved webhook secret at startup
     Given the webhook secret comes from "<source>" with "<content>" content
     When the operator starts the worker

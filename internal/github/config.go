@@ -2,7 +2,6 @@ package github
 
 import (
 	"github.com/alexfalkowski/go-service/v3/config/client"
-	"github.com/alexfalkowski/go-service/v3/net/url"
 	"github.com/alexfalkowski/go-service/v3/time"
 )
 
@@ -12,17 +11,14 @@ const defaultWebhookTimeout = 5 * time.Second
 // App credentials supply worker and comment access. The private key is loaded
 // at startup; installation tokens renew automatically.
 type Config struct {
-	// Client configures the GitHub HTTP pool, request timeout, and safe-method retries.
-	Client *client.Config `yaml:"client,omitempty" json:"client,omitempty" toml:"client,omitempty"`
+	// Client configures the required REST and GraphQL endpoint, HTTP timeout, and safe-method retries.
+	Client *client.Config `yaml:"client,omitempty" json:"client,omitempty" toml:"client,omitempty" validate:"required"`
 
 	// App supplies required App and installation identity and the startup private-key source.
 	App *AppConfig `yaml:"app,omitempty" json:"app,omitempty" toml:"app,omitempty" validate:"required"`
 
 	// Webhook enables signed delivery processing when present; omission disables the endpoint.
 	Webhook *WebhookConfig `yaml:"webhook,omitempty" json:"webhook,omitempty" toml:"webhook,omitempty" validate:"omitempty"`
-
-	// URL supplies the required base URL shared by REST and GraphQL.
-	URL *url.SecureURL `yaml:"url,omitempty" json:"url,omitempty" toml:"url,omitempty" validate:"required"`
 
 	// Owner identifies the installation account whose owned repositories may be accessed.
 	Owner string `yaml:"owner,omitempty" json:"owner,omitempty" toml:"owner,omitempty" validate:"required"`

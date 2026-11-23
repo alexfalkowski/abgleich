@@ -2,7 +2,6 @@ package ai
 
 import (
 	"github.com/alexfalkowski/go-service/v3/config/client"
-	"github.com/alexfalkowski/go-service/v3/net/url"
 	"github.com/alexfalkowski/go-service/v3/time"
 )
 
@@ -25,11 +24,8 @@ func (c *Config) IsEnabled() bool {
 
 // ProviderConfig defines a provider connection shared by any number of models.
 type ProviderConfig struct {
-	// Client sets connection settings and HTTP deadlines; retries stay disabled.
-	Client *client.Config `yaml:"client,omitempty" json:"client,omitempty" toml:"client,omitempty"`
-
-	// URL supplies the required trusted API base URL for the connection.
-	URL *url.SecureURL `yaml:"url,omitempty" json:"url,omitempty" toml:"url,omitempty" validate:"required"`
+	// Client configures the required trusted API endpoint and HTTP deadline. Requests use one attempt.
+	Client *client.Config `yaml:"client,omitempty" json:"client,omitempty" toml:"client,omitempty" validate:"required"`
 
 	// Kind selects the adapter: openai.
 	Kind ProviderKind `yaml:"kind,omitempty" json:"kind,omitempty" toml:"kind,omitempty" validate:"required,oneof=openai"`

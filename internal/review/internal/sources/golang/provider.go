@@ -7,41 +7,59 @@ import (
 
 	"github.com/alexfalkowski/abgleich/internal/ai"
 	"github.com/alexfalkowski/abgleich/internal/review/internal/sources/provider"
-	"github.com/alexfalkowski/abgleich/internal/transport/http/client"
+	"github.com/alexfalkowski/go-service/v3/config/client"
 	"github.com/alexfalkowski/go-service/v3/context"
 	"github.com/alexfalkowski/go-service/v3/encoding/json"
 	"github.com/alexfalkowski/go-service/v3/errors"
-	"github.com/alexfalkowski/go-service/v3/net/http"
 	"github.com/alexfalkowski/go-service/v3/strings"
+	"github.com/alexfalkowski/go-service/v3/transport/http"
+	"github.com/alexfalkowski/go-signal/v2"
 )
 
 //go:embed prompt.txt
 var guide string
 
 // NewProvider constructs credential-free Go source access without remote calls.
-func NewProvider(cfg *provider.Config, connections *client.Factory) (provider.Result, error) {
+func NewProvider(cfg *provider.Config, lifecycle signal.Lifecycle) (provider.Registration, error) {
 	if !cfg.IsEnabled() {
-		return provider.Result{}, nil
+		return provider.Registration{}, nil
 	}
 
-	if !provider.ValidEndpoint(cfg.ModuleProxy) || !provider.ValidEndpoint(cfg.GoDocs) {
-		return provider.Result{}, errors.New("review: invalid public source endpoint")
-	}
-
-	connection, err := connections.NewClient(nil, provider.RequestTimeout)
+	proxy, err := newSource(cfg.ModuleProxy, lifecycle)
 	if err != nil {
-		return provider.Result{}, errors.Prefix("review: source client", err)
+		return provider.Registration{}, errors.Prefix("review.module_proxy", err)
+	}
+
+	docs, err := newSource(cfg.GoDocs, lifecycle)
+	if err != nil {
+		return provider.Registration{}, errors.Prefix("review.go_docs", err)
+	}
+
+	return provider.Registration{Strategy: &Provider{proxy: proxy, docs: docs}}, nil
+}
+
+func newSource(cfg *client.Config, lifecycle signal.Lifecycle) (source, error) {
+	opts, err := provider.ClientOptions(cfg, lifecycle)
+	if err != nil {
+		return source{}, err
+	}
+
+	connection, endpoint, err := http.NewClientFromConfig(cfg, opts...)
+	if err != nil {
+		return source{}, err
+	}
+	if err := provider.ValidateEndpoint(endpoint); err != nil {
+		return source{}, err
 	}
 	connection.CheckRedirect = sourceRedirect
 
-	return provider.Result{Strategy: &Provider{client: connection, proxy: strings.TrimRight(cfg.ModuleProxy.String(), "/"), goDocs: strings.TrimRight(cfg.GoDocs.String(), "/")}}, nil
+	return source{client: connection, endpoint: strings.TrimRight(endpoint.String(), "/")}, nil
 }
 
 // Provider owns Go proxy and documentation access shared by review commands.
 type Provider struct {
-	client *http.Client
-	proxy  string
-	goDocs string
+	proxy source
+	docs  source
 }
 
 // Matches selects Go support for Go source or a module manifest.

@@ -1,6 +1,7 @@
 environment: development
 github:
   client:
+    endpoint: http://localhost:11001/github/
     timeout: 1m
     retry:
       attempts: 2
@@ -10,7 +11,6 @@ github:
     id: 42
     installation_id: 99
     private_key: file:secrets/github-app-private-key.pem
-  url: http://localhost:11001/github/
   webhook:
     secret: file:secrets/github-webhook-secret
     timeout: 2s
@@ -37,9 +37,12 @@ transport:
     timeout: 5s
     max_receive_size: 1048576B
 review:
-  go_docs: http://localhost:11001/modules/docs
-  module_proxy: http://localhost:11001/modules
-  gem_registry: http://localhost:11001/rubygems
+  go_docs:
+    endpoint: http://localhost:11001/modules/docs
+  module_proxy:
+    endpoint: http://localhost:11001/modules
+  gem_registry:
+    endpoint: http://localhost:11001/rubygems
   code:
     provider: openai
     model: test-review

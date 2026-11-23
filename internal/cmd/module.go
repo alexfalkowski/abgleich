@@ -13,7 +13,6 @@ import (
 	"github.com/alexfalkowski/abgleich/internal/status"
 	"github.com/alexfalkowski/abgleich/internal/summarise"
 	"github.com/alexfalkowski/abgleich/internal/transport/http"
-	"github.com/alexfalkowski/abgleich/internal/transport/http/client"
 	"github.com/alexfalkowski/go-service/v3/module"
 	"github.com/alexfalkowski/go-signal/v2"
 )
@@ -22,7 +21,6 @@ import (
 var Module = signal.Module(
 	module.Server,
 	config.Module,
-	client.Module,
 	github.Module,
 	commands.Module,
 	automerge.Module,

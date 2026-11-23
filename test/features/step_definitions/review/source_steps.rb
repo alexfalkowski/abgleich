@@ -11,6 +11,10 @@ Given('dependency lookup is configured but reviews are disabled') do
   Abgleich.use_config('review_sources_only')
 end
 
+Given('the Go module proxy is configured to retry') do
+  Abgleich.use_config('review_module_proxy_retry')
+end
+
 Given('the contribution changes more than one hundred source files') do
   Abgleich.github.file_mode = 'large review'
 end
@@ -148,6 +152,11 @@ Then('the code review should receive the declared Go language reference') do
   expect(Abgleich.github.reference_requests).to eq([{ version: '1.22', authorization: nil }])
   expect(Abgleich.openai.requests.last.fetch('input').to_json).to include('go1.22-reference-marker')
   expect(review.fetch(:body)).to include('Go 1.22 release notes')
+end
+
+Then('the Go documentation endpoint should receive one request without credentials') do
+  expected = [{ version: '1.22', authorization: nil }]
+  expect(Abgleich.github.reference_requests).to eq(expected), 'expected one credential-free Go documentation request'
 end
 
 Then('both language lookups should receive the same complete reference') do

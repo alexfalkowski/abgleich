@@ -136,8 +136,9 @@ sequenceDiagram
 [`transport/http`](../internal/transport/http/doc.go) verifies webhooks;
 [`commands`](../internal/commands/doc.go) dispatches to feature handlers and provides
 shared human-command authorization; review handlers use the workflow above. SDK imports stay
-inside `github` and [`ai`](../internal/ai/doc.go),
-using shared [client construction](../internal/transport/http/client/doc.go).
+inside `github` and [`ai`](../internal/ai/doc.go). These packages and the review
+source providers construct their own outbound connections from their
+[HTTP client settings](configuration.md#-http-transport) using go-service.
 
 ## 🗓️ Job registration
 
