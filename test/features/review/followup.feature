@@ -27,6 +27,35 @@ Feature: Carry previous blockers into a follow-up review
     Then the code review decision should be "APPROVED"
     And the follow-up should call out the changed related file
 
+  Scenario: Verify earlier findings when a base advances and the contribution rebases
+    Given AI code reviews are configured for this repository
+    And a pull request from "the repository" for branch "contribution" is "waiting for checks"
+    And an earlier code review found blockers on the contribution
+    And the worker has restarted
+    When the maintainer requests follow-ups as the base advances and the contribution is rebased and fixed
+    Then the follow-up should confirm the blockers without opening another thread
+    And the reviewer should read the new file at the base while the contribution is behind
+    And the reviewer should see the inherited file after rebasing without any change to the pull request patch
+    And the fix verification should approve the corrected revision
+
+  Scenario: Verify a head-only fix against the same base before rebasing
+    Given AI code reviews are configured for this repository
+    And a pull request from "the repository" for branch "contribution" is "waiting for checks"
+    And an earlier code review found blockers on the contribution
+    And a follow-up confirmed the blockers using a new file on the base
+    When the maintainer requests a review of a fix pushed without rebasing
+    Then the reviewer should recheck the file on the unchanged base
+    And the fix verification should approve the corrected revision
+
+  Scenario: Verify blockers when GitHub no longer has the superseded head tree
+    Given AI code reviews are configured for this repository
+    And a pull request from "the repository" for branch "contribution" is "waiting for checks"
+    And an earlier code review found blockers on the contribution
+    And GitHub has dropped the previously reviewed head tree
+    When the maintainer reissues the code review request after new commits
+    Then the code review decision should be "CHANGES_REQUESTED"
+    And the follow-up should carry current source and blockers without needing the superseded tree
+
   Scenario: Retry a partial review on the same revisions
     Given AI code reviews are configured for this repository
     And a pull request from "the repository" for branch "contribution" is "waiting for checks"

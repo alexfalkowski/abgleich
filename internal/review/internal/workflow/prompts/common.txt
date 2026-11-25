@@ -39,6 +39,11 @@ risk, and the boundary that owns the correction. Check documented scope and
 deferrals against the inspected behavior. A deferral applies only to the risk
 and scope it actually covers. A
 claim of deferral in the PR description alone is insufficient.
+Check whether the observed outcome is required by an existing safeguard or
+upstream contract, including prescribed backoff. For a confirmed defect, propose
+the smallest correction that preserves required behavior. Consider removing
+optional work that causes the failure or reusing an existing control before
+recommending new infrastructure or policy.
 Prioritize findings that matter to the decision on this PR. Report every
 independently supported material defect introduced or materially worsened by
 the diff. Use P3 for a specific localized defect worth correcting in this PR.

@@ -91,7 +91,9 @@ func NewClient(params ClientParams) (*Client, error) {
 	installationAuth := ghinstallation.NewFromAppsTransport(applicationTransport, cfg.App.InstallationID)
 	installationAuth.Client = &tokenConnection
 	installationConnection := tokenConnection
-	installationConnection.Transport = &installationTransport{RoundTripper: transport, authentication: installationAuth, requests: make(chan struct{}, 1)}
+	installationConnection.Transport = &installationTransport{
+		RoundTripper: transport, authentication: installationAuth, requests: make(chan installationTokenSlot, 1),
+	}
 
 	installation, err := github.NewClient(github.WithHTTPClient(&installationConnection), github.WithURLs(&apiURL, &apiURL))
 	if err != nil {
@@ -124,10 +126,12 @@ func (t *userAgentTransport) RoundTrip(req *http.Request) (*http.Response, error
 // ghinstallation holds a mutex while renewing tokens; waiting for that mutex
 // cannot be cancelled. Serialize only token acquisition so waiting remains
 // cancellable without making webhook commands wait for background API requests.
+type installationTokenSlot struct{}
+
 type installationTransport struct {
 	http.RoundTripper
 	authentication *ghinstallation.Transport
-	requests       chan struct{}
+	requests       chan installationTokenSlot
 }
 
 // RoundTrip obtains an installation token with cancellable waiting, then sends
@@ -151,17 +155,17 @@ func (t *installationTransport) RoundTrip(req *http.Request) (*http.Response, er
 
 func (t *installationTransport) token(ctx context.Context) (string, error) {
 	select {
-	case t.requests <- struct{}{}:
+	case t.requests <- installationTokenSlot{}:
 		defer func() {
 			<-t.requests
 		}()
 
 		if err := ctx.Err(); err != nil {
-			return "", err
+			return strings.Empty, err
 		}
 
 		return t.authentication.Token(ctx)
 	case <-ctx.Done():
-		return "", ctx.Err()
+		return strings.Empty, ctx.Err()
 	}
 }

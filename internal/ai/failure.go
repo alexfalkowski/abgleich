@@ -201,6 +201,6 @@ func knownProviderCode(code string) ProviderErrorCode {
 		codeMaxOutputTokens, codeMaxMessages:
 		return providerCode
 	default:
-		return ""
+		return strings.Empty
 	}
 }

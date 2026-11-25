@@ -82,7 +82,7 @@ func (s *Session) Inspected(label string) {
 
 // Report describes the source actually supplied and any scope limitations.
 type Report struct {
-	// Fingerprints maps inspected repository paths, keyed by PR side, to tree fingerprints.
+	// Fingerprints tracks inspected paths and verified unchanged paths from the prior review.
 	Fingerprints map[string]string
 	// Inspected lists text read from the repository or external sources.
 	Inspected []string

@@ -3,6 +3,7 @@ package workflow
 import (
 	"github.com/alexfalkowski/abgleich/internal/review/internal/assessment"
 	"github.com/alexfalkowski/go-service/v3/context"
+	"github.com/alexfalkowski/go-service/v3/strings"
 	"github.com/alexfalkowski/go-sync"
 )
 
@@ -31,7 +32,7 @@ func (c *Command) submitReview(ctx context.Context, task *reviewTask, draft *ass
 	if err != nil {
 		return err
 	}
-	if reason != "" {
+	if !strings.IsEmpty(reason) {
 		return c.publishStaleReview(ctx, task, reason)
 	}
 

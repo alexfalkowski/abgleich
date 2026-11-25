@@ -6,6 +6,7 @@ import (
 	"github.com/alexfalkowski/go-service/v3/context"
 	"github.com/alexfalkowski/go-service/v3/errors"
 	"github.com/alexfalkowski/go-service/v3/slices"
+	"github.com/alexfalkowski/go-service/v3/strings"
 )
 
 // Native REST reviews omit performed_via_github_app. Authenticated GraphQL
@@ -28,7 +29,7 @@ func (s *service) AppReviews(ctx context.Context, reviews []*PullRequestReview) 
 	for _, review := range reviews {
 		// REST can omit the user. GraphQL still checks whether the App authored the review.
 		switch review.GetUser().GetType() {
-		case UserBot, "":
+		case UserBot, strings.Empty:
 			ids = append(ids, review.GetNodeID())
 		}
 	}

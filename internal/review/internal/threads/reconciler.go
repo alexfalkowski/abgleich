@@ -144,5 +144,5 @@ func (r Reconciler) outdatedThread(thread *github.ReviewThread) bool {
 	}
 
 	feature := history.Feature(thread.ReviewBody)
-	return feature != "" && feature == r.feature
+	return !strings.IsEmpty(feature) && feature == r.feature
 }

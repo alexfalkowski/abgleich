@@ -35,7 +35,7 @@ func Feature(body string) string {
 	if len(match) == 2 {
 		return match[1]
 	}
-	return ""
+	return strings.Empty
 }
 
 // View holds the native history and any assessments authenticated during one read.

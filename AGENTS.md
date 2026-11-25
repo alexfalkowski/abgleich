@@ -4,6 +4,11 @@
 
 Use `bin/AGENTS.md` for shared skills and cross-repository defaults.
 
+In Go code, use `strings.Empty` from `github.com/alexfalkowski/go-service/v3/strings`
+for explicit empty string values and `strings.IsEmpty` for emptiness checks.
+Use named struct types in production Go code. Anonymous structs are allowed in
+tests and GitHub GraphQL payloads.
+
 ## Project purpose
 
 Abgleich is a background worker that enables auto-merge or merges ready Dependabot
@@ -194,6 +199,8 @@ run reconciles fresh remote state; pending summary and review requests are held 
   reject private targets and missing visibility metadata before source reads.
   Use the explicit `read_submodule` tool to resolve metadata at the reviewed head and read the pinned gitlink commit through GitHub source methods.
   Normal file lookups for declared submodule paths delegate to the same operation.
+  On follow-ups, `read_base_sources` reads regular files at the reviewed base
+  under the same consent and revision guard, including when the base is unchanged.
   Do not follow nested
   submodules, fetch submodule URLs directly, or browse arbitrary GitHub repositories.
   Go language/compiler claims can consult official
@@ -280,6 +287,9 @@ run reconciles fresh remote state; pending summary and review requests are held 
   independent. Source-enabled reviews use v2 result markers so old patch-only
   results do not suppress a new request. Carry earlier blockers from the latest
   authenticated same-feature assessment when it has a usable follow-up record.
+  Compare saved patch and source fingerprints with current patches and
+  previously inspected paths at the reviewed head and base. Disclose unavailable
+  comparisons while preserving current evidence and earlier blocker records.
   Incomplete requests for changes remain blocking and retain their own marker so
   maintainers can retry them on the same revisions. Failures carry no success
   marker. Do not automatically retry ambiguous publication; later human requests

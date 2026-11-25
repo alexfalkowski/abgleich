@@ -2,10 +2,10 @@ package history
 
 import (
 	"encoding/base64"
-	"strings"
 
 	"github.com/alexfalkowski/go-service/v3/encoding/json"
 	"github.com/alexfalkowski/go-service/v3/errors"
+	"github.com/alexfalkowski/go-service/v3/strings"
 )
 
 const snapshotPrefix = "<!-- abgleich:followup:v1:"
@@ -52,8 +52,8 @@ func decodeSnapshot(body string) *Snapshot {
 	}
 
 	marker, _, _ := strings.Cut(tail, "\n")
-	encoded, found := strings.CutSuffix(marker, " -->")
-	if !found {
+	encoded := strings.TrimSuffix(marker, " -->")
+	if encoded == marker {
 		return nil
 	}
 
@@ -63,7 +63,7 @@ func decodeSnapshot(body string) *Snapshot {
 	}
 
 	var snapshot Snapshot
-	if err := json.Unmarshal(raw, &snapshot); err != nil || snapshot.HeadSHA == "" || snapshot.BaseSHA == "" {
+	if err := json.Unmarshal(raw, &snapshot); err != nil || strings.IsEmpty(snapshot.HeadSHA) || strings.IsEmpty(snapshot.BaseSHA) {
 		return nil
 	}
 	return &snapshot
@@ -73,7 +73,7 @@ func decodeSnapshot(body string) *Snapshot {
 func (snapshot *Snapshot) Encode() (string, error) {
 	raw, err := json.Marshal(snapshot)
 	if err != nil {
-		return "", err
+		return strings.Empty, err
 	}
 	return snapshotPrefix + base64.RawStdEncoding.EncodeToString(raw) + " -->", nil
 }

@@ -2,12 +2,13 @@ package workflow
 
 import (
 	"github.com/alexfalkowski/abgleich/internal/review/internal/assessment"
+	"github.com/alexfalkowski/abgleich/internal/scheduler"
 	"github.com/alexfalkowski/go-service/v3/context"
 	"github.com/alexfalkowski/go-service/v3/errors"
 )
 
 // Ready signals accepted manual work for this command's existing job.
-func (c *Command) Ready() <-chan struct{} {
+func (c *Command) Ready() <-chan scheduler.Notification {
 	return c.queue.Ready()
 }
 

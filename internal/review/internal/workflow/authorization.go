@@ -131,7 +131,7 @@ func (c *Command) guard(ctx context.Context, task *reviewTask, review *reviewEvi
 		if err != nil {
 			return err
 		}
-		if reason != "" {
+		if !strings.IsEmpty(reason) {
 			return staleReviewError(reason)
 		}
 	}

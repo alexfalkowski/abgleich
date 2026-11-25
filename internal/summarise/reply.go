@@ -55,10 +55,10 @@ func summaryLocations(text string, files []changedFile, repository, sha string) 
 		return text, nil
 	}
 
-	available := make(map[string]struct{}, len(files))
+	available := make(map[string]bool, len(files))
 
 	for _, file := range files {
-		available[file.Filename] = struct{}{}
+		available[file.Filename] = true
 	}
 
 	lines := slices.Collect(strings.SplitSeq(strings.TrimSpace(section), "\n"))
@@ -74,7 +74,7 @@ func summaryLocations(text string, files []changedFile, repository, sha string) 
 			return text, nil
 		}
 
-		if _, ok := available[path]; !ok {
+		if !available[path] {
 			return text, nil
 		}
 

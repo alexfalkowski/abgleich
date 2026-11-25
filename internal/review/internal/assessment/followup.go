@@ -4,10 +4,10 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"maps"
-	"strings"
 
 	"github.com/alexfalkowski/abgleich/internal/review/internal/history"
 	"github.com/alexfalkowski/go-service/v3/slices"
+	"github.com/alexfalkowski/go-service/v3/strings"
 )
 
 func (i Input) snapshot(result *reviewResult, partial bool) *history.Snapshot {
@@ -59,7 +59,7 @@ func (r *reviewReply) reconcileFindings(result *reviewResult, followup *history.
 func matchClearances(cleared []clearedFinding, previous map[string]int64, references map[string]int) []clearedFinding {
 	var matched []clearedFinding
 	for _, finding := range cleared {
-		if previous[finding.ID] > 0 && references[finding.ID] == 1 && strings.TrimSpace(finding.Reason) != "" {
+		if previous[finding.ID] > 0 && references[finding.ID] == 1 && !strings.IsEmpty(strings.TrimSpace(finding.Reason)) {
 			matched = append(matched, finding)
 			delete(previous, finding.ID)
 		}
@@ -84,7 +84,7 @@ func linkPreviousFindings(result *reviewResult, previous map[string]int64, seed 
 	for index := range result.Findings {
 		finding := &result.Findings[index]
 		id := finding.ID
-		finding.ID = ""
+		finding.ID = strings.Empty
 		finding.ReviewID = 0
 
 		if finding.Severity == severityP3 {

@@ -11,11 +11,11 @@ module Abgleich
       outputs = source_review_outputs(payload)
       return source_burst_reply(payload) if source_burst?(mode, outputs)
 
-      calls = ruby_source_calls(mode) || source_review_calls(mode)
+      calls = source_calls(mode)
       index = outputs.length
       return source_function_reply(payload, calls.fetch(index), index) if index < calls.length
 
-      source_final_reply(payload, outputs)
+      source_final_reply(payload, outputs, mode)
     end
 
     def source_review_outputs(payload)
@@ -41,6 +41,16 @@ module Abgleich
       end
       { id: 'resp_burst', object: 'response', status: 'completed', model: payload.fetch('model'),
         output:, usage: token_usage(nil) }
+    end
+
+    def source_calls(mode)
+      if ['review source a new base file', 'review source the base after a fix'].include?(mode)
+        paths = ['helpers/defaults.go']
+        paths << 'worker.go' if mode == 'review source the base after a fix'
+        return %w[read_sources read_base_sources].map { |tool| [tool, { paths: }] }
+      end
+
+      ruby_source_calls(mode) || source_review_calls(mode)
     end
 
     def source_review_calls(mode)
@@ -134,13 +144,20 @@ module Abgleich
       token_usage(nil)
     end
 
-    def source_final_reply(payload, outputs)
-      reject_review_request('too much source') if Abgleich.openai.mode == 'review source context limit'
+    def source_final_reply(payload, outputs, mode)
+      reject_review_request('too much source') if mode == 'review source context limit'
 
-      source = outputs.map { |item| item.fetch('output') }.join("\n")
-      text = { overview: source_review_text(source), findings: [], complete: Abgleich.openai.mode != 'review source incomplete' }.to_json
+      text = source_review_output(payload, outputs, mode)
       { id: 'resp_source_final', object: 'response', status: 'completed', model: payload.fetch('model'),
         output: response_output(response_content(text, nil), nil), usage: token_usage(nil) }
+    end
+
+    def source_review_output(payload, outputs, mode)
+      return review_output(payload, 'review follow-up still open') if mode == 'review source a new base file'
+      return review_output(payload, 'review follow-up cleared') if mode == 'review source the base after a fix'
+
+      source = outputs.map { |item| item.fetch('output') }.join("\n")
+      { overview: source_review_text(source), findings: [], complete: mode != 'review source incomplete' }.to_json
     end
 
     def source_review_text(source)

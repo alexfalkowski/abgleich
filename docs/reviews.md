@@ -168,15 +168,20 @@ New head or base revisions permit another review. If the latest authenticated
 App assessment for the same feature has a usable follow-up record, Abgleich
 uses its saved blocker references and fingerprints
 to show what changed since that review, including after a force push or rebase.
-Consent for each review command also covers sending these saved findings and
-changed-path comparisons to the provider. The reviewer receives the full current
-PR context and prioritizes verifying earlier blockers and checking the effects of
-the new changes. A newly discovered issue in earlier work warrants a finding
+Consent for each review command also covers sending these saved findings,
+changed-path comparisons, and relevant source from the reviewed base to the
+provider. The reviewer receives the full current PR context and prioritizes
+verifying earlier blockers and checking the effects of the new changes.
+A newly discovered issue in earlier work warrants a finding
 when the current diff contains a material defect supported by inspected evidence.
+The comparison uses saved fingerprints to identify changed patches and changes
+to previously inspected files at the reviewed head and base.
+The reviewer can inspect files at the reviewed head and base SHAs, including
+when a fix changes only the head.
 An unverified earlier blocker withholds approval. When a fix removes the
 blocking consequence, the reviewer can clear the blocker and report a remaining
-P3 issue separately. The review discloses unavailable fingerprint comparisons
-and still asks the reviewer to verify the saved findings against current source.
+P3 issue separately. The review discloses unavailable comparisons and asks
+the reviewer to verify the saved findings against current source.
 
 Reviews can carry a compact follow-up record in their raw Markdown, so it
 survives worker restarts. The record saves blocker identities and digests.
@@ -185,14 +190,15 @@ Edited, removed, or unavailable finding text leaves its blocker unverified.
 A follow-up that includes earlier finding text checks it again before each
 provider request and stops if the text changed or became unavailable.
 Incomplete requests for changes carry both new and unverified earlier blockers.
-When the record is too large, the worker first drops fingerprints. If the
+When the record is too large, the worker drops inspected-source fingerprints
+first and retains patch fingerprints if they fit. If the
 blockers still cannot fit, it publishes the request for changes as retryable and
 stops follow-ups while that record is unavailable. A maintainer can inspect the
 review and dismiss it if appropriate before retrying. Legacy reviews without
 a follow-up record can receive a full assessment. A dismissal of the latest
 assessment ends carry-forward for that feature. If the worker cannot verify
-App authorship, it stops the review. Each review feature and the summary have
-independent histories.
+App authorship for the feature's own history, it stops the review. Each review
+feature and the summary have independent histories.
 See [review recovery](operations.md#-code-review-recovery).
 
 If an accepted review's PR merges, closes, or becomes a draft, the next processing

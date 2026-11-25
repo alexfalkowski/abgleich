@@ -56,7 +56,7 @@ func (c *Command) publishCancellation(ctx context.Context, task *reviewTask) err
 	}
 
 	body := c.cancellationMessage(current)
-	if body == "" {
+	if strings.IsEmpty(body) {
 		return nil
 	}
 

@@ -22,11 +22,11 @@ func NewJob(name string, cfg Schedule, handler sync.Handler) *Job {
 type Job struct {
 	handler   sync.Handler
 	triggered sync.Handler
-	ready     <-chan struct{}
+	ready     <-chan Notification
 
 	worker  *sync.Worker
 	cancel  context.CancelFunc
-	stopped chan struct{}
+	stopped chan Notification
 
 	config Schedule
 	name   string
@@ -38,7 +38,7 @@ type Job struct {
 func (j *Job) Start(context.Context) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	j.cancel = cancel
-	j.stopped = make(chan struct{})
+	j.stopped = make(chan Notification)
 
 	go j.loop(ctx)
 

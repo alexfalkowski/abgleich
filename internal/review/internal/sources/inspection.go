@@ -29,8 +29,12 @@ func (s *Session) list(ctx context.Context, filter string) ([]string, error) {
 	return paths, nil
 }
 
-func (s *Session) read(ctx context.Context, filenames []string) (string, error) {
-	paths, err := s.treeFiles(ctx, s.headSHA)
+func (s *Session) read(ctx context.Context, filenames []string, base bool) (string, error) {
+	revision := s.headSHA
+	if base {
+		revision = s.baseSHA
+	}
+	paths, err := s.treeFiles(ctx, revision)
 	if err != nil {
 		return strings.Empty, err
 	}
@@ -44,7 +48,7 @@ func (s *Session) read(ctx context.Context, filenames []string) (string, error) 
 		}
 	}
 
-	contents, err := s.repositoryFiles(ctx, s.headSHA, selected)
+	contents, err := s.repositoryFiles(ctx, revision, selected)
 	if err != nil {
 		return strings.Empty, err
 	}
@@ -55,7 +59,7 @@ func (s *Session) read(ctx context.Context, filenames []string) (string, error) 
 			return strings.Empty, err
 		}
 
-		if request, found := s.submodulePath(filename); found {
+		if request, found := s.submodulePath(filename, base); found {
 			content, err := s.readSubmodule(ctx, request)
 			if err != nil {
 				return strings.Empty, err
@@ -65,20 +69,20 @@ func (s *Session) read(ctx context.Context, filenames []string) (string, error) 
 			continue
 		}
 
-		source.WriteString(s.readPath(ctx, filename, paths, contents))
+		source.WriteString(s.readPath(ctx, revision, filename, paths, contents))
 		source.WriteString("\n")
 	}
 
 	return source.String(), nil
 }
 
-func (s *Session) readPath(ctx context.Context, filename string, paths []string, contents map[string]string) string {
+func (s *Session) readPath(ctx context.Context, revision, filename string, paths []string, contents map[string]string) string {
 	if !io.ValidPath(filename) || strings.Contains(filename, "\\") {
 		return s.unavailable("review: invalid repository path")
 	}
 
 	if content, ok := contents[filename]; ok {
-		return strings.Concat("Source: ", filename, " at ", s.headSHA, "\n", content)
+		return strings.Concat("Source: ", filename, " at ", revision, "\n", content)
 	}
 
 	var source strings.Builder
@@ -91,21 +95,21 @@ func (s *Session) readPath(ctx context.Context, filename string, paths []string,
 			break
 		}
 
-		fmt.Fprintf(&source, "\nSource: %s at %s\n", child, s.headSHA)
+		fmt.Fprintf(&source, "\nSource: %s at %s\n", child, revision)
 		source.WriteString(contents[child])
 		source.WriteString("\n")
 	}
 
 	if source.Len() == 0 {
-		return s.missingPath(filename)
+		return s.missingPath(revision, filename)
 	}
 
 	return source.String()
 }
 
 // missingPath distinguishes absent paths from excluded source using the complete tree.
-func (s *Session) missingPath(filename string) string {
-	if sourcePathUnavailable(s.trees[s.headSHA], filename) {
+func (s *Session) missingPath(revision, filename string) string {
+	if sourcePathUnavailable(s.trees[revision], filename) {
 		return s.unavailable(filename)
 	}
 
