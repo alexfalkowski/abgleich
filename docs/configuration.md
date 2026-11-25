@@ -307,7 +307,9 @@ text where available. Read-only tools let the model find relevant repository fil
 inspect helpers/callers/tests, and resolve public Go and Ruby dependencies. A separate read-only tool retrieves
 official release notes for the Go language version declared in the reviewed
 `go.mod`, so compiler claims can be checked against current language rules. Repository
-reads in the reviewed repository use the head SHA; deleted files use the base SHA. Symlinks
+reads normally use the reviewed head SHA. Deleted files and `read_base_sources`
+use the reviewed base SHA. Follow-ups offer `read_base_sources` so reviewers can
+inspect target-branch changes and recheck evidence against the same base. Symlinks
 and binary files are excluded and disclosed. An unreadable or incomplete repository
 tree, failed source request, or missing, truncated, or inconsistent response for an
 expected text file fails the review. Failures during investigation stop the

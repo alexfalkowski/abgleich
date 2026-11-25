@@ -1,5 +1,7 @@
 package automerge
 
+import "github.com/alexfalkowski/go-service/v3/strings"
+
 // Config controls Dependabot enrollment and the final CI signal for event rebasing.
 // CompletionCheck is an exact commit-status context or check-run name; an empty
 // value leaves rebasing to scheduled recovery. Omitted Dependabot settings
@@ -17,7 +19,7 @@ type Config struct {
 // sweeps do not require this signal.
 func (c *Config) GetCompletionCheck() string {
 	if c == nil {
-		return ""
+		return strings.Empty
 	}
 
 	return c.CompletionCheck

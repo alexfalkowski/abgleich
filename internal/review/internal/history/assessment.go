@@ -1,11 +1,10 @@
 package history
 
 import (
-	"strings"
-
 	"github.com/alexfalkowski/abgleich/internal/github"
 	"github.com/alexfalkowski/go-service/v3/context"
 	"github.com/alexfalkowski/go-service/v3/slices"
+	"github.com/alexfalkowski/go-service/v3/strings"
 )
 
 // Previous holds the authenticated baseline for one attempt.
@@ -113,20 +112,20 @@ func (r Reader) assessmentCandidate(review *github.PullRequestReview) bool {
 func (r Reader) CheckPrevious(ctx context.Context, view View, previous Previous, followup *Followup) (string, error) {
 	authored, err := r.assessments(ctx, view)
 	if err != nil {
-		return "", err
+		return strings.Empty, err
 	}
 	if !sameAssessment(previous.latest, latestAssessment(authored)) {
 		return "The App review history changed. Findings from this attempt were discarded.", nil
 	}
 	if followup == nil || len(followup.References) == 0 {
-		return "", nil
+		return strings.Empty, nil
 	}
 
 	current := r.blockers(ctx, followup.References, authored)
 	if !slices.Equal(current, followup.Blockers) {
 		return "Earlier finding text changed or became unavailable. Findings from this attempt were discarded.", nil
 	}
-	return "", nil
+	return strings.Empty, nil
 }
 
 func sameAssessment(previous, current *github.PullRequestReview) bool {

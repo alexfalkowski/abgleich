@@ -19,7 +19,7 @@ type reconcileRequest struct {
 func NewCoordinator(reconciler *Reconciler, cfg *scheduler.Config, log *logger.Logger) *Coordinator {
 	return &Coordinator{
 		reconciler: reconciler, config: cfg, logger: log,
-		repositories: make(map[string]bool), wake: make(chan struct{}, 1), reconcileRequests: make(chan reconcileRequest),
+		repositories: make(map[string]bool), wake: make(chan scheduler.Notification, 1), reconcileRequests: make(chan reconcileRequest),
 	}
 }
 
@@ -31,10 +31,10 @@ type Coordinator struct {
 	config            *scheduler.Config
 	logger            *logger.Logger
 	repositories      map[string]bool // Entries have a pending pass, including during a running check.
-	wake              chan struct{}
+	wake              chan scheduler.Notification
 	reconcileRequests chan reconcileRequest
 	cancel            context.CancelFunc
-	stopped           chan struct{}
+	stopped           chan scheduler.Notification
 	pending           []string
 	mutex             sync.Mutex
 }
@@ -43,7 +43,7 @@ type Coordinator struct {
 func (c *Coordinator) Start(context.Context) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	c.cancel = cancel
-	c.stopped = make(chan struct{})
+	c.stopped = make(chan scheduler.Notification)
 
 	go c.loop(ctx)
 
@@ -121,7 +121,7 @@ func (c *Coordinator) process(ctx context.Context) {
 	}
 
 	repository := c.pending[0]
-	c.pending[0] = ""
+	c.pending[0] = strings.Empty
 	c.pending = c.pending[1:]
 	delete(c.repositories, repository)
 	c.mutex.Unlock()
@@ -154,7 +154,7 @@ func (c *Coordinator) reconcileRepository(ctx context.Context, repository string
 
 func (c *Coordinator) notify() {
 	select {
-	case c.wake <- struct{}{}:
+	case c.wake <- scheduler.Notification{}:
 	default:
 	}
 }

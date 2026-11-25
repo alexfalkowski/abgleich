@@ -100,5 +100,5 @@ func trimURLPunctuation(text string) string {
 		excess--
 	}
 
-	return trailingEntity.ReplaceAllString(text, "")
+	return trailingEntity.ReplaceAllString(text, strings.Empty)
 }

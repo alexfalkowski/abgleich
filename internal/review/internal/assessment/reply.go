@@ -150,21 +150,12 @@ func (r *reviewReply) body() (string, error) {
 		return body, err
 	}
 
-	// Keep the blockers when fingerprints would exceed the review body budget.
 	const maxReviewWithSnapshot = 60_000
-	snapshot, err := r.Snapshot.Encode()
+	snapshot, err := fitSnapshot(*r.Snapshot, maxReviewWithSnapshot-len(body)-1)
 	if err != nil {
-		return "", err
+		return strings.Empty, err
 	}
-	if len(body)+len(snapshot)+1 > maxReviewWithSnapshot {
-		compact := *r.Snapshot
-		compact.Patches, compact.Sources = nil, nil
-		snapshot, err = compact.Encode()
-		if err != nil {
-			return "", err
-		}
-	}
-	if len(body)+len(snapshot)+1 <= maxReviewWithSnapshot {
+	if !strings.IsEmpty(snapshot) {
 		return strings.Concat(body, snapshot, "\n"), nil
 	}
 	if r.Event == github.ReviewRequestChanges && !strings.Contains(r.Marker, ":v2:partial:") {
@@ -173,6 +164,25 @@ func (r *reviewReply) body() (string, error) {
 		body = strings.ReplaceAll(body, r.Marker, marker)
 	}
 	return body, nil
+}
+
+// Keep blocker references and patch comparisons ahead of source fingerprints.
+func fitSnapshot(snapshot history.Snapshot, budget int) (string, error) {
+	for {
+		encoded, err := snapshot.Encode()
+		switch {
+		case err != nil:
+			return strings.Empty, err
+		case len(encoded) <= budget:
+			return encoded, nil
+		case snapshot.Sources != nil:
+			snapshot.Sources = nil
+		case snapshot.Patches != nil:
+			snapshot.Patches = nil
+		default:
+			return strings.Empty, nil
+		}
+	}
 }
 
 func (r *reviewReply) placeFindings(findings []reviewFinding, files []*github.CommitFile) error {

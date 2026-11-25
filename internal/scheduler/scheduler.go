@@ -17,6 +17,9 @@ const (
 	triggerQueue    = "queue"
 )
 
+// Notification is a zero-size signal for background work and lifecycle events.
+type Notification struct{}
+
 // TriggeredHandler supplies scheduled and queue processing for one job.
 // Both processing methods must observe cancellation and return complete outcomes;
 // the scheduler prevents them from overlapping.
@@ -30,7 +33,7 @@ type TriggeredHandler interface {
 
 	// Ready returns a stable channel that coalesces pending-work notifications.
 	// The channel must remain open for the scheduler's lifetime.
-	Ready() <-chan struct{}
+	Ready() <-chan Notification
 }
 
 // NewScheduler constructs a scheduler with no jobs. Feature packages register

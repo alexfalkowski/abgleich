@@ -24,7 +24,7 @@ func AssessmentLine(assessment string) string {
 func (r Reader) OtherFeatureBlocks(ctx context.Context, view View) (bool, error) {
 	var candidates []*github.PullRequestReview
 	for _, review := range view.reviews {
-		if name := Feature(review.GetBody()); name != "" && name != r.feature {
+		if name := Feature(review.GetBody()); !strings.IsEmpty(name) && name != r.feature {
 			candidates = append(candidates, review)
 		}
 	}

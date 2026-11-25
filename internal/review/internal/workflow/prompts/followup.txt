@@ -5,12 +5,13 @@ and tests. Use the full current PR context and compare findings to the current
 PR base. Report a newly discovered issue in earlier work when inspected
 evidence establishes a material defect in the current diff. Keep routine
 improvements to earlier work out of follow-up results.
-The changed path lists are clues, not proof of behavioral impact. Explain whether
-late blockers were introduced by the latest changes or were already present when
-the evidence supports that distinction.
-If the worker lists unavailable fingerprint comparisons, inspect current source
-directly and explain any remaining gaps. A missing comparison cannot establish
-that a file or finding is unchanged.
+Use changed patches and previously inspected paths to guide the follow-up.
+Use read_base_sources to inspect relevant changes at the reviewed base and revisit
+base evidence for open blockers, including on the same base revision. Use
+read_sources for the corresponding head code. Explain any material interaction
+you cannot verify and when late blockers were introduced.
+If the worker reports an unavailable comparison, inspect current source directly
+and explain any remaining gaps.
 
 Verify every open blocker against current source. For a still-open blocker,
 include a finding with its exact "previous_id". For a blocker cleared by a fix

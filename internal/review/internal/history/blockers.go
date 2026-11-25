@@ -3,11 +3,11 @@ package history
 import (
 	"crypto/sha256"
 	"fmt"
-	"strings"
 
 	"github.com/alexfalkowski/abgleich/internal/github"
 	"github.com/alexfalkowski/go-service/v3/context"
 	"github.com/alexfalkowski/go-service/v3/slices"
+	"github.com/alexfalkowski/go-service/v3/strings"
 )
 
 // Reference identifies an earlier finding by the digest of its visible text.
@@ -35,7 +35,7 @@ type Blocker struct {
 // HasBlockerEvidence reports whether a follow-up will send prior finding text.
 func (f *Followup) HasBlockerEvidence() bool {
 	return f != nil && slices.ContainsFunc(f.Blockers, func(blocker Blocker) bool {
-		return blocker.Evidence != ""
+		return !strings.IsEmpty(blocker.Evidence)
 	})
 }
 
@@ -58,7 +58,7 @@ func (r Reader) blockers(ctx context.Context, refs []Reference, reviews []*githu
 		blocker.ID = ref.ID
 
 		origin := origins[ref.ReviewID]
-		if origin == nil || ref.Digest == "" {
+		if origin == nil || strings.IsEmpty(ref.Digest) {
 			continue
 		}
 
@@ -72,7 +72,7 @@ func (r Reader) blockers(ctx context.Context, refs []Reference, reviews []*githu
 			blocker.Evidence = overviewEvidence(ref, origin.GetBody())
 		}
 
-		if blocker.Evidence != "" {
+		if !strings.IsEmpty(blocker.Evidence) {
 			blocker.ReviewID = ref.ReviewID
 		}
 	}
@@ -85,17 +85,17 @@ func inlineEvidence(ref Reference, bodies []string) string {
 			return strings.TrimSpace(body)
 		}
 	}
-	return ""
+	return strings.Empty
 }
 
 func overviewEvidence(ref Reference, body string) string {
 	_, tail, found := strings.Cut(body, "\n<!-- abgleich:finding:"+ref.ID+" -->\n")
 	if !found {
-		return ""
+		return strings.Empty
 	}
 	evidence, _, found := strings.Cut(tail, "\n<!-- /abgleich:finding:"+ref.ID+" -->")
 	if !found || FindingDigest(evidence) != ref.Digest {
-		return ""
+		return strings.Empty
 	}
 	return strings.TrimSpace(evidence)
 }

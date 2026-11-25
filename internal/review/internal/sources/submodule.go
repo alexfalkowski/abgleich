@@ -9,8 +9,8 @@ import (
 	"github.com/alexfalkowski/go-service/v3/strings"
 )
 
-func (s *Session) submodulePath(filename string) (submoduleRequest, bool) {
-	if !io.ValidPath(filename) || strings.Contains(filename, "\\") {
+func (s *Session) submodulePath(filename string, base bool) (submoduleRequest, bool) {
+	if base || !io.ValidPath(filename) || strings.Contains(filename, "\\") {
 		return submoduleRequest{}, false
 	}
 

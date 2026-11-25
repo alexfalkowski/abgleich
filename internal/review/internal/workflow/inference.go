@@ -34,14 +34,15 @@ func (c *Command) generateReview(ctx context.Context, task *reviewTask, review *
 	}
 
 	providers := c.sources.Select(paths)
+	followup := review.followup != nil
 
 	completion, err := c.provider.Generate(ctx, ai.Prompt{
 		Task:         c.profile.Name,
 		Model:        c.profile.Model,
 		Effort:       c.profile.Effort,
-		Instructions: reviewInstructions(c.profile.Instructions, providers, review.followup != nil),
+		Instructions: reviewInstructions(c.profile.Instructions, providers, followup),
 		Input:        review.input,
-		Tools: review.source.Tools(providers, func(ctx context.Context) error {
+		Tools: review.source.Tools(providers, followup, func(ctx context.Context) error {
 			return c.guard(ctx, task, nil)
 		}),
 		BeforeRequest: func(ctx context.Context) error {

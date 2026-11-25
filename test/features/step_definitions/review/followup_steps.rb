@@ -110,6 +110,101 @@ Then('the follow-up should call out the changed related file') do
   expect(record.fetch('changed_source')).to eq(['head:helpers/guard.go']), 'expected the changed helper in follow-up scope'
 end
 
+Given('an earlier code review found blockers on the contribution') do
+  Abgleich.openai.mode = 'review inline findings'
+  complete_review_request('code')
+  @original_review = Abgleich.github.native_reviews.last
+  @original_finding_ids = inline_finding_ids(@original_review)
+  expect(@original_finding_ids.length).to eq(2), 'expected the code review to publish two blockers'
+end
+
+When('the maintainer requests follow-ups as the base advances and the contribution is rebased and fixed') do
+  request_followup_on_moved_base
+
+  Abgleich.github.change_summary_state('head changed')
+  @rebased_head = Abgleich.github.pull_state('contribution').dig(:head, :sha)
+  Abgleich.openai.mode = 'review source a new base file'
+  complete_review_request('code')
+  @rebased_evidence = followup_record
+  @rebased_source = review_source_results
+
+  review_followup_fix('c' * 40, 'review follow-up cleared')
+end
+
+Given('a follow-up confirmed the blockers using a new file on the base') do
+  request_followup_on_moved_base
+  expect(@base_followup_review).to include(state: 'CHANGES_REQUESTED')
+  expect_base_only_followup_source(@base_followup_source)
+end
+
+Given('GitHub has dropped the previously reviewed head tree') do
+  Abgleich.github.fail_with("source tree unavailable #{@original_review.fetch(:commit_id)}")
+  Abgleich.github.file_mode = 'test review'
+  Abgleich.openai.mode = 'review follow-up still open'
+end
+
+When('the maintainer requests a review of a fix pushed without rebasing') do
+  review_followup_fix('e' * 40, 'review source the base after a fix')
+end
+
+Then('the follow-up should confirm the blockers without opening another thread') do
+  expect(@base_followup_review).to include(state: 'CHANGES_REQUESTED', comments: [])
+  expect(@base_followup_review.fetch(:body)).to include(
+    '**Still open**', "#pullrequestreview-#{@original_review.fetch(:id)}", *@original_finding_ids.map { |id| "`#{id}`" }
+  )
+end
+
+Then('the reviewer should read the new file at the base while the contribution is behind') do
+  expect(@base_followup_review.fetch(:commit_id)).to eq(@base_followup_evidence.fetch('previous_head'))
+  expect_base_only_followup_source(@base_followup_source)
+end
+
+Then('the reviewer should recheck the file on the unchanged base') do
+  record = followup_record
+  base = record.fetch('previous_base')
+  expect(base).to eq(Abgleich.github.pull_state('contribution').dig(:base, :sha))
+  results = review_source_results
+  expect_base_only_followup_source(results)
+  expect(results).to include(
+    a_string_including("Source: worker.go at #{@fixed_head}", 'func Worker() bool { return true }'),
+    a_string_including("Source: worker.go at #{base}", 'func Worker() bool { return false }')
+  )
+end
+
+Then('the reviewer should see the inherited file after rebasing without any change to the pull request patch') do
+  expect(@rebased_source).to include(
+    a_string_including("Source: helpers/defaults.go at #{@rebased_head}", 'func DefaultAllowed() bool { return false }')
+  )
+  expect(Array(@rebased_evidence.fetch('changed_patches'))).to be_empty, 'expected the rebase to preserve the pull request patch'
+  expect(Array(@rebased_evidence.fetch('changed_source'))).to be_empty, 'expected all previously inspected blobs to remain unchanged'
+end
+
+Then('the fix verification should approve the corrected revision') do
+  expect(@fix_review).to include(state: 'APPROVED', commit_id: @fixed_head)
+  expect(@fix_review.fetch(:body)).to include('**Cleared findings**', *@original_finding_ids.map { |id| "`#{id}`" })
+  expect(followup_record.fetch('changed_patches')).to eq(['worker.go'])
+  fixed_source = <<~SOURCE
+    Source: worker.go at #{@fixed_head}
+    package worker
+    // complete-file-context for worker.go
+    func Worker() bool { return true }
+  SOURCE
+  expect(followup_input).to include('+func Worker() bool { return true }', fixed_source)
+end
+
+Then('the follow-up should carry current source and blockers without needing the superseded tree') do
+  record = followup_record
+  expect(record.fetch('previous_head')).to eq(@original_review.fetch(:commit_id))
+  expect(record).not_to have_key('comparison_unavailable')
+  expect(record.fetch('changed_patches')).to include('worker_test.go')
+  expect(record.fetch('open_blockers').map { |finding| finding.fetch('previous_id') }).to contain_exactly(*@original_finding_ids)
+
+  current_head = Abgleich.github.pull_state('contribution').dig(:head, :sha)
+  expect(followup_input).to include("Source: worker_test.go at #{current_head}", 'func TestWorker')
+  review = wait_for_requested_review('code', @comment_event)
+  expect(review.fetch(:body)).to include('**Still open**', *@original_finding_ids.map { |id| "`#{id}`" })
+end
+
 Then('the follow-up should account for every earlier blocker once') do
   expected = @original_finding_ids + @partial_finding_ids
   expect(expected.uniq.length).to eq(expected.length), 'expected the new blocker to have its own identity'
@@ -281,6 +376,30 @@ def rebase_reviewed_contribution
   Abgleich.github.change_summary_state('base changed', revision: 'e' * 40)
   Abgleich.github.change_summary_state('head changed')
   Abgleich.github.file_mode = 'test review'
+end
+
+def request_followup_on_moved_base
+  Abgleich.github.change_summary_state('base changed', revision: 'f' * 40)
+  Abgleich.github.fail_with('source new file on the base')
+  Abgleich.openai.mode = 'review source a new base file'
+  @base_followup_review = wait_for_requested_review('code', queue_review('code'))
+  @base_followup_evidence = followup_record
+  @base_followup_source = review_source_results
+end
+
+def review_followup_fix(head, mode)
+  @fixed_head = head
+  Abgleich.github.change_summary_state('head changed', revision: head)
+  Abgleich.github.file_mode = 'fixed follow-up'
+  Abgleich.openai.mode = mode
+  @fix_review = wait_for_requested_review('code', queue_review('code'))
+end
+
+def expect_base_only_followup_source(source)
+  expect(source).to include(
+    a_string_including('Source not found: helpers/defaults.go'),
+    a_string_including("Source: helpers/defaults.go at #{'f' * 40}", 'func DefaultAllowed() bool { return false }')
+  )
 end
 
 def inline_finding_ids(review)

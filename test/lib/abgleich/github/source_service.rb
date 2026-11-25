@@ -47,13 +47,12 @@ module Abgleich
 
     get '/repos/:owner/:repository/git/trees/:revision' do
       GitHubService.record_source_tree_read
-      if Abgleich.github.failure == 'source base tree unavailable' &&
-         params.fetch('revision') == Abgleich.github.pull_state('contribution').dig(:base, :sha)
-        halt 404
-      end
+      revision = params.fetch('revision')
+      halt 404 if source_tree_unavailable?(revision)
 
       halt submodule_tree.to_json if params.fetch('repository') == 'bin' && Abgleich.github.submodule
       paths = source_project_paths
+      paths << 'helpers/defaults.go' if source_defaults(revision)
       paths << 'bin' if Abgleich.github.submodule
       paths << 'image.png' if Abgleich.github.summary_paths.include?('image.png')
       paths << 'helpers/favicon.png' if Abgleich.github.failure == 'source a binary asset'
@@ -68,12 +67,20 @@ module Abgleich
           mode = '160000' if path == 'bin' || (Abgleich.github.failure == 'source a submodule' && path == 'helpers/guard.go')
           mode = '040000' if %w[helpers helpers/empty helpers/nested helpers/nested/deeper helpers-other].include?(path)
           type = { '160000' => 'commit', '040000' => 'tree' }.fetch(mode, 'blob')
-          content = source_content(path, params.fetch('revision'))
+          content = source_content(path, revision)
           { path:, mode:, type:, sha: path == 'bin' ? 'b' * 40 : source_digest(content), size: content.bytesize }
         end }.to_json
     end
 
     private
+
+    def source_tree_unavailable?(revision)
+      case Abgleich.github.failure
+      when "source tree unavailable #{revision}" then true
+      when 'source base tree unavailable' then revision == Abgleich.github.pull_state('contribution').dig(:base, :sha)
+      else false
+      end
+    end
 
     def source_workspace_paths
       workspace = {
@@ -155,6 +162,8 @@ module Abgleich
       return nil if filename == missing
 
       content = repository.fetch(:name) == 'bin' ? "# shared-tooling-pinned-context for #{filename}\n" : source_content(filename, revision)
+      return nil if content.nil?
+
       binary = content.include?("\x00")
       { type: 'Blob', content: binary ? nil : content, size: content.bytesize, sha: source_digest(content), binary:, truncated: false }
         .merge(source_blob_changes(content))
@@ -186,12 +195,19 @@ module Abgleich
       when 'image.png', 'helpers/favicon.png' then "\x00binary-asset-context"
       when 'go.mod', 'tools/app/go.mod' then source_manifest
       when 'go.sum', 'tools/app/go.sum' then source_checksum
-      when 'helpers/guard.go' then source_helper(revision)
-      else source_project_content(filename)
+      when 'helpers/guard.go', 'helpers/defaults.go' then source_helper(filename, revision)
+      else source_project_content(filename, revision)
       end
     end
 
-    def source_helper(revision)
+    def source_defaults(revision)
+      return unless Abgleich.github.failure == 'source new file on the base' && ['f' * 40, 'd' * 40, 'c' * 40].include?(revision)
+
+      "package worker\nfunc DefaultAllowed() bool { return false }\n"
+    end
+
+    def source_helper(filename, revision)
+      return source_defaults(revision) if filename == 'helpers/defaults.go'
       return '' if ['source empty related file', 'source missing empty file text'].include?(Abgleich.github.failure)
       return "package worker\n// updated-helper-context\nfunc Allowed() bool { return false }\n" if changed_helper?(revision)
 

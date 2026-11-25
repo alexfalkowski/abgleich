@@ -11,7 +11,7 @@ import (
 func (c *Command) context(ctx context.Context, task *summaryTask) (string, []changedFile, error) {
 	files, err := c.github.ListPullRequestFiles(ctx, task.repository, task.pullRequest)
 	if err != nil {
-		return "", nil, err
+		return strings.Empty, nil, err
 	}
 
 	diff := pullRequestDiff{

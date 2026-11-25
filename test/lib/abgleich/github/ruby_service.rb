@@ -17,6 +17,12 @@ module Abgleich
     def source_project_patch(path)
       return File.read('fixtures/testreview.patch') if file_mode == 'test review' && path == 'worker_test.go'
 
+      if file_mode == 'fixed follow-up'
+        return Reviews::PATCH unless path == 'worker.go'
+
+        return "@@ -3 +3 @@\n-func Worker() bool { return false }\n+func Worker() bool { return true }\n"
+      end
+
       return summary_patch(path) unless path == 'lib/worker.rb'
 
       "@@ -1,2 +1,2 @@\n # ruby-repository-context\n-def worker = true\n+def worker = false\n"
@@ -51,7 +57,7 @@ module Abgleich
       Abgleich.github.file_mode == 'mixed' ? go + ruby : go
     end
 
-    def source_project_content(filename)
+    def source_project_content(filename, revision)
       if Abgleich.github.file_mode == 'test review' && filename == 'worker_test.go'
         return "package worker\nimport \"testing\"\nfunc TestWorker(t *testing.T) { Worker() }\n"
       end
@@ -61,8 +67,14 @@ module Abgleich
       when 'features/worker.feature' then "Feature: Worker behavior\n  Scenario: Successful work\n    Then work succeeds\n"
       when 'Gemfile' then "source 'https://rubygems.org'\ngem 'example'\n"
       when 'Gemfile.lock' then ruby_lockfile
-      else "package worker\n// complete-file-context for #{filename}\nfunc Worker() bool { return false }\n"
+      else source_go_content(filename, revision)
       end
+    end
+
+    def source_go_content(filename, revision)
+      fixed = filename == 'worker.go' && Abgleich.github.file_mode == 'fixed follow-up' && ['c' * 40, 'e' * 40].include?(revision)
+      result = fixed ? 'true' : 'false'
+      "package worker\n// complete-file-context for #{filename}\nfunc Worker() bool { return #{result} }\n"
     end
 
     def ruby_lockfile

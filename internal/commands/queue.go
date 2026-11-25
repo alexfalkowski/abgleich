@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"github.com/alexfalkowski/abgleich/internal/scheduler"
 	"github.com/alexfalkowski/go-service/v3/context"
 	"github.com/alexfalkowski/go-service/v3/errors"
 	"github.com/alexfalkowski/go-sync"
@@ -15,20 +16,20 @@ type queuedCommand struct {
 
 // NewQueue constructs a queue for one command's background work.
 func NewQueue() *Queue {
-	return &Queue{ready: make(chan struct{}, 1)}
+	return &Queue{ready: make(chan scheduler.Notification, 1)}
 }
 
 // Queue holds up to four queued or running operations in memory. Callers supply
 // keys for coalescing and schedule Process as one non-overlapping job.
 type Queue struct {
-	ready   chan struct{}
+	ready   chan scheduler.Notification
 	pending []queuedCommand
 	mutex   sync.Mutex
 }
 
 // Ready signals accepted work without blocking Enqueue. Signals coalesce; the
 // consumer drains Process after a signal and must not close the channel.
-func (q *Queue) Ready() <-chan struct{} {
+func (q *Queue) Ready() <-chan scheduler.Notification {
 	return q.ready
 }
 
@@ -100,7 +101,7 @@ func (q *Queue) Process(ctx context.Context) error {
 
 func (q *Queue) notify() {
 	select {
-	case q.ready <- struct{}{}:
+	case q.ready <- scheduler.Notification{}:
 	default:
 	}
 }

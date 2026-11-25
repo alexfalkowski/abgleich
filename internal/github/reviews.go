@@ -187,7 +187,7 @@ func (s *service) ListReviewCommentBodies(ctx context.Context, repo *Repository,
 			if err != nil {
 				return nil, err
 			}
-			if body != "" {
+			if !strings.IsEmpty(body) {
 				bodies = append(bodies, body)
 			}
 		}
@@ -208,14 +208,14 @@ func appReviewCommentBody(review *PullRequestReview, comment *github.PullRequest
 	commentURL := strings.ToLower(comment.GetPullRequestURL())
 	reviewURL := strings.ToLower(review.GetPullRequestURL())
 	if commentID <= 0 || parentID != review.GetID() || commentURL != reviewURL {
-		return "", errors.New("github: review comment returned an incomplete or mismatched identity")
+		return strings.Empty, errors.New("github: review comment returned an incomplete or mismatched identity")
 	}
 
 	author := comment.GetUser()
 	reviewAuthorID := review.GetUser().GetID()
 	sameApp := reviewAuthorID > 0 && author.GetID() == reviewAuthorID && author.GetType() == UserBot
 	if comment.GetInReplyTo() != 0 || !sameApp {
-		return "", nil
+		return strings.Empty, nil
 	}
 	return comment.GetBody(), nil
 }

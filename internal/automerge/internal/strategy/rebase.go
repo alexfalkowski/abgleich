@@ -42,7 +42,7 @@ func (s *Rebase) Assess(ctx context.Context, repository *github.Repository, pull
 
 // Reconcile compares branch state and rebases only after a fresh identity check.
 func (s *Rebase) Reconcile(ctx context.Context, repository *github.Repository, pull *github.PullRequest) error {
-	return s.reconcile(ctx, repository, pull, "")
+	return s.reconcile(ctx, repository, pull, strings.Empty)
 }
 
 // ReconcileAfterChecks requires an explicit final CI signal and no active checks
