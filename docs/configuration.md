@@ -487,6 +487,8 @@ Summaries remain focused on patches and do not use source tools.
 
 GitHub, each named AI connection, and each review source have their own connection
 pool and `timeout`, `tls`, and `breaker` settings. Circuit breaking is opt-in.
+When the GitHub breaker is enabled, budgeted design reads, busy-slot permission
+checks, and best-effort reactions use a separate pool outside that breaker.
 GitHub and review sources support retries for safe methods. GitHub, the Go module
 proxy, and Go docs default to one attempt. RubyGems defaults to two total attempts
 when `retry` is omitted. Set `retry.attempts: 1` to use a single attempt. To enable

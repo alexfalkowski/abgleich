@@ -77,7 +77,8 @@ module Abgleich
     def source_tree_unavailable?(revision)
       case Abgleich.github.failure
       when "source tree unavailable #{revision}" then true
-      when 'source base tree unavailable' then revision == Abgleich.github.pull_state('contribution').dig(:base, :sha)
+      when 'source base tree unavailable', 'source accepted design base unavailable', 'source accepted design base slow'
+        unavailable_base_tree?(revision)
       else false
       end
     end
@@ -166,14 +167,15 @@ module Abgleich
 
       binary = content.include?("\x00")
       { type: 'Blob', content: binary ? nil : content, size: content.bytesize, sha: source_digest(content), binary:, truncated: false }
-        .merge(source_blob_changes(content))
+        .merge(source_blob_changes(content, filename, revision))
     end
 
-    def source_blob_changes(content)
-      return { content: "x#{content[1..]}" } if Abgleich.github.failure == 'source digest mismatch'
-      return { content: nil } if Abgleich.github.failure == 'source missing empty file text' && content.empty?
+    def source_blob_changes(content, filename, revision)
+      failure = Abgleich.github.failure
+      return { content: "x#{content[1..]}" } if failure == 'source digest mismatch'
+      return { content: nil } if failure == 'source missing empty file text' && content.empty?
 
-      SOURCE_BLOB_CHANGES.fetch(Abgleich.github.failure, {})
+      SOURCE_BLOB_CHANGES.fetch(failure) { design_blob_changes(filename, failure, revision) }
     end
 
     def source_digest(content)

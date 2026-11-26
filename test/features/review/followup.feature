@@ -5,6 +5,7 @@ Feature: Carry previous blockers into a follow-up review
   Scenario Outline: Account for previous blockers after a rebase
     Given AI code reviews are configured for this repository
     And a pull request from "the repository" for branch "contribution" is "waiting for checks"
+    And the repository has accepted design documentation
     And the pull request received inline findings that are "<outcome>" after the rebase
     And the worker has restarted
     When the maintainer requests a code review after rebasing and force pushing
@@ -16,6 +17,17 @@ Feature: Carry previous blockers into a follow-up review
       | still open | CHANGES_REQUESTED |
       | cleared    | APPROVED          |
       | unverified | COMMENTED         |
+
+  Scenario: Keep the earlier blockers when the current base tree is slow
+    Given AI code reviews are configured for this repository
+    And a pull request from "the repository" for branch "contribution" is "waiting for checks"
+    And the repository has accepted design documentation
+    And the pull request received inline findings that are "unverified" after the rebase
+    And GitHub is slow to list the target base during follow-up
+    When the maintainer requests a code review after rebasing and force pushing
+    Then the code review decision should be "COMMENTED"
+    And the follow-up should report the previous findings as "unverified"
+    And the follow-up should reuse the unavailable base tree
 
   Scenario: Recheck a related file whose contents changed outside the PR patch
     Given AI code reviews are configured for this repository

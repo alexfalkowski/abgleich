@@ -44,6 +44,8 @@ module Abgleich
     end
 
     def source_calls(mode)
+      return omitted_design_calls(mode) if mode.start_with?('review source the omitted ')
+
       if ['review source a new base file', 'review source the base after a fix'].include?(mode)
         paths = ['helpers/defaults.go']
         paths << 'worker.go' if mode == 'review source the base after a fix'
@@ -51,6 +53,12 @@ module Abgleich
       end
 
       ruby_source_calls(mode) || source_review_calls(mode)
+    end
+
+    def omitted_design_calls(mode)
+      return [['read_base_sources', { paths: ['docs/agents/accepted-design'] }]] if mode.end_with?('target-base design')
+
+      [['read_sources', { paths: %w[docs/agents/accepted-design/jobs.md docs/agents/accepted-design helpers/guard.go] }]]
     end
 
     def source_review_calls(mode)
@@ -155,6 +163,7 @@ module Abgleich
     def source_review_output(payload, outputs, mode)
       return review_output(payload, 'review follow-up still open') if mode == 'review source a new base file'
       return review_output(payload, 'review follow-up cleared') if mode == 'review source the base after a fix'
+      return review_output(payload, 'review follow-up unverified') if mode == 'review source the omitted target-base design'
 
       source = outputs.map { |item| item.fetch('output') }.join("\n")
       { overview: source_review_text(source), findings: [], complete: mode != 'review source incomplete' }.to_json

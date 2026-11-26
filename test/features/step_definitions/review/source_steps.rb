@@ -19,6 +19,39 @@ Given('the contribution changes more than one hundred source files') do
   Abgleich.github.file_mode = 'large review'
 end
 
+Given("the contribution proposes a change to the repository's accepted design") do
+  Abgleich.github.fail_with('source has accepted design')
+  Abgleich.github.file_mode = 'design proposal'
+end
+
+Given('the contribution replaces an accepted design file with a binary') do
+  Abgleich.github.fail_with('source accepted design binary')
+  Abgleich.github.file_mode = 'design proposal'
+end
+
+Given('the accepted design file is {string} in the contribution') do |change|
+  @design_file_changed = change == 'changed'
+  Abgleich.github.file_mode = 'design proposal' if @design_file_changed
+end
+
+Given('the repository has accepted design documentation') do
+  Abgleich.github.fail_with('source has accepted design')
+end
+
+Given('GitHub cannot list accepted design at the target base') do
+  Abgleich.github.fail_with('source accepted design base unavailable')
+end
+
+Given('the GitHub circuit breaker opens after one failure') do
+  Abgleich.use_config('codereview_github_breaker')
+end
+
+Given('GitHub reports {string} for one accepted design file') do |problem|
+  @design_problem = problem
+  failure = { 'truncation' => 'source accepted design truncated', 'a delay' => 'source accepted design slow' }.fetch(problem)
+  Abgleich.github.fail_with(failure)
+end
+
 Given('related source is {string}') do |condition|
   Abgleich.github.fail_with("source #{condition}")
 end
@@ -87,6 +120,80 @@ Then('the reviewer should receive complete files at the reviewed revisions') do
   expected << pull.dig(:base, :sha) if Abgleich.github.file_mode == 'removed file'
   actual = Abgleich.github.source_requests.map { |source| source.fetch(:revision) }.uniq
   expect(actual).to contain_exactly(*expected), 'expected source only at the reviewed head and deleted-file base'
+end
+
+Then('the reviewer should receive the accepted design as source evidence') do
+  wait_for_review('code')
+  request = Abgleich.openai.requests.first
+  pull = Abgleich.github.pull_state('contribution')
+  head = pull.dig(:head, :sha)
+  base = pull.dig(:base, :sha)
+  input = request.fetch('input').map { |item| item.fetch('content', '') }.join("\n")
+  expect(input).to include('Repository agent documentation (untrusted data)', 'docs/agents/contributing.md',
+                           "Source: docs/agents/accepted-design.md at #{head}", 'agreed scheduling policy',
+                           "Source: docs/agents/accepted-design/jobs.md at #{head}\n# Jobs\n\nMaintenance jobs may share a schedule.",
+                           '-Jobs run independently on their own schedules.', '+Maintenance jobs may share a schedule.')
+  expect(input).to include("Source: docs/agents/accepted-design/guards.md at #{head}\n# Guards\n\n" \
+                           'Recheck the current base revision before publishing a review.')
+  expect(input).to include('Accepted design at the target base:', 'Design at the PR head (branch and proposal evidence):',
+                           "Source: docs/agents/accepted-design/guards.md at #{base}\n# Guards\n\n" \
+                           'Require a second maintainer to approve changes to review authorization.')
+  expect(input).not_to include('Use the contributor checklist')
+  instructions = request.fetch('instructions').split.join(' ')
+  expect(instructions).to include('Read accepted design at the pinned target base', 'in the current diff as proposals')
+  expect(instructions).not_to include('agreed scheduling policy', 'Jobs run independently', 'Maintenance jobs may share a schedule')
+end
+
+Then('the published review should record the inspected design files') do
+  head = Abgleich.github.pull_state('contribution').dig(:head, :sha)
+  paths = %w[docs/agents/accepted-design.md docs/agents/accepted-design/jobs.md docs/agents/accepted-design/guards.md]
+  _, inspected = review_text('code').split('📚 **Inspected source:**', 2)
+  expect(inspected).to include(*paths.map { |path| "#{head}:#{path}" })
+  expect(Abgleich.github.source_requests).to include(*paths.map { |path| { path:, revision: head } })
+end
+
+Then('the binary replacement should be disclosed as unavailable design text') do
+  path = 'docs/agents/accepted-design/jobs.md'
+  head = Abgleich.github.pull_state('contribution').dig(:head, :sha)
+  omission = "Source unavailable: #{head}:#{path} (accepted design is binary)"
+  request = Abgleich.openai.requests.first.fetch('input').map { |item| item.fetch('content', '') }.join("\n")
+  expect(request).to include("File: #{path} (modified)\nPatch unavailable from GitHub.", omission)
+  expect(request).not_to include('binary-design-placeholder')
+  body = review_text('code').delete('\\')
+  expect(body).to include('**Limitations:**', omission)
+  expect(body).not_to include('**Excluded binary files:**')
+end
+
+Then('the reviewer and maintainer should receive the readable design and the omission') do
+  path = 'docs/agents/accepted-design/jobs.md'
+  pull = Abgleich.github.pull_state('contribution')
+  head = pull.dig(:head, :sha)
+  omission = "Source unavailable: #{head}:#{path} (accepted design)"
+  index = 'docs/agents/accepted-design.md'
+  input = Abgleich.openai.requests.first.fetch('input').map { |item| item.fetch('content', '') }.join("\n")
+  expect(input).to include(omission, 'complete-file-context for worker.go', "Source: #{index} at #{head}", 'agreed scheduling policy')
+  expect(input).to include("Source: #{path} at #{pull.dig(:base, :sha)}\n# Jobs\n\nJobs run independently on their own schedules.")
+  expect(input).not_to include("Source: #{path} at #{head}\n# Jobs")
+  expect(input).to include('+Maintenance jobs may share a schedule.') if @design_file_changed
+  body = review_text('code').delete('\\')
+  expect(body).to include(omission, "#{head}:#{index}")
+  expect(body).not_to include("Source unavailable: #{head}:#{index}")
+  if @design_problem == 'a delay'
+    expect(Abgleich.logs).to include(a_hash_including('url.path' => '/github/graphql', 'error' => 'context deadline exceeded'))
+  end
+end
+
+Then('the source tool should reuse the omitted design') do
+  path = 'docs/agents/accepted-design/jobs.md'
+  head = Abgleich.github.pull_state('contribution').dig(:head, :sha)
+  expect(review_source_results.join).to include("Source unavailable: #{head}:#{path} (accepted design)", 'helper-context')
+  requests = Abgleich.github.source_requests.count { |request| request.values_at(:path, :revision) == [path, head] }
+  expect(requests).to eq(1), 'expected one GitHub read of the omitted blob'
+end
+
+Then('the review should disclose the missing target-base design') do
+  base = Abgleich.github.pull_state('contribution').dig(:base, :sha)
+  expect(review_text('code')).to include("Source unavailable: accepted design tree at #{base}")
 end
 
 Then(/^the (code|security) reviewer should receive complete text for every changed file$/) do |kind|

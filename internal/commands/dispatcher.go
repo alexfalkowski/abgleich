@@ -10,25 +10,28 @@ import (
 )
 
 const (
-	maxReceiptTimeout = time.Second
+	maxReceiptTimeout    = time.Second
+	maxProcessingReserve = time.Second
 
 	// Leave most of the delivery deadline for authorization and the action.
-	receiptTimeoutDivisor = 4
+	receiptTimeoutDivisor    = 4
+	processingReserveDivisor = 4
 )
 
 // NewDispatcher constructs synchronous PR comment dispatch with no commands.
 // Feature modules register their handlers before the application starts.
 func NewDispatcher(service github.Service) *Dispatcher {
-	return &Dispatcher{github: service, handlers: make(map[string]Handler)}
+	return &Dispatcher{github: service, handlers: make(map[string]Handler), slot: sync.NewSemaphore(1)}
 }
 
 // Dispatcher selects handlers by exact command name and supplies shared
-// installation validation and reaction feedback. Concurrent commands are
-// rejected while another is running; no work is queued or retried.
+// installation validation and reaction feedback. When the command slot is
+// busy, only deliveries with current write access can wait within their deadlines.
 type Dispatcher struct {
-	github   github.Service
-	handlers map[string]Handler
-	mutex    sync.Mutex
+	github      github.Service
+	handlers    map[string]Handler
+	slot        *sync.Semaphore
+	permissions permissionBudget
 }
 
 // Register adds a handler under a single command name without arguments.
@@ -46,18 +49,18 @@ func (d *Dispatcher) Register(name string, handler Handler) error {
 
 // Handle dispatches a verified PR comment within the caller's deadline.
 // Unknown commands are ignored without feedback. A recognized command returns
-// ErrCommandInProgress when busy, or its handler's complete outcome otherwise.
+// its handler's complete outcome or the context error if its wait expires.
 func (d *Dispatcher) Handle(ctx context.Context, event *github.IssueCommentEvent) error {
 	handler, ok := d.handlers[Parse(event.GetComment().GetBody())]
 	if !ok {
 		return nil
 	}
 
-	if !d.mutex.TryLock() {
-		return ErrCommandInProgress
+	if acquired, err := d.acquire(ctx, event); err != nil || !acquired {
+		return err
 	}
 
-	defer d.mutex.Unlock()
+	defer d.slot.Release(1)
 
 	if err := d.github.ValidateInstallation(ctx); err != nil {
 		return err
@@ -69,6 +72,60 @@ func (d *Dispatcher) Handle(ctx context.Context, event *github.IssueCommentEvent
 	d.reportOutcome(ctx, event, accepted)
 
 	return err
+}
+
+func (d *Dispatcher) acquire(ctx context.Context, event *github.IssueCommentEvent) (bool, error) {
+	if err := ctx.Err(); err != nil {
+		return false, err
+	}
+	if d.slot.TryAcquire(1) {
+		return true, nil
+	}
+
+	comment := event.GetComment()
+	author := comment.GetUser()
+	if author.GetType() != github.UserHuman || !github.HasCommentMetadata(comment) {
+		return false, nil
+	}
+
+	// Check admission outside the slot. The handler still authorizes the live
+	// comment and actor before acting, including after a wait.
+	waitCtx, cancel := commandWaitContext(ctx)
+	defer cancel()
+	if err := d.checkWaitPermission(github.WithLocalBudget(waitCtx), event.GetRepo(), author); err != nil {
+		return false, err
+	}
+	if err := d.slot.Acquire(waitCtx, 1); err != nil {
+		return false, err
+	}
+
+	return true, nil
+}
+
+func commandWaitContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	deadline, ok := ctx.Deadline()
+	if !ok {
+		return context.WithCancel(ctx)
+	}
+	remaining := time.Until(deadline)
+	reserve := min(maxProcessingReserve, remaining/processingReserveDivisor)
+	return context.WithDeadline(ctx, deadline.Add(-reserve.Duration()))
+}
+
+func (d *Dispatcher) checkWaitPermission(ctx context.Context, repo *github.Repository, author *github.User) error {
+	if !d.permissions.tryStart() {
+		return ErrCommandInProgress
+	}
+	defer d.permissions.finish()
+
+	allowed, err := d.github.HasWritePermission(ctx, repo, author)
+	if err != nil {
+		return err
+	}
+	if !allowed {
+		return ErrWriteAccessRequired
+	}
+	return nil
 }
 
 func (d *Dispatcher) acknowledgeReceipt(ctx context.Context, event *github.IssueCommentEvent) {

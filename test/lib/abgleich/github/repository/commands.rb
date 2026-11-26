@@ -33,11 +33,11 @@ module Abgleich
         @mutex.synchronize { @state[:label_requests] }
       end
 
-      def add_comment(branch, body:, permission: 'write', created_at: '2026-01-01T00:00:05Z')
+      def add_comment(branch, body:, permission: 'write', created_at: '2026-01-01T00:00:05Z', author: nil)
         @mutex.synchronize do
           pull = @state[:pulls].values.find { |item| item.dig(:head, :ref) == branch }
           repository = pull.dig(:base, :repo, :full_name)
-          comment = command_comment(pull, body, created_at)
+          comment = command_comment(pull, body, created_at, author)
           @state[:comments][comment[:id]] = { comment:, permission:, reactions: {} }
           { action: 'created', installation: { id: INSTALLATION_ID }, repository: @state[:repositories].fetch(repository).dup,
             issue: { number: pull[:number], pull_request: {} },
@@ -49,11 +49,11 @@ module Abgleich
         @mutex.synchronize { JSON.parse(@state[:comments].fetch(id).fetch(:comment).to_json) }
       end
 
-      def comment_permission
-        sleep 0.8 if failure == 'slow review authorization'
+      def comment_permission(login)
+        wait_before_permission_check(login)
         @mutex.synchronize do
-          entry = @state[:comments].values.rfind { |comment| comment[:permission] }
-          { permission: entry.fetch(:permission), user: { id: 77, login: 'maintainer' } }
+          entry = @state[:comments].values.rfind { |comment| comment.dig(:comment, :user, :login) == login && comment[:permission] }
+          { permission: entry.fetch(:permission), user: entry.fetch(:comment).fetch(:user) }
         end
       end
 
@@ -112,12 +112,12 @@ module Abgleich
 
       private
 
-      def command_comment(pull, body, created_at)
+      def command_comment(pull, body, created_at, author)
         repository = pull.dig(:base, :repo, :full_name)
         { id: @state[:comments].length + 1, body:, created_at:, updated_at: created_at,
           issue_url: "http://localhost:11001/github/repos/#{repository}/issues/#{pull[:number]}",
           html_url: "https://github.com/#{repository}/pull/#{pull[:number]}#issuecomment-#{@state[:comments].length + 1}",
-          user: { id: 77, login: 'maintainer', type: 'User' } }
+          user: author || { id: 77, login: 'maintainer', type: 'User' } }
       end
     end
   end

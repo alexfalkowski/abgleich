@@ -57,7 +57,7 @@ module Abgleich
 
     get '/repos/:owner/:repository/collaborators/:user/permission' do
       halt 503 if Abgleich.github.failure&.delete_prefix('final authorization:') == 'unavailable contributor permissions'
-      permission = Abgleich.github.comment_permission
+      permission = Abgleich.github.comment_permission(params.fetch('user'))
       permission[:permission] = 'read' if Abgleich.github.failure == 'final authorization:revoked write access'
       permission.to_json
     end
@@ -66,7 +66,7 @@ module Abgleich
       failure = Abgleich.github.failure
       content = JSON.parse(request.body.read).fetch('content')
       sleep 1.2 if failure == 'slow final reaction' && content != 'eyes'
-      if failure == 'reaction timeout'
+      if failure == 'reaction timeout' || (failure == 'slow receipt reaction' && content == 'eyes')
         sleep 3
         halt 503
       end
@@ -164,7 +164,7 @@ module Abgleich
 
     post '/repos/:owner/:repository/issues/:number/labels' do
       halt 503 if Abgleich.github.failure == 'an unavailable label update'
-      sleep 1 if Abgleich.github.failure == 'a delayed label update'
+      Abgleich.github.wait_before_label_update
       repository = "#{params.fetch('owner')}/#{params.fetch('repository')}"
       labels = JSON.parse(request.body.read)
       result = Abgleich.github.request_labels(repository, params.fetch('number').to_i, labels)

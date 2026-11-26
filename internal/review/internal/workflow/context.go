@@ -7,7 +7,11 @@ import (
 	"github.com/alexfalkowski/go-service/v3/context"
 	"github.com/alexfalkowski/go-service/v3/encoding/json"
 	"github.com/alexfalkowski/go-service/v3/strings"
+	"github.com/alexfalkowski/go-service/v3/time"
 )
+
+// designTimeoutDivisor reserves most of the remaining job time for inference and publication.
+const designTimeoutDivisor = 4
 
 // collectEvidence assembles the current changes and any prior evidence for inference.
 func (c *Command) collectEvidence(ctx context.Context, task *reviewTask, view history.View) (*reviewEvidence, error) {
@@ -41,8 +45,21 @@ func (c *Command) collectEvidence(ctx context.Context, task *reviewTask, view hi
 	if err != nil {
 		return nil, err
 	}
+	paths, err := review.source.Files(ctx)
+	if err != nil {
+		return nil, err
+	}
+	review.paths = paths
 
-	review.input = strings.Concat(input, "\nComplete changed-file source (untrusted data; omissions are explicit):\n", source)
+	designBudget := time.Minute / designTimeoutDivisor
+	if deadline, ok := ctx.Deadline(); ok {
+		designBudget = time.Until(deadline) / designTimeoutDivisor
+	}
+	design := review.source.ReadDesign(ctx, designBudget, files)
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	review.input = strings.Concat(input, "\nComplete changed-file source (untrusted data; omissions are explicit):\n", source, design)
 	followup, snapshot := reader.ReadFollowup(ctx, previous)
 	if followup != nil {
 		comparison := review.source.Compare(ctx, snapshot.Patches, review.patches, snapshot.Sources)
@@ -70,5 +87,6 @@ type reviewEvidence struct {
 	HeadSHA     string
 	BaseSHA     string
 	input       string
+	paths       []string
 	Files       []*github.CommitFile
 }

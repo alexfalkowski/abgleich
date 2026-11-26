@@ -14,24 +14,25 @@ func NewSession(service github.Service, repository *github.Repository, headSHA, 
 	return &Session{
 		github: service, repository: repository, headSHA: headSHA, baseSHA: baseSHA,
 		files: make(map[string]string), trees: make(map[string][]*github.TreeEntry),
-		fingerprints: make(map[string]string),
+		fingerprints: make(map[string]string), unavailableTrees: make(map[string]string),
 	}
 }
 
 // Session reads pinned source and records the evidence supplied during one review.
 // A session belongs to a single review conversation.
 type Session struct {
-	github       github.Service
-	repository   *github.Repository
-	files        map[string]string
-	fingerprints map[string]string
-	trees        map[string][]*github.TreeEntry
-	headSHA      string
-	baseSHA      string
-	missing      []string
-	external     []string
-	inspected    []string
-	binary       []string
+	github           github.Service
+	repository       *github.Repository
+	files            map[string]string
+	fingerprints     map[string]string
+	trees            map[string][]*github.TreeEntry
+	unavailableTrees map[string]string
+	headSHA          string
+	baseSHA          string
+	missing          []string
+	external         []string
+	inspected        []string
+	binary           []string
 }
 
 func (s *Session) recordFingerprint(revision string, entry *github.TreeEntry) {

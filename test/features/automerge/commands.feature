@@ -96,12 +96,35 @@ Feature: Comment requests for auto-merge
     Then the comment delivery should return HTTP 204
     And exactly 1 label request should reach GitHub
 
-  Scenario: Concurrent duplicate deliveries produce one label request
+  Scenario: Handle overlapping automerge and status deliveries
     Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
-    And GitHub reports "a delayed label update"
-    When GitHub delivers the same automerge comment concurrently
-    Then the comment delivery should return HTTP 204
+    And scheduled pull request listing is unavailable
+    When GitHub delivers maintainer commands and a reader's status request during labeling
+    Then all three maintainer deliveries should return HTTP 204
+    And the reader's status delivery should return HTTP 403 before labeling finishes
     And exactly 1 label request should reach GitHub
+    And exactly 1 status publication attempt should reach GitHub
+    And the status reply should explain "Would enable squash auto-merge"
+
+  Scenario: Bound GitHub permission checks while a command is busy
+    Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
+    And scheduled pull request listing is unavailable
+    When GitHub delivers overlapping and then repeated reader requests during labeling
+    Then excess reader requests should return HTTP 503 without a GitHub permission lookup
+    And the maintainer's label command should return HTTP 204
+    And exactly 1 label request should reach GitHub
+    And exactly 0 status publication attempts should reach GitHub
+
+  Scenario: Expire an authorized delivery while another command holds the slot
+    Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
+    And a pull request from "the repository" for branch "later-contribution" is "waiting for checks"
+    And scheduled pull request listing is unavailable
+    When a status delivery's deadline expires while a later automerge command holds the slot
+    Then the status delivery should return HTTP 503 while the later command is still labeling
+    And the status comment should have no receipt feedback
+    And exactly 0 status publication attempts should reach GitHub
+    And both automerge deliveries should return HTTP 204
+    And exactly 2 label requests should reach GitHub
 
   Scenario: An existing label needs no new authorization request
     Given a pull request from "the repository" for branch "contribution" is "waiting for checks"

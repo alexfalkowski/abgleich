@@ -23,6 +23,15 @@ Feature: Feedback on auto-merge command comments
     And exactly 1 label request should reach GitHub
     And branch "contribution" should have squash auto-merge enabled
 
+  Scenario: Continue labeling after a receipt timeout with circuit breaking enabled
+    Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
+    And the GitHub circuit breaker opens after one failure
+    And GitHub reports "slow receipt reaction"
+    When a maintainer with "write" access comments "/ab automerge"
+    Then the comment delivery should return HTTP 204
+    And exactly 1 label request should reach GitHub
+    And the reaction failure should be logged at error level
+
   Scenario: Confirm an existing label without requesting it again
     Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
     And branch "contribution" has the "automerge" label

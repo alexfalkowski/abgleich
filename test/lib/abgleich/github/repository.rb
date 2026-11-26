@@ -72,6 +72,45 @@ module Abgleich
       @mutex.synchronize { @state[:repository_failures][repository] || @state[:failure] }
     end
 
+    def pause_label_updates
+      @mutex.synchronize { @state[:label_gate] = Queue.new }
+    end
+
+    def label_update_waiting?
+      @mutex.synchronize { @state[:label_gate]&.num_waiting.to_i.positive? }
+    end
+
+    def wait_before_label_update
+      sleep 1 if failure == 'a delayed label update'
+      gate = @mutex.synchronize { @state[:label_gate] }
+      gate&.pop(timeout: 3)
+    end
+
+    def resume_label_updates
+      @mutex.synchronize { @state.delete(:label_gate)&.close }
+    end
+
+    def permission_checks(login)
+      @mutex.synchronize { @state.fetch(:permission_checks, {}).fetch(login, 0) }
+    end
+
+    def pause_permission_checks(login)
+      @mutex.synchronize { (@state[:permission_gates] ||= {})[login] = Queue.new }
+    end
+
+    def resume_permission_checks(login)
+      @mutex.synchronize { @state[:permission_gates]&.delete(login)&.close }
+    end
+
+    def wait_before_permission_check(login)
+      sleep 0.8 if failure == 'slow review authorization'
+      gate = @mutex.synchronize do
+        (@state[:permission_checks] ||= Hash.new(0))[login] += 1
+        @state[:permission_gates]&.fetch(login, nil)
+      end
+      gate&.pop(timeout: 3)
+    end
+
     private
 
     def discovered?(pull)

@@ -55,6 +55,18 @@ with verified Go modules, Ruby gems, and Go language references available throug
 [source tools](configuration.md#-review-source-access). Those tools also inspect
 permitted direct submodules at their pinned commits. Reviews do not browse arbitrary
 GitHub repositories; missing implementations outside those tools do not prevent completion.
+All review types use accepted-design Markdown at the pinned target base as
+evidence of current policy. The worker lists agent Markdown under `docs/agents/`
+at the PR head. Head design text and the PR diff provide separate branch and
+proposal evidence. The reviewer treats changes to design choices as proposals.
+The worker verifies design files independently, including changed design files.
+These reads use at most a quarter of the remaining job time so inference and
+publication can proceed. These short reads run outside the shared GitHub
+circuit breaker. A review reuses recorded design omissions during follow-up
+comparison and source-tool calls within the same session.
+If any design text is unavailable, the review uses the readable files, reports
+the omissions, and withholds approval.
+Binary files at accepted-design Markdown paths count as unavailable design text.
 The code-review prompt requires input and state handling findings to trace a
 supported triggering path through producers and callers, accounting for upstream
 generation and validation. Hypothetical inputs outside those preconditions alone
@@ -119,8 +131,8 @@ review on the same revisions. Model completion is a self-report.
 separately. These gaps alone do not prevent approval when the reviewer has high
 confidence in the changed repository code. Material unresolved questions still
 require an incomplete assessment.
-Confirmed binary files are outside the text review scope. **Excluded binary files**
-lists them separately; their omitted contents and patches do not prevent approval.
+**Excluded binary files** lists confirmed binaries outside accepted-design
+Markdown paths. Their omitted contents and patches do not prevent approval.
 Every body contains escaped model text, with links and mentions inactive.
 Dollar signs remain literal text rather than starting mathematical expressions.
 Indented model examples remain plain text instead of forming Markdown code blocks.

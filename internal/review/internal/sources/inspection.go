@@ -34,6 +34,13 @@ func (s *Session) read(ctx context.Context, filenames []string, base bool) (stri
 	if base {
 		revision = s.baseSHA
 	}
+	if omission, ok := s.unavailableTrees[revision]; ok && designOnlyRequest(filenames) {
+		return omission, nil
+	}
+	return s.readRevision(ctx, revision, filenames, base)
+}
+
+func (s *Session) readRevision(ctx context.Context, revision string, filenames []string, base bool) (string, error) {
 	paths, err := s.treeFiles(ctx, revision)
 	if err != nil {
 		return strings.Empty, err

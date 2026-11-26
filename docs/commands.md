@@ -61,8 +61,19 @@ unauthorized commands 403, and API failures, conflicts, or timeouts non-success 
 Repository notifications queue without waiting for GitHub; 204 confirms queue
 acceptance, not a completed check. Monitor event-check logs for the later outcome.
 
-Each process handles one command at a time; concurrent commands receive 503.
-Automerge and status finish within the request; summaries and reviews queue in memory and release the command slot before inference.
+Each process handles one command at a time. When the command slot is busy,
+the worker checks the comment author's current write or admin access before
+allowing the delivery to wait. It still rechecks authorization before acting.
+A denial at admission returns 403 before receipt feedback. The access check and
+wait leave one quarter of the remaining delivery time, up to one second, for
+processing. A delivery that exhausts its wait budget returns 503 before
+processing starts. Best-effort reactions run outside the shared GitHub circuit
+breaker.
+Each worker allows up to two concurrent admission checks and four checks in any
+10-second window. Excess deliveries return 503 before a GitHub permission lookup.
+Automerge and status finish within the request. Summaries and reviews queue in
+memory and release the command slot before inference. Full feature queues
+also return 503.
 Authenticated API requests run independently, so a slow background request does
 not block command processing. Token acquisition is serialized, and the delivery
 deadline also bounds waiting for token renewal. Polling continues without webhooks;

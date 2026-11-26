@@ -49,8 +49,8 @@ module Abgleich
 
       def summary_paths
         paths = { 'Ruby' => %w[lib/worker.rb], 'test review' => %w[main.go worker.go worker_test.go],
-                  'mixed' => %w[main.go lib/worker.rb], 'ci workflow' => %w[.circleci/config.yml Makefile scripts/coverage-workspace] }
-                .fetch(file_mode, %w[main.go worker.go test.go])
+                  'mixed' => %w[main.go lib/worker.rb], 'ci workflow' => %w[.circleci/config.yml Makefile scripts/coverage-workspace],
+                  'design proposal' => ['main.go', 'worker.go', DESIGN_PATH] }.fetch(file_mode, %w[main.go worker.go test.go])
         paths += (4..{ 'many files' => 21, 'large review' => 107 }.fetch(file_mode, 3)).map { |number| "file#{number}.go" }
         paths << 'image.png' if ['mixed patches', 'removed binary file', 'missing patches with binary file'].include?(file_mode)
         paths.pop if file_mode == 'incomplete file list'

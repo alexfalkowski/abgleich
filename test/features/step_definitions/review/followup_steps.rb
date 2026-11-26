@@ -49,6 +49,11 @@ Given('the file no longer appears as removed and GitHub cannot return the base t
   Abgleich.openai.mode = 'review follow-up unverified'
 end
 
+Given('GitHub is slow to list the target base during follow-up') do
+  Abgleich.github.fail_with('source accepted design base slow')
+  Abgleich.openai.mode = 'review source the omitted target-base design'
+end
+
 Given('the pull request received two requests for changes but only the earlier review saved follow-up context') do
   Abgleich.openai.mode = 'review inline findings'
   complete_review_request('code')
@@ -101,13 +106,22 @@ Then('the follow-up should report the previous findings as {string}') do |outcom
   expect(record.values_at('previous_head', 'previous_base')).to eq(@original_revisions)
   expect(record.fetch('changed_patches')).to contain_exactly('main.go', 'test.go', 'worker.go', 'worker_test.go')
   expect(record.fetch('open_blockers').map { |finding| finding.fetch('previous_id') }).to contain_exactly(*@original_finding_ids)
-  expect(followup_input).to include('func TestWorker')
+  expect(followup_input).to include('func TestWorker', 'Recheck the current base revision before publishing a review.')
 end
 
 Then('the follow-up should call out the changed related file') do
   record = followup_record
   expect(Array(record.fetch('changed_patches'))).to be_empty, 'expected identical PR patches'
   expect(record.fetch('changed_source')).to eq(['head:helpers/guard.go']), 'expected the changed helper in follow-up scope'
+end
+
+Then('the follow-up should reuse the unavailable base tree') do
+  base = Abgleich.github.pull_state('contribution').dig(:base, :sha)
+  omission = "Source unavailable: accepted design tree at #{base}"
+  expect(followup_record.fetch('comparison_unavailable')).to include('Could not compare previous source on the base revision.')
+  expect(review_source_results.join).to include(omission)
+  requests = Abgleich.logs.count { |record| record['url.path']&.end_with?("/git/trees/#{base}") }
+  expect(requests).to eq(1), 'expected one GitHub attempt to list the base tree'
 end
 
 Given('an earlier code review found blockers on the contribution') do

@@ -7,8 +7,7 @@ import (
 	"github.com/alexfalkowski/go-service/v3/time"
 )
 
-// inferenceTimeoutDivisor limits inference to half the remaining job time,
-// leaving time for final checks and publication.
+// inferenceTimeoutDivisor leaves half the post-collection time for final checks and publication.
 const inferenceTimeoutDivisor = 2
 
 var errReviewStopped = errors.New("review: no further processing is required")
@@ -20,21 +19,18 @@ func (e staleReviewError) Error() string {
 }
 
 func (c *Command) generateReview(ctx context.Context, task *reviewTask, review *reviewEvidence) (*ai.Completion, error) {
-	inferenceTimeout := time.Minute
-	if deadline, ok := ctx.Deadline(); ok {
-		inferenceTimeout = time.Until(deadline) / inferenceTimeoutDivisor
-	}
-
-	paths, err := review.source.Files(ctx)
-	if err != nil {
-		return nil, c.reportFailure(ctx, task, stageSource, err)
-	}
+	paths := review.paths
 	for _, file := range review.Files {
 		paths = append(paths, file.GetFilename())
 	}
 
 	providers := c.sources.Select(paths)
 	followup := review.followup != nil
+
+	inferenceTimeout := time.Minute
+	if deadline, ok := ctx.Deadline(); ok {
+		inferenceTimeout = time.Until(deadline) / inferenceTimeoutDivisor
+	}
 
 	completion, err := c.provider.Generate(ctx, ai.Prompt{
 		Task:         c.profile.Name,

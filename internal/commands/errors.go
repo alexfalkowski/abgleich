@@ -5,7 +5,7 @@ import "github.com/alexfalkowski/go-service/v3/errors"
 // ErrCommandRegistered rejects duplicate command names during registration.
 var ErrCommandRegistered = errors.New("commands: command already registered")
 
-// ErrCommandInProgress rejects concurrent commands while another is running.
+// ErrCommandInProgress rejects new work when a command queue or admission limit is full.
 var ErrCommandInProgress = errors.New("commands: another GitHub command is being processed")
 
 // ErrWriteAccessRequired rejects a command whose author lacks repository write access.

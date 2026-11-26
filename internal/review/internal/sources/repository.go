@@ -24,9 +24,13 @@ func (s *Session) repositoryFiles(ctx context.Context, revision string, filename
 		return contents, err
 	}
 
+	return contents, s.readFiles(ctx, revision, files, contents)
+}
+
+func (s *Session) readFiles(ctx context.Context, revision string, files []*github.TreeEntry, contents map[string]string) error {
 	current, err := s.github.ReadSourceFiles(ctx, s.repository, revision, files)
 	if err != nil {
-		return nil, errors.Join(errRepositorySource, err)
+		return errors.Join(errRepositorySource, err)
 	}
 
 	for _, file := range files {
@@ -41,12 +45,16 @@ func (s *Session) repositoryFiles(ctx context.Context, revision string, filename
 		}
 
 		content := "Source excluded: " + key + " (binary file)"
-		s.binary = append(s.binary, key)
+		if isAcceptedDesignPath(filename) {
+			content = s.unavailable(strings.Concat(key, " (accepted design is binary)"))
+		} else {
+			s.binary = append(s.binary, key)
+		}
 		s.files[key] = content
 		contents[filename] = content
 	}
 
-	return contents, nil
+	return nil
 }
 
 func (s *Session) uncachedFiles(revision string, filenames []string) (map[string]string, []string) {
@@ -119,6 +127,9 @@ func (s *Session) treeFiles(ctx context.Context, revision string) ([]string, err
 func (s *Session) treeEntries(ctx context.Context, revision string) ([]*github.TreeEntry, error) {
 	if entries, ok := s.trees[revision]; ok {
 		return entries, nil
+	}
+	if omission, ok := s.unavailableTrees[revision]; ok {
+		return nil, errors.New(omission)
 	}
 
 	entries, err := s.github.ListSourceFiles(ctx, s.repository, revision)

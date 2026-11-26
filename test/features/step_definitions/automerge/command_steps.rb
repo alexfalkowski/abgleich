@@ -118,14 +118,31 @@ When('GitHub delivers the same automerge comment twice') do
   @comment_response = Abgleich.deliver_comment(@comment_event)
 end
 
-When('GitHub delivers the same automerge comment concurrently') do
-  @comment_event = Abgleich.github.add_comment('contribution', body: '/ab automerge')
+When("GitHub delivers maintainer commands and a reader's status request during labeling") do
+  automerge = Abgleich.github.add_comment('contribution', body: '/ab automerge')
+  writer = { id: 78, login: 'status-writer', type: 'User' }
+  reader = { id: 79, login: 'reader', type: 'User' }
+  status = Abgleich.github.add_comment('contribution', body: '/ab status', author: writer)
+  denied = Abgleich.github.add_comment('contribution', body: '/ab status', permission: 'read', author: reader)
+  Abgleich.github.pause_label_updates
   Nonnative.start
-  requests = Array.new(2) { Thread.new { Abgleich.deliver_comment(@comment_event) } }
-  responses = requests.map(&:value)
-  expect(responses.map(&:code) - [204, 503]).to be_empty, 'expected completion or a busy response for concurrent deliveries'
-  @comment_response = responses.find { |response| response.code == 204 }
-  expect(@comment_response).not_to be_nil, 'expected one concurrent command to complete'
+  original = Thread.new { Abgleich.deliver_comment(automerge) }
+  wait_for { Abgleich.github.label_update_waiting? }.to be(true), 'expected GitHub to be holding the label update'
+
+  @reader_response = Abgleich.deliver_comment(denied)
+  @label_pending = Abgleich.github.label_update_waiting?
+  previous_checks = Abgleich.github.permission_checks('maintainer')
+  duplicate = Thread.new { Abgleich.deliver_comment(automerge) }
+  status_delivery = Thread.new { Abgleich.deliver_comment(status) }
+  wait_for { Abgleich.github.permission_checks('maintainer') }.to be > previous_checks, 'expected overlap with the redelivery'
+  wait_for { Abgleich.github.permission_checks('status-writer') }.to be > 0, 'expected the status delivery while the label was pending'
+  Abgleich.github.resume_label_updates
+  @comment_responses = [original.value, duplicate.value, status_delivery.value]
+ensure
+  Abgleich.github.resume_label_updates
+  original&.join
+  duplicate&.join
+  status_delivery&.join
 end
 
 When('GitHub redelivers an automerge comment whose first response was lost') do
@@ -135,12 +152,111 @@ When('GitHub redelivers an automerge comment whose first response was lost') do
   @comment_response = Abgleich.deliver_comment(@comment_event)
 end
 
+When('GitHub delivers overlapping and then repeated reader requests during labeling') do
+  automerge = Abgleich.github.add_comment('contribution', body: '/ab automerge')
+  reader = { id: 79, login: 'reader', type: 'User' }
+  denied = Abgleich.github.add_comment('contribution', body: '/ab status', permission: 'read', author: reader)
+  Abgleich.github.pause_label_updates
+  Abgleich.github.pause_permission_checks('reader')
+  Nonnative.start
+  original = Thread.new { Abgleich.deliver_comment(automerge) }
+  wait_for { Abgleich.github.label_update_waiting? }.to be(true), 'expected GitHub to be holding the label update'
+
+  checking = Array.new(2) { Thread.new { Abgleich.deliver_comment(denied) } }
+  wait_for { Abgleich.github.permission_checks('reader') }.to eq(2), 'expected both permission lookups to reach GitHub'
+  @concurrent_excess = Abgleich.deliver_comment(denied)
+  Abgleich.github.resume_permission_checks('reader')
+  @checked_readers = checking.map(&:value) + Array.new(2) { Abgleich.deliver_comment(denied) }
+  @rate_excess = Abgleich.deliver_comment(denied)
+
+  Abgleich.github.resume_label_updates
+  @label_response = original.value
+ensure
+  Abgleich.github.resume_permission_checks('reader')
+  Abgleich.github.resume_label_updates
+  checking&.each(&:join)
+  original&.join
+end
+
+Then('excess reader requests should return HTTP {int} without a GitHub permission lookup') do |status|
+  expect(@concurrent_excess.code).to eq(status), 'expected the worker to reject an excess concurrent lookup'
+  expect(@checked_readers.map(&:code)).to eq([403, 403, 403, 403]), 'expected the bounded lookups to deny the reader'
+  expect(@rate_excess.code).to eq(status), 'expected the worker to reject an excess repeat lookup'
+  expect(Abgleich.github.permission_checks('reader')).to eq(4), 'expected only the permitted lookups to reach GitHub'
+end
+
+Then("the maintainer's label command should return HTTP {int}") do |status|
+  expect(@label_response.code).to eq(status)
+end
+
+When("a status delivery's deadline expires while a later automerge command holds the slot") do
+  first = Abgleich.github.add_comment('contribution', body: '/ab automerge')
+  later = Abgleich.github.add_comment('later-contribution', body: '/ab automerge')
+  writer = { id: 78, login: 'status-writer', type: 'User' }
+  @waiting_comment = Abgleich.github.add_comment('contribution', body: '/ab status', author: writer)
+  Abgleich.github.pause_label_updates
+  Abgleich.github.pause_permission_checks('status-writer')
+  Nonnative.start
+  original = Thread.new { Abgleich.deliver_comment(first) }
+  wait_for { Abgleich.github.label_update_waiting? }.to be(true), 'expected the first automerge command to hold the slot'
+
+  waiting = Thread.new { timed_comment_delivery(@waiting_comment) }
+  wait_for { Abgleich.github.permission_checks('status-writer') }.to eq(1), 'expected the earlier status permission check'
+  # Separate the webhook deadlines so the later delivery can survive the earlier timeout.
+  sleep 0.6
+  Abgleich.github.resume_label_updates
+
+  Abgleich.github.pause_label_updates
+  next_label = Thread.new { Abgleich.deliver_comment(later) }
+  wait_for { Abgleich.github.label_update_waiting? }.to be(true), 'expected the later automerge command to hold the slot'
+  Abgleich.github.resume_permission_checks('status-writer')
+  @waiting_response, @wait_duration = waiting.value
+  @later_label_pending = Abgleich.github.label_update_waiting?
+
+  Abgleich.github.resume_label_updates
+  @label_responses = [original.value, next_label.value]
+ensure
+  Abgleich.github.resume_permission_checks('status-writer')
+  Abgleich.github.resume_label_updates
+  [original, waiting, next_label].compact.each(&:join)
+end
+
+Then('the status delivery should return HTTP {int} while the later command is still labeling') do |status|
+  expect(@waiting_response.code).to eq(status)
+  expect(@later_label_pending).to be(true), 'expected the later command to hold the slot at the earlier deadline'
+  expect(@wait_duration).to be < 1.9, 'expected the wait to end with time reserved inside the two-second webhook deadline'
+  expect(Abgleich.logs).to include(a_hash_including('msg' => 'github webhook failed', 'error' => 'context deadline exceeded'))
+end
+
+Then('the status comment should have no receipt feedback') do
+  comment_id = @waiting_comment.fetch(:comment).fetch('id')
+  expect(Abgleich.github.comment_reactions(comment_id)).to be_empty
+end
+
+Then('both automerge deliveries should return HTTP {int}') do |status|
+  expect(@label_responses.map(&:code)).to eq([status, status])
+end
+
 When('a maintainer requests auto-merge while token acquisition is slow') do
   event = Abgleich.github.add_comment('contribution', body: '/ab automerge')
   Nonnative.start
+  @comment_response, @command_duration = timed_comment_delivery(event)
+end
+
+def timed_comment_delivery(event)
   started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-  @comment_response = Abgleich.deliver_comment(event)
-  @command_duration = Process.clock_gettime(Process::CLOCK_MONOTONIC) - started
+  response = Abgleich.deliver_comment(event)
+  [response, Process.clock_gettime(Process::CLOCK_MONOTONIC) - started]
+end
+
+Then('all three maintainer deliveries should return HTTP {int}') do |status|
+  statuses = @comment_responses.map(&:code)
+  expect(statuses).to eq([status, status, status]), 'expected the automerge comment, its redelivery, and the status comment to complete'
+end
+
+Then("the reader's status delivery should return HTTP {int} before labeling finishes") do |status|
+  expect(@reader_response.code).to eq(status), 'expected the reader to be denied while the command slot was busy'
+  expect(@label_pending).to be(true), 'expected labeling to still be pending when the reader was denied'
 end
 
 Then('the comment delivery should return HTTP {int}') do |status|

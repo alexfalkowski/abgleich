@@ -106,6 +106,11 @@ sequenceDiagram
     G->>H: Signed comment webhook
     H->>H: Verify delivery via github.Webhook
     H->>D: Dispatch exact /ab command
+    opt Command slot is busy
+        D->>D: Check admission rate and concurrency limits
+        D->>G: Check current write or admin access
+        D->>D: Wait for command slot within delivery deadline
+    end
     D->>G: Validate installation and add receipt reaction
     D->>F: Handle command
     F->>G: Re-read comment and PR<br/>Check permissions

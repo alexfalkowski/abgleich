@@ -25,7 +25,8 @@ func (r Reaction) String() string {
 // AddCommentReaction validates the returned reaction after the command has
 // validated installation ownership.
 func (s *service) AddCommentReaction(ctx context.Context, repo *Repository, comment *IssueComment, content Reaction) error {
-	reaction, _, err := s.client.installation.Reactions.CreateIssueCommentReaction(ctx, repo.GetOwner().GetLogin(), repo.GetName(), comment.GetID(), content.String())
+	reactionCtx := WithLocalBudget(ctx)
+	reaction, _, err := s.client.installation.Reactions.CreateIssueCommentReaction(reactionCtx, repo.GetOwner().GetLogin(), repo.GetName(), comment.GetID(), content.String())
 	if err != nil {
 		return err
 	}

@@ -53,7 +53,7 @@ func NewClient(params ClientParams) (*Client, error) {
 		return nil, errors.Prefix("github: app private key", err)
 	}
 
-	conn, endpoint, err := transporthttp.NewClientFromConfig(cfg.Client,
+	options := []transporthttp.ClientOption{
 		transporthttp.WithClientLifecycle(params.Lifecycle),
 		transporthttp.WithClientFS(params.FS),
 		transporthttp.WithClientTimeout(cfg.GetTimeout()),
@@ -61,9 +61,17 @@ func NewClient(params ClientParams) (*Client, error) {
 		transporthttp.WithClientLogger(params.Logger),
 		transporthttp.WithClientUserAgent(params.UserAgent),
 		transporthttp.WithClientID(params.ID),
-	)
+	}
+	conn, endpoint, err := transporthttp.NewClientFromConfig(cfg.Client, options...)
 	if err != nil {
 		return nil, errors.Prefix("github.client", err)
+	}
+	if cfg.Client.Breaker != nil {
+		local, _, err := transporthttp.NewClientFromConfig(cfg.Client, append(options, transporthttp.WithClientBreaker(nil))...)
+		if err != nil {
+			return nil, errors.Prefix("github.client local budget", err)
+		}
+		conn.Transport = &budgetTransport{RoundTripper: conn.Transport, local: local.Transport}
 	}
 	conn.CheckRedirect = http.SameOriginRedirect
 
@@ -108,6 +116,26 @@ func NewClient(params ClientParams) (*Client, error) {
 type Client struct {
 	installation *github.Client
 	application  *github.Client
+}
+
+type localBudgetKey struct{}
+
+// WithLocalBudget keeps a locally bounded request, including token renewal,
+// outside the shared GitHub circuit breaker.
+func WithLocalBudget(ctx context.Context) context.Context {
+	return context.WithValue(ctx, localBudgetKey{}, true)
+}
+
+type budgetTransport struct {
+	http.RoundTripper
+	local http.RoundTripper
+}
+
+func (t *budgetTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	if req.Context().Value(localBudgetKey{}) == true {
+		return t.local.RoundTrip(req)
+	}
+	return t.RoundTripper.RoundTrip(req)
 }
 
 // GitHub rejects Hookshot user agents on API requests. Clear the inbound
