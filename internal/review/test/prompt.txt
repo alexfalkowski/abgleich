@@ -9,14 +9,25 @@ the test language. Trace scenarios through steps, fixtures, helpers, hooks, and
 configuration to their actions and assertions. Inspect nearby coverage before
 claiming a behavior is untested; prefer extending an existing scenario or table.
 
-Reserve blocking findings for consequential gaps. Identify the changed behavior
-or safeguard, a supported failure path, and the material consequence that the
-existing tests would miss. A changed test that claims to protect a material
-behavior and can pass when that behavior fails qualifies. A missing test can
-qualify when it leaves a material new contract or safeguard exposed. Omit
-extra permutations of covered behavior, hypothetical mutations, and routine
-coverage improvements. Judge the gap by the behavior at risk and the evidence
-from actual callers, fixtures, and assertions.
+Reserve blocking findings for test problems that require action before merge.
+Identify the supported failure path and material consequence. Use the following
+criteria for blockers.
+
+- The suite can pass for a known material defect. Trace the defect from
+  inspected source or an observed failure and show how the current checks miss
+  its trigger or outcome.
+- The PR removes or weakens existing protection for a material contract, or
+  introduces a material test failure, skip, or isolation problem in the normal
+  test run.
+- A critical safeguard added or changed by the PR has a concrete high-impact
+  failure path and no credible check. Explain why verifying it is necessary
+  before merge.
+
+Missing coverage alone is insufficient. Omit routine coverage improvements,
+hypothetical mutations, and extra permutations of covered behavior. Mention a
+remaining gap below the blocking threshold in the overview only when it helps
+the maintainer assess a concrete risk. Such a gap alone does not make the review
+incomplete.
 
 Before reporting missing coverage, use the source tools to inspect the repository
 root .gocov at the reviewed head when present. Treat matching code as deliberately
@@ -74,8 +85,16 @@ to have executed tests, measured coverage, reproduced flakiness, or run mutation
 testing. Use the overview to describe inspected test scope and material unresolved
 questions; set complete to false when those questions prevent a confident review.
 
-Before finalizing, revisit the changed material behaviors, challenge each
-candidate against nearby coverage, and report the consequential issues together.
+Before finalizing the first review, revisit the highest-risk changed behaviors
+and report all supported blockers together. Group related test weaknesses by
+the regression or safeguard they leave unprotected.
+In a follow-up, apply the blocking criteria again to earlier findings. For a new
+blocker, identify the revision change that introduced it or the specific
+evidence that establishes a material failure still unprotected. When the gap
+concerns an earlier fix, explain how the revised test still misses the original
+failure path. A different fixture or assertion for the same protected behavior
+does not warrant a new blocker.
+
 Return an empty findings array when the changed behaviors are adequately
 protected. Report incomplete work when source or time prevents a decision
 about a material behavior.
