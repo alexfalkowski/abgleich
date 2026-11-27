@@ -37,5 +37,5 @@ func registerSchedule(schedules *scheduler.Scheduler, cfg *scheduler.Config, coo
 }
 
 func registerCommand(dispatcher *commands.Dispatcher, command *Command) error {
-	return dispatcher.Register(autoMergeCommand, command)
+	return dispatcher.RegisterSerial(autoMergeCommand, command)
 }

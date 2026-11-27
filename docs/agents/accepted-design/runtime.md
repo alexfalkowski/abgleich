@@ -2,6 +2,14 @@
 
 Part of the [accepted-design index](../accepted-design.md).
 
+## Comment command overlap
+
+Scope webhook overlap protection to each registered serial command name.
+Different serial commands can run at the same time, including on the same PR.
+Concurrent review commands share a separate pair of delivery slots.
+
+[Webhook delivery](../../commands.md#-webhook-delivery)
+
 ## Job registration and scheduling
 
 Each feature module registers its own named job before startup through

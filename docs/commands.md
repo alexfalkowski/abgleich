@@ -61,8 +61,19 @@ unauthorized commands 403, and API failures, conflicts, or timeouts non-success 
 Repository notifications queue without waiting for GitHub; 204 confirms queue
 acceptance, not a completed check. Monitor event-check logs for the later outcome.
 
-Each process handles one command at a time; concurrent commands receive 503.
-Automerge and status finish within the request; summaries and reviews queue in memory and release the command slot before inference.
+Automerge, status, and summary each have one delivery slot per process. An
+overlapping delivery of the same command returns HTTP 503. Different commands
+can run together, including on the same PR.
+Automerge and status finish within the request. Summaries queue in memory and
+run inference in the background.
+
+The four review commands share two webhook delivery slots per process. A
+review delivery returns HTTP 503 before calling GitHub when both slots are in
+use. Review deliveries check authorization independently and run inference in
+the background. A review that needs a new queue entry also returns HTTP 503
+when its feature's queue is full. Automerge, status, and summary retain their
+own delivery slots when both review slots are in use.
+
 Authenticated API requests run independently, so a slow background request does
 not block command processing. Token acquisition is serialized, and the delivery
 deadline also bounds waiting for token renewal. Polling continues without webhooks;

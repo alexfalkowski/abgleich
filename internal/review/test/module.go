@@ -10,7 +10,7 @@ import (
 var Module = signal.Module(signal.Constructor(NewCommand), signal.Register(registerCommand, registerSchedule))
 
 func registerCommand(dispatcher *commands.Dispatcher, command *Command) error {
-	return dispatcher.Register(testReviewCommand, command)
+	return dispatcher.RegisterConcurrent(testReviewCommand, command)
 }
 
 func registerSchedule(schedules *scheduler.Scheduler, command *Command) error {

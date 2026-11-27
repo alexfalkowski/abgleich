@@ -11,6 +11,12 @@ write or admin permission, and an open, non-draft PR with both branches in
 the repository. Eligibility is independent of topics, `hold`, and auto-merge
 settings.
 
+Authorize review deliveries independently. Share two webhook delivery slots
+across all review commands and return HTTP 503 before calling GitHub when both
+are occupied. Keep the serial commands' delivery slots independent. Bound
+accepted work in each feature's queue and keep inference independent of the
+webhook.
+
 `/ab review` requests every enabled review constructed by `workflow.Factory`.
 Keep the original aggregate comment as consent at every recheck. Preserve
 per-feature queues, jobs, results, and deduplication across aggregate and

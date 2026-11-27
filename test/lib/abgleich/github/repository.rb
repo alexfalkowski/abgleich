@@ -45,7 +45,7 @@ module Abgleich
       @mutex.synchronize do
         @generation = (@generation || 0) + 1
         @state = { failure: nil, scans: 0, pagination: false, pulls: {}, behind: {}, original: {}, updates: [], details: Hash.new(0),
-                   repositories: {}, repository_failures: {}, repository_pagination: false, discovery_complete: false,
+                   repositories: {}, repository_failures: {}, repository_pagination: false, discovery_complete: false, request_paths: {},
                    login: 'alexfalkowski', listed: {}, automation_pagination: false, statuses: {}, checks: {}, ci_pages: false,
                    file_mode: nil, branches: {}, commits: {}, deletions: [], branch_pages: false, branch_listed: {}, cleanup_mode: nil,
                    token_requests: 0, token_lifetime: 3600, comments: {}, replies: [], reply_requests: 0, label_requests: 0 }
@@ -72,7 +72,55 @@ module Abgleich
       @mutex.synchronize { @state[:repository_failures][repository] || @state[:failure] }
     end
 
+    def request_paths_for(request_id)
+      @mutex.synchronize { @state[:request_paths].fetch(request_id, []).dup }
+    end
+
+    def record_request_path(request_id, path)
+      return unless request_id
+
+      @mutex.synchronize { (@state[:request_paths][request_id] ||= []) << path }
+    end
+
+    # Pause selected API calls and let the test observe arrival before continuing.
+    def with_paused_requests(*requests)
+      gates = requests.to_h { |request| [request, [Queue.new, Queue.new]] }
+      @mutex.synchronize { @state[:request_gates] = gates }
+      yield
+    ensure
+      @mutex.synchronize { @state.delete(:request_gates) }
+      gates.each_value { |_arrival, release| release.close }
+    end
+
+    def wait_for_paused_request(*request)
+      arrival, = @mutex.synchronize { @state.fetch(:request_gates).fetch(request) }
+      raise "GitHub did not receive #{request.join(' ')}" unless arrival.pop(timeout: 5)
+    end
+
+    def read_comment(id)
+      pause_request(:comment, id)
+      comment(id)
+    end
+
+    def read_discussion(repository, number)
+      pause_request(:discussion, number)
+      issue_comments(repository, number)
+    end
+
+    def apply_requested_labels(repository, number, labels)
+      pause_request(:label, number)
+      request_labels(repository, number, labels)
+    end
+
     private
+
+    def pause_request(*request)
+      arrival, release = @mutex.synchronize { @state.dig(:request_gates, request) }
+      return unless arrival
+
+      arrival.push(true)
+      release.pop(timeout: 5)
+    end
 
     def discovered?(pull)
       @state[:discovery_complete] && @state[:listed][pull.dig(:base, :repo, :full_name)]

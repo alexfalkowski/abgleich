@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 World(Abgleich::Assertions)
+World(Abgleich::WebhookAssertions)
 World(Abgleich::ReviewContext)
 
 RSpec.configure do |config|

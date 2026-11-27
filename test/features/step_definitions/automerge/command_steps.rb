@@ -128,6 +128,22 @@ When('GitHub delivers the same automerge comment concurrently') do
   expect(@comment_response).not_to be_nil, 'expected one concurrent command to complete'
 end
 
+When('a second {string} request arrives during an active delivery and is retried later') do |command|
+  Abgleich.github.add_pull('another-contribution', auto_merge: false, current: true)
+  first = Abgleich.github.add_comment('contribution', body: "/ab #{command}")
+  @comment_event = Abgleich.github.add_comment('another-contribution', body: "/ab #{command}")
+  comment_id = @comment_event.fetch(:comment).fetch('id')
+  Nonnative.start
+
+  while_webhooks_wait_for_github([first, [:comment, first.fetch(:comment).fetch('id')]]) do
+    @busy_response = Abgleich.deliver_comment(@comment_event)
+    @busy_reactions = Abgleich.github.comment_reactions(comment_id)
+  end
+
+  expect(Abgleich.github.comment_reactions(first.fetch(:comment).fetch('id'))).to eq(%w[eyes +1])
+  @comment_response = Abgleich.deliver_comment(@comment_event)
+end
+
 When('GitHub redelivers an automerge comment whose first response was lost') do
   @comment_event = Abgleich.github.add_comment('contribution', body: '/ab automerge')
   Nonnative.start
@@ -145,6 +161,11 @@ end
 
 Then('the comment delivery should return HTTP {int}') do |status|
   expect(@comment_response.code).to eq(status), "expected comment delivery HTTP #{status}, got #{@comment_response.code}"
+end
+
+Then('the overlapping command should return HTTP 503 without feedback') do
+  expect(@busy_response.code).to eq(503), 'expected the occupied command slot to reject the overlapping delivery'
+  expect(@busy_reactions).to be_empty, 'expected rejection before GitHub reaction feedback'
 end
 
 Then(/^exactly (\d+) label requests? should reach GitHub$/) do |count|
