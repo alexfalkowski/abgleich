@@ -11,53 +11,64 @@ import (
 
 const (
 	maxReceiptTimeout = time.Second
+	// Concurrent command names share two slots for webhook processing.
+	concurrentCommandSlots = 2
 
 	// Leave most of the delivery deadline for authorization and the action.
 	receiptTimeoutDivisor = 4
 )
 
+type registeredCommand struct {
+	handler Handler
+	slots   *sync.Semaphore
+}
+
 // NewDispatcher constructs synchronous PR comment dispatch with no commands.
 // Feature modules register their handlers before the application starts.
 func NewDispatcher(service github.Service) *Dispatcher {
-	return &Dispatcher{github: service, handlers: make(map[string]Handler)}
+	return &Dispatcher{
+		github:     service,
+		commands:   make(map[string]registeredCommand),
+		concurrent: sync.NewSemaphore(concurrentCommandSlots),
+	}
 }
 
 // Dispatcher selects handlers by exact command name and supplies shared
-// installation validation and reaction feedback. Concurrent commands are
-// rejected while another is running; no work is queued or retried.
+// installation validation and reaction feedback. Each serial command has
+// its own execution slot. Concurrent commands share a bounded set of slots.
 type Dispatcher struct {
-	github   github.Service
-	handlers map[string]Handler
-	mutex    sync.Mutex
+	github     github.Service
+	commands   map[string]registeredCommand
+	concurrent *sync.Semaphore
 }
 
-// Register adds a handler under a single command name without arguments.
-// Register before serving deliveries. Duplicate names wrap ErrCommandRegistered
-// and leave the existing handler intact.
-func (d *Dispatcher) Register(name string, handler Handler) error {
-	if _, ok := d.handlers[name]; ok {
-		return fmt.Errorf("%w: %s", ErrCommandRegistered, name)
-	}
+// RegisterSerial adds a handler that admits one delivery of its command name at a time.
+// Register before serving deliveries. Duplicate names wrap [ErrCommandRegistered]
+// and leave the existing registration intact.
+func (d *Dispatcher) RegisterSerial(name string, handler Handler) error {
+	return d.register(name, registeredCommand{handler: handler, slots: sync.NewSemaphore(1)})
+}
 
-	d.handlers[name] = handler
-
-	return nil
+// RegisterConcurrent adds a handler that draws from the shared concurrent slots.
+// The handler must support overlapping deliveries of the same name. The naming
+// and startup rules from [Dispatcher.RegisterSerial] apply.
+func (d *Dispatcher) RegisterConcurrent(name string, handler Handler) error {
+	return d.register(name, registeredCommand{handler: handler, slots: d.concurrent})
 }
 
 // Handle dispatches a verified PR comment within the caller's deadline.
-// Unknown commands are ignored without feedback. A recognized command returns
-// ErrCommandInProgress when busy, or its handler's complete outcome otherwise.
+// Unknown commands are ignored without feedback. When all applicable slots are
+// occupied, it returns [ErrCommandInProgress] before making any GitHub calls.
 func (d *Dispatcher) Handle(ctx context.Context, event *github.IssueCommentEvent) error {
-	handler, ok := d.handlers[Parse(event.GetComment().GetBody())]
+	command, ok := d.commands[Parse(event.GetComment().GetBody())]
 	if !ok {
 		return nil
 	}
 
-	if !d.mutex.TryLock() {
+	if !command.slots.TryAcquire(1) {
 		return ErrCommandInProgress
 	}
-
-	defer d.mutex.Unlock()
+	defer command.slots.Release(1)
 
 	if err := d.github.ValidateInstallation(ctx); err != nil {
 		return err
@@ -65,10 +76,20 @@ func (d *Dispatcher) Handle(ctx context.Context, event *github.IssueCommentEvent
 
 	d.acknowledgeReceipt(ctx, event)
 
-	accepted, err := handler.Handle(ctx, event)
+	accepted, err := command.handler.Handle(ctx, event)
 	d.reportOutcome(ctx, event, accepted)
 
 	return err
+}
+
+func (d *Dispatcher) register(name string, command registeredCommand) error {
+	if _, ok := d.commands[name]; ok {
+		return fmt.Errorf("%w: %s", ErrCommandRegistered, name)
+	}
+
+	d.commands[name] = command
+
+	return nil
 }
 
 func (d *Dispatcher) acknowledgeReceipt(ctx context.Context, event *github.IssueCommentEvent) {

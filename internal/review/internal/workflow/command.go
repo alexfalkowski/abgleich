@@ -60,8 +60,8 @@ type Command struct {
 	profile     ReviewProfile
 }
 
-// Handle refreshes human consent and queues one revision-specific review. A full
-// queue preserves existing command backpressure; inference never holds the slot.
+// Handle refreshes human consent and queues one revision-specific review.
+// A full queue returns [commands.ErrCommandInProgress].
 // A nil Command represents a disabled feature and declines the request.
 func (c *Command) Handle(ctx context.Context, event *github.IssueCommentEvent) (bool, error) {
 	if c == nil {

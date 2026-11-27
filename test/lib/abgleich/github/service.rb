@@ -67,6 +67,7 @@ module Abgleich
     reset_request_counts
 
     before do
+      Abgleich.github.record_request_path(request.env['HTTP_REQUEST_ID'], request.path_info)
       @graphql_payload = JSON.parse(request.body.read) if request.post? && request.path_info == '/graphql'
       mutation = request.put? || (request.path_info.end_with?('/labels') && request.post?) ||
                  @graphql_payload&.fetch('query')&.start_with?('mutation ')

@@ -89,9 +89,11 @@ run reconciles fresh remote state; pending summary and review requests are held 
   and inspection records, and applies the workflow's consent and revision guard
   before every source tool call. Keep registry selection independent of provider
   implementations.
-- Feature modules register named comment handlers through `commands.Dispatcher.Register`
-  before startup. Keep each handler in its owning feature package; `commands`
-  stays independent of features. Use exact names with the `/ab` prefix.
+- Feature modules register named comment handlers before startup. Use
+  `commands.Dispatcher.RegisterConcurrent` for review commands and
+  `commands.Dispatcher.RegisterSerial` for other commands. Keep each handler in its
+  owning feature package and keep `commands` independent of features.
+  Use exact names with the `/ab` prefix.
   Use `commands.Authorizer` for fresh human comment identity, exact command,
   edit status, and write/admin permission checks. Keep PR eligibility and
   feature-specific consent history in the feature, and repeat authorization at

@@ -3,6 +3,14 @@
 module Abgleich
   # Review request setup and checks shared by Cucumber step definitions.
   module ReviewContext
+    def all_review_deliveries
+      commands = { 'review' => %w[code security test], 'codereview' => %w[code], 'secreview' => %w[security], 'testreview' => %w[test] }
+      commands.map do |command, kinds|
+        Abgleich.github.add_pull(command, auto_merge: false, current: true)
+        [command, kinds, Abgleich.github.add_comment(command, body: "/ab #{command}")]
+      end
+    end
+
     def queue_review(kind, branch: 'contribution')
       Nonnative.start
       event = Abgleich.github.add_comment(branch, body: "/ab #{review_command(kind)}")

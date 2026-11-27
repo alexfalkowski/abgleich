@@ -14,6 +14,13 @@ Feature: Maintainer-requested summaries
     And the operator should see that summary generation succeeded
     And the summary should leave pull request automation unchanged
 
+  Scenario: Request a summary and automerge together
+    Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
+    When a maintainer requests a summary while an automerge request is in progress
+    Then the comment delivery should return HTTP 204
+    And exactly 1 label request should reach GitHub
+    And the summary should identify the request and the pull request revision
+
   Scenario Outline: Decline fork contributions without generating a summary
     Given a pull request from "a fork" for branch "contribution" is "<condition>"
     When a maintainer with "write" access comments "/ab summarise"

@@ -142,8 +142,10 @@ source providers construct their own outbound connections from their
 
 ## 🗓️ Job registration
 
-Features register unique names through `Scheduler.Register` and
-`commands.Dispatcher.Register` before startup; duplicates prevent startup.
+Features register jobs before startup through `Scheduler.Register` or
+`Scheduler.RegisterTriggered`. They register review commands through
+`commands.Dispatcher.RegisterConcurrent` and other comment commands through
+`commands.Dispatcher.RegisterSerial`. Duplicate names prevent startup.
 The feature-independent [`scheduler`](../internal/scheduler/doc.go) runs each job
 immediately, then on its own interval and deadline. Handlers observe cancellation
 and return complete outcomes. Manual review requests also wake their existing job;

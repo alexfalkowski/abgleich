@@ -103,6 +103,20 @@ Feature: Comment requests for auto-merge
     Then the comment delivery should return HTTP 204
     And exactly 1 label request should reach GitHub
 
+  Scenario Outline: Reject an overlapping delivery of the same command
+    Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
+    And AI summaries are configured for this repository
+    When a second "<command>" request arrives during an active delivery and is retried later
+    Then the overlapping command should return HTTP 503 without feedback
+    And the comment delivery should return HTTP 204
+    And the command comment should show "receipt and acceptance" feedback
+
+    Examples:
+      | command   |
+      | automerge |
+      | status    |
+      | summarise |
+
   Scenario: An existing label needs no new authorization request
     Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
     And branch "contribution" has the "automerge" label

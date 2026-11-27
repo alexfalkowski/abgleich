@@ -12,5 +12,5 @@ var Module = signal.Module(
 )
 
 func registerCommand(dispatcher *commands.Dispatcher, command *Command) error {
-	return dispatcher.Register(statusCommand, command)
+	return dispatcher.RegisterSerial(statusCommand, command)
 }

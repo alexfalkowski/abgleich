@@ -23,5 +23,5 @@ var Module = signal.Module(
 )
 
 func registerCommand(dispatcher *commands.Dispatcher, factory *workflow.Factory) error {
-	return dispatcher.Register(workflow.ReviewCommand, factory)
+	return dispatcher.RegisterConcurrent(workflow.ReviewCommand, factory)
 }

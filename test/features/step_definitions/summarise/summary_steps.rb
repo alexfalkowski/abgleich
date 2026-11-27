@@ -237,6 +237,19 @@ When('a reader requests a summary') do
   @comment_response = Abgleich.deliver_comment(@comment_event)
 end
 
+When('a maintainer requests a summary while an automerge request is in progress') do
+  automerge = Abgleich.github.add_comment('contribution', body: '/ab automerge')
+  @comment_event = Abgleich.github.add_comment('contribution', body: '/ab summarise')
+  Nonnative.start
+
+  while_webhooks_wait_for_github([automerge, [:label, automerge.fetch(:issue).fetch(:number)]]) do
+    @comment_response = Abgleich.deliver_comment(@comment_event)
+    expect(Abgleich.github.label_requests).to eq(0), 'expected the summary delivery to return before the label was applied'
+  end
+
+  expect(Abgleich.github.comment_reactions(automerge.fetch(:comment).fetch('id'))).to eq(%w[eyes +1])
+end
+
 When('a maintainer requests status while waiting for a summary') do
   event = Abgleich.github.add_comment('contribution', body: '/ab summarise')
   Nonnative.start

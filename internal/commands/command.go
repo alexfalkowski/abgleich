@@ -9,6 +9,7 @@ import (
 // Handler owns a named command's authorization and action. Handle must re-read
 // the current comment and target state before acting, observe cancellation, and
 // return whether the request was accepted. The dispatcher supplies feedback.
+// Handlers registered with [Dispatcher.RegisterConcurrent] must support overlapping calls.
 type Handler interface {
 	// Handle revalidates the comment, current permissions, and target state before
 	// acting. It observes cancellation and returns whether the request was accepted

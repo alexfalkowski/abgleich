@@ -42,6 +42,62 @@ ensure
   Abgleich.github.fail_with(nil)
 end
 
+When('maintainers request reviews while status and another review request are in progress') do
+  @review_deliveries = all_review_deliveries
+  status = Abgleich.github.add_comment('contribution', body: '/ab status')
+  first_review = Abgleich.github.add_comment('contribution', body: '/ab review')
+  Nonnative.start
+
+  while_webhooks_wait_for_github([status, [:comment, status.fetch(:comment).fetch('id')]],
+                                 [first_review, [:discussion, first_review.fetch(:issue).fetch(:number)]]) do
+    @review_deliveries.each do |branch, _kinds, event|
+      expect(Abgleich.deliver_comment(event).code).to eq(204), "expected the review request for #{branch} to be accepted during the overlap"
+    end
+  end
+
+  expect(Abgleich.github.comment_reactions(status.fetch(:comment).fetch('id'))).to eq(%w[eyes +1])
+  @review_deliveries.unshift(['contribution', %w[code security test], first_review])
+end
+
+When('two review requests are waiting for GitHub and maintainers submit more commands') do
+  @review_deliveries = all_review_deliveries
+  pending, competing = @review_deliveries.partition { |command, _kinds, _event| %w[review codereview].include?(command) }
+  paused = pending.map { |_command, _kinds, event| [event, [:discussion, event.fetch(:issue).fetch(:number)]] }
+  status = Abgleich.github.add_comment('contribution', body: '/ab status')
+  Nonnative.start
+
+  while_webhooks_wait_for_github(*paused) do
+    competing.each do |command, _kinds, event|
+      response = Abgleich.deliver_comment(event)
+      expect(response.code).to eq(503), "expected /ab #{command} to be declined while both review slots are occupied"
+      paths = Abgleich.github.request_paths_for(response.headers.fetch(:request_id))
+      expect(paths).to be_empty, "expected rejected /ab #{command} to make no GitHub calls"
+      expect(Abgleich.github.comment_reactions(event.fetch(:comment).fetch('id'))).to be_empty, "expected no feedback for /ab #{command}"
+    end
+    expect(Abgleich.deliver_comment(status).code).to eq(204), 'expected status to be available during review overload'
+    expect(Abgleich.github.comment_reactions(status.fetch(:comment).fetch('id'))).to eq(%w[eyes +1])
+  end
+
+  competing.each do |command, _kinds, event|
+    response = Abgleich.deliver_comment(event)
+    expect(response.code).to eq(204), "expected /ab #{command} to be accepted after the review slots reopened"
+    paths = Abgleich.github.request_paths_for(response.headers.fetch(:request_id))
+    expect(paths).to include("/app/installations/#{Abgleich::INSTALLATION_ID}"), "expected installation validation for /ab #{command}"
+  end
+end
+
+Then('every requested review should be published') do
+  @review_deliveries.each do |branch, kinds, event|
+    comment_id = event.fetch(:comment).fetch('id')
+    expect(Abgleich.github.comment_reactions(comment_id)).to eq(%w[eyes +1]), "expected acceptance feedback for #{branch}"
+    pull = Abgleich.github.pull_state(branch)
+    kinds.each do |kind|
+      body = wait_for_requested_review(kind, event).fetch(:body)
+      expect(body).to include(pull.dig(:head, :sha), pull.dig(:base, :sha))
+    end
+  end
+end
+
 Then('each configured review should have exactly one result') do
   %w[code security].each do |kind|
     expect_review_check(kind)

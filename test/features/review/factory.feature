@@ -26,6 +26,20 @@ Feature: Request every configured review
     And the test review should identify the request and revisions
     And exactly 3 requests should reach the AI service
 
+  Scenario: Accept overlapping review requests for different pull requests
+    Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
+    And all three review commands are enabled
+    When maintainers request reviews while status and another review request are in progress
+    Then every requested review should be published
+    And exactly 9 requests should reach the AI service
+
+  Scenario: Keep status available when review requests are at capacity
+    Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
+    And all three review commands are enabled
+    When two review requests are waiting for GitHub and maintainers submit more commands
+    Then every requested review should be published
+    And exactly 6 requests should reach the AI service
+
   Scenario: Reuse an individual review while requesting the remaining reviews
     Given a pull request from "the repository" for branch "contribution" is "waiting for checks"
     And the pull request has already received a code review

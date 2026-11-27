@@ -50,7 +50,7 @@ module Abgleich
       halt 404 if Abgleich.github.failure == 'review deleted comment'
       halt 503 if Abgleich.github.failure&.delete_prefix('final authorization:') == 'an unavailable command comment'
       sleep 3 if Abgleich.github.failure == 'comment timeout'
-      comment = Abgleich.github.comment(params.fetch('id').to_i)
+      comment = Abgleich.github.read_comment(params.fetch('id').to_i)
       comment['updated_at'] = '2026-01-01T00:00:06Z' if Abgleich.github.failure == 'final authorization:an edited comment'
       comment.to_json
     end
@@ -103,7 +103,7 @@ module Abgleich
 
       repository = "#{params.fetch('owner')}/#{params.fetch('repository')}"
       number = params.fetch('number')
-      comments = Abgleich.github.issue_comments(repository, number.to_i)
+      comments = Abgleich.github.read_discussion(repository, number.to_i)
       if page * per_page < comments.length
         url = "http://localhost:11001/github/repos/#{repository}/issues/#{number}/comments"
         headers 'Link' => "<#{url}?page=#{page + 1}&per_page=#{per_page}>; rel=\"next\""
@@ -167,7 +167,7 @@ module Abgleich
       sleep 1 if Abgleich.github.failure == 'a delayed label update'
       repository = "#{params.fetch('owner')}/#{params.fetch('repository')}"
       labels = JSON.parse(request.body.read)
-      result = Abgleich.github.request_labels(repository, params.fetch('number').to_i, labels)
+      result = Abgleich.github.apply_requested_labels(repository, params.fetch('number').to_i, labels)
       halt 503 if Abgleich.github.failure == 'lost label response'
       result.to_json
     end
