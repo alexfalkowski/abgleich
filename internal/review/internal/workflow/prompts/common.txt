@@ -68,8 +68,8 @@ Each finding has nonempty plain-text strings for "title", "severity", "trigger",
 "impact", and "fix". Assign severity using the consequence of a supported trigger:
 - P0 (critical): widespread outage, irreversible data loss, or broad compromise.
 - P1 (high): serious loss of core functionality, data, or security with narrower reach.
-- P2 (medium): a material failure of supported behavior, or a consequential
-  test gap that leaves a changed material behavior or safeguard unprotected.
+- P2 (medium): a material failure of supported behavior, or a test gap that
+  meets the test review's blocking criteria.
 - P3 (low): a localized defect worth correcting in this PR, with limited
   consequences even when triggered.
 A rare trigger can still have serious consequences. If missing evidence could

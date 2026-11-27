@@ -135,10 +135,11 @@ broad use, evaluate approved PRs with known ineffective assertions, missing
 behavior coverage, isolation/lifecycle failures, and clean controls. Include
 Go and Ruby/Cucumber harnesses, production-only changes already covered by
 existing scenarios, and behavior-preserving changes that need no additional tests.
-Include an HTTP-only suite with both missing server-rendered assertions and a
-browser-only recovery path checked manually. Expect findings for the actionable
-assertions and an advisory note for the browser coverage gap. Pair it with an
-established browser suite that can cover the regression.
+Include an HTTP-only suite with both a server-rendered assertion that misses a
+known regression and a browser-only recovery path checked manually. Expect a
+blocker for the missed regression and an advisory note if the browser coverage
+gap leaves a concrete risk. Pair it with an established browser suite that can
+cover the regression.
 Include `.gocov` exclusions already present or added by the PR, regex patterns,
 and changes mixing excluded code with genuine test gaps in other paths. Expect no
 missing-test demands for excluded code, while retaining findings for ineffective
@@ -151,8 +152,10 @@ token usage. Live evaluation requires separate authorization and never runs in C
 For prompt comparisons, freeze the original PR head/base and both prompts, then
 repeat reviews with the same model, effort, source tools, and conversation
 deadline. Keep expected findings and grading notes out of model inputs. Measure
-how many confirmed gaps are found in the first review, misses, false positives,
-and variation between runs, alongside latency and token usage. Distinguish gaps
-already present in the original revision from issues introduced by later fixes.
+how many confirmed blockers are found in the first review, how many follow-ups
+request changes, misses, false positives, and variation between runs, alongside
+latency and token usage. Distinguish repeated blockers for the same behavior
+from issues introduced by later fixes. Include test-only follow-ups that fix
+the original regression check as well as ones that still miss its failure path.
 Include fresh PRs and clean controls beyond the examples used to develop the
 prompt; fewer findings or earlier approval alone does not demonstrate improvement.

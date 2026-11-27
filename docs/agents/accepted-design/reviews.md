@@ -57,6 +57,13 @@ complete assessment, earlier blockers accounted for, and all required text
 patches and repository source available. Otherwise publish a comment without
 a success marker so a new request can retry.
 
+Test review requests changes for a missed known material regression, weakened
+protection for a material contract, a material failure of the test run, or an
+unverified critical safeguard with a concrete high-impact failure path. Use
+the overview for other concrete risks and omit routine coverage suggestions.
+Reassess earlier blockers under the same criteria and require evidence that a
+material failure remains unprotected before blocking on another test gap.
+
 Publish one native review pinned to the reviewed head. Open a separate inline
 conversation for each new P0 through P2 finding that can be placed on the
 fetched patch. List inline blockers below the decision alongside findings

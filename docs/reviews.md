@@ -288,10 +288,18 @@ production behavior. It traces the real caller-facing behavior through the
 repository's existing harness, fixtures, helpers, hooks, and assertions. It checks
 assertions, fixtures, determinism, and isolation where they affect the
 reliability of checks for changed behavior. It searches nearby coverage before
-claiming a gap. A blocking test finding needs a supported failure path and a
-material consequence that the current tests could miss. A changed assertion that
-allows an unauthorized action to pass can qualify. Routine variants of already
-covered behavior are left out.
+claiming a gap. A blocking finding needs a supported failure path and a reason
+to address it before merge. This includes a test suite that can pass for
+a known material defect, lost protection for a material contract, a materially
+broken test run, or a critical safeguard with a concrete high-impact failure
+path and no credible check. The overview can note other concrete risks, and
+routine coverage suggestions are omitted.
+
+The first review groups blockers by the regression or safeguard they concern.
+On follow-ups, the reviewer applies the current criteria to earlier findings.
+A new blocker identifies the revision change that introduced it or the evidence
+that a material failure remains unprotected. When an earlier fix still misses
+the original failure path, the finding explains how.
 
 Missing-test findings identify an established test layer that can exercise the
 regression or cite a PR requirement for automated coverage at a new layer.
