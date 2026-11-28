@@ -89,7 +89,11 @@ triggers include attacker-controlled input and prerequisites. A review with no
 supported findings still publishes its overview. Review prompts prioritize
 concrete issues that matter to the current PR. The overview can briefly mention
 a concrete risk that belongs to separate work when it helps the maintainer
-make a decision.
+make a decision. Reviews check trade-offs and verification limits acknowledged
+in the PR description against inspected source and repository requirements. The
+overview can credit reported validation and explain an accepted limit and its
+remaining risk. Independently supported defects and unmet requirements remain
+findings even when the description acknowledges them.
 The worker selects the verdict from the structured result:
 
 | Assessment | GitHub verdict |
@@ -100,10 +104,10 @@ The worker selects the verdict from the structured result:
 
 The model assigns severity from the consequence of a supported trigger. P3
 covers localized defects worth correcting in the current PR. P2 covers material
-failures of supported behavior and consequential gaps in protection for a
-changed material behavior or safeguard. If missing evidence could move a
-finding across this boundary, the prompt tells the model to report the review
-as incomplete.
+failures of supported behavior and test gaps that meet the [test-review blocking
+criteria](#-ai-test-reviews). Standalone regression-coverage gaps belong to test
+review. If missing evidence could move a finding across this boundary, the
+prompt tells the model to report the review as incomplete.
 
 The overview shows the worker's assessment and decision separately from model
 prose, with ✅ for approval, ❗ for requested changes, and ⚠️ for comments.
@@ -305,7 +309,9 @@ Missing-test findings identify an established test layer that can exercise the
 regression or cite a PR requirement for automated coverage at a new layer.
 Gaps that require new test infrastructure, such as a browser runner for an
 HTTP-only suite, can appear in the overview when they help assess a concrete
-remaining risk. Reported manual checks can provide validation evidence.
+remaining risk. Reported manual checks can provide validation evidence for the
+reviewed change. The reviewer assesses any remaining automation gap against
+the blocking criteria.
 
 Correct library registration and direct configuration forwarding do not require
 dedicated tests merely because removing that wiring would leave existing tests

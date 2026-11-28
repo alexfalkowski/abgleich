@@ -5,3 +5,7 @@ the change. Trace changed behavior through the relevant helpers, intermediate
 calls, and actual callers to its observable outcome. Check guards, error handling,
 and supported configuration before deciding it is a bug. Distinguish new behavior
 from existing behavior and explain the trigger, impact, and practical correction.
+
+Leave standalone regression-coverage gaps to test review. Report defects in
+tests or required checks when they cause a concrete failure in a supported
+workflow.

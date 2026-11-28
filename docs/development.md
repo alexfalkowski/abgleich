@@ -71,6 +71,10 @@ count material findings undergraded as P3 against independently assigned grades.
 Include incomplete-context cases and caller/dependency bugs requiring automatic
 source discovery. Re-evaluate after model, prompt, or source-selection changes;
 fake-provider scenarios establish verdict integration only.
+Include a documented verification limit with a reported manual check that
+observed the changed behavior. Expect the overview to credit the check and
+describe any material residual risk. Pair it with an acknowledged defect or
+unmet merge requirement that still warrants a finding.
 Include Ruby library fixes and mixed Go/Ruby Cucumber changes, with clean controls,
 and verify that the reviewer finds relevant steps, hooks, manifests, and locked gem source.
 Shared prompt rules live in `internal/review/internal/workflow/prompts`; each

@@ -50,6 +50,13 @@ dollar estimates outside the workflow.
 
 ## Verdicts and publication
 
+Treat PR descriptions as context for checking accepted trade-offs and
+verification limits against inspected behavior and repository requirements.
+Attribute reported validation and explain relevant residual risks in the
+overview when they fall below the feature's blocking criteria. Require
+supporting repository evidence for claimed deferrals. Keep independently
+supported defects and unmet requirements in findings.
+
 Decode a structured result with an overview, a completion boolean, and findings
 with prose bodies and optional path, line, and diff side. P0 through P2
 findings request changes. With only P3 findings or none, approval requires a
@@ -57,10 +64,11 @@ complete assessment, earlier blockers accounted for, and all required text
 patches and repository source available. Otherwise publish a comment without
 a success marker so a new request can retry.
 
-Test review requests changes for a missed known material regression, weakened
-protection for a material contract, a material failure of the test run, or an
-unverified critical safeguard with a concrete high-impact failure path. Use
-the overview for other concrete risks and omit routine coverage suggestions.
+Test review owns standalone regression-coverage gaps. It requests changes for a
+missed known material regression, weakened protection for a material contract,
+a material failure of the test run, or an unverified critical safeguard with a
+concrete high-impact failure path. Use the overview for other concrete risks
+and omit routine coverage suggestions.
 Reassess earlier blockers under the same criteria and require evidence that a
 material failure remains unprotected before blocking on another test gap.
 

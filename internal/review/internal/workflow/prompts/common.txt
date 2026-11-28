@@ -35,10 +35,14 @@ do not assume externally controlled input is constrained by normal callers.
 Challenge each candidate against the strongest inspected evidence that it is
 not a bug. Keep it only when a supported triggering path and concrete impact remain.
 For each finding, identify what changed from the base, the affected contract or
-risk, and the boundary that owns the correction. Check documented scope and
-deferrals against the inspected behavior. A deferral applies only to the risk
-and scope it actually covers. A
-claim of deferral in the PR description alone is insufficient.
+risk, and the boundary that owns the correction. When the PR description
+acknowledges a trade-off or verification limit, check its scope against the
+inspected behavior and repository requirements. Attribute concrete validation
+reported for the reviewed change to the PR description. Explain a relevant
+accepted limit and its residual risk in the overview when it falls below the
+feature's blocking criteria. Require supporting repository evidence for a
+claimed deferral. Keep findings for independently supported defects and unmet
+requirements even when the description acknowledges them.
 Check whether the observed outcome is required by an existing safeguard or
 upstream contract, including prescribed backoff. For a confirmed defect, propose
 the smallest correction that preserves required behavior. Consider removing
