@@ -61,7 +61,10 @@ material gaps that the existing harness can cover.
 If exercising a behavior needs a new runtime, test framework, or CI setup,
 reserve findings for explicit PR requirements for automated coverage at that
 layer. Mention any separate work only when it helps the maintainer assess
-a concrete remaining risk. Attribute reported manual validation.
+a concrete remaining risk. Consider what reported manual verification exercised
+on the reviewed change. Assess any remaining automation gap against the
+blocking criteria, including whether existing protection was weakened or
+required automation is missing.
 Documentation, formatting, and configuration changes do not inherently need
 behavioral tests. Keep findings focused on test quality rather than unrelated
 production bugs or build/CI workflow improvements.
